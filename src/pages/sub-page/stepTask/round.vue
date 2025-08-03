@@ -3,21 +3,13 @@
     <view class="container">
       <view v-if="data.stepSign" class="search-wrap m-bottom-30">
         <view class="search flex-c m-right-12">
-          <input
-            placeholder="请输入对方的问题"
-            class="m-left-20 input"
-            placeholder-style="color: #FC9382;"
-          />
+          <input placeholder="请输入对方的问题" class="m-left-20 input" placeholder-style="color: #FC9382;" />
         </view>
         <md-icon name="search_btn" width="76" height="76"></md-icon>
       </view>
       <!-- 大CD倒计时 -->
       <view class="m-bottom-30" v-if="data.stepSign === 'lookfor'">
-        <bc-countdown
-          :time="data.detail?.endTime"
-          :desc="data.cdMsg"
-          @timeup="cdTimeup"
-        />
+        <bc-countdown :time="data.detail?.endTime" :desc="data.cdMsg" @timeup="cdTimeup" />
       </view>
       <!-- 问题列表 -->
       <block v-if="['d', 'z'].includes(data.stepSign)">
@@ -25,18 +17,8 @@
       </block>
       <!-- 三个状态圆圈 -->
       <view class="status flex-c m-bottom-30">
-        <view
-          class="circle_status status_z flex-c"
-          v-if="data.stepSign === 'z'"
-          @click="() => handleNext('z')"
-          >Z</view
-        >
-        <view
-          class="circle_status status_d flex-c"
-          v-if="data.stepSign === 'd'"
-          @click="() => handleNext('d')"
-          >D</view
-        >
+        <view class="circle_status status_z flex-c" v-if="data.stepSign === 'z'" @click="() => handleNext('z')">Z</view>
+        <view class="circle_status status_d flex-c" v-if="data.stepSign === 'd'" @click="() => handleNext('d')">D</view>
         <view
           :class="[
             'circle_status',
@@ -45,50 +27,37 @@
             { disabeld: !hasItTimeOut(data.detail?.otherFindEndTime) },
           ]"
           v-if="data.stepSign === 'lookfor'"
-          @click="() => handleNext('lookfor')"
-        >
+          @click="() => handleNext('lookfor')">
           对方找
         </view>
       </view>
       <!-- D出现 -->
-      <bc-tip-row v-if="['d', 'z'].includes(data.stepSign)"
-        >这里是关于Z这个操作的提示，只有前三次显示。</bc-tip-row
-      >
+      <bc-tip-row v-if="['d', 'z'].includes(data.stepSign)">
+        这里是关于{{ data.stepSign?.toLocaleUpperCase() }}这个操作的提示，只有前三次显示。
+      </bc-tip-row>
       <!-- 大CD倒计时 -->
-      <bc-countdown
-        v-if="['z'].includes(data.stepSign)"
-        :time="data.detail?.endTime"
-        :desc="data.cdMsg"
-      />
+      <bc-countdown v-if="['z'].includes(data.stepSign)" :time="data.detail?.endTime" :desc="data.cdMsg" />
       <!-- 对方找倒计时 -->
       <bc-countdown
         v-if="data.stepSign === 'lookfor'"
         size="small"
         :time="data.detail?.otherFindEndTime"
         desc="倒计时结束后，对方找按钮将变为可点击"
-        @timeup="lookforTimeup"
-      />
+        @timeup="lookforTimeup" />
     </view>
     <!-- 提示弹窗 -->
-    <md-dialog
-      ref="popup"
-      @cancel="handleClose"
-      title="请选择对方找的回复内容"
-      :width="730"
-      hideOk
-      cancelText="关闭"
-    >
-      <bc-copy-list
-        :info="data.pageInfo || {}"
-        @copy="handleCopy"
-        :disabled="!hasItTimeOut(data.cdTime)"
-      />
+    <md-dialog ref="popup" @cancel="handleClose" title="请选择对方找的回复内容" :width="730" hideOk cancelText="关闭">
+      <bc-copy-list :info="data.pageInfo || {}" @copy="handleCopy" :disabled="data.cdTime > 0" />
+
       <bc-countdown
-        v-if="!hasItTimeOut(data.cdTime)"
+        ref="countdownRef"
         size="small"
-        :time="data?.cdTime"
+        :day="data.cdTimeInfo?.DAYS"
+        :hour="data.cdTimeInfo?.HOURS"
+        :minute="data.cdTimeInfo?.MINUTES"
+        :second="data.cdTimeInfo?.SECONDS"
         desc="倒计时结束后，复制按钮可点击"
-      />
+        alignStyle="left" />
     </md-dialog>
   </md-page>
 </template>
@@ -127,61 +96,59 @@ const data = reactive<any>({
   list: [
     {
       id: 1,
-      content:
-        '好！你放心大胆地去 我会在你身后支持你的@别的不说 我一定会在精神和眼神上支持你的哈！',
+      content: '好！你放心大胆地去 我会在你身后支持你的@别的不说 我一定会在精神和眼神上支持你的哈！',
     },
     {
       id: 1,
-      content:
-        '吃不了有什么关系？你喜欢吃什么？你告诉我 @下次我开个直播吃给你看！',
+      content: '吃不了有什么关系？你喜欢吃什么？你告诉我 @下次我开个直播吃给你看！',
     },
     { id: 1, content: '嗯...好吧 你的对话框你做主@你说没有就没有 我支持你！' },
     {
       id: 1,
-      content:
-        '没有就没有吧 这不重要@ 重要的是 不论有没有都不会影响咱俩的友谊对不对？',
+      content: '没有就没有吧 这不重要@ 重要的是 不论有没有都不会影响咱俩的友谊对不对？',
     },
   ],
   pageInfo: {},
   status: 0,
   cdTime: 0,
+  cdTimeInfo: {
+    SECONDS: 0,
+    MINUTES: 0,
+    HOURS: 0,
+    DAYS: 0,
+  },
 });
 const popup = ref<any>(null);
+const countdownRef = ref<any>(null);
 
 // 增加一个阶段
 const _addStage = (taskId: number) => {
   // 关闭上一个步骤
-  closeOverTimeDetailStep(
-    { specialStepId: data.detail?.specialStepId ?? 0 },
-    () => {
-      // 阶段+1
-      addStage(taskId, () => {
-        // 后续执行相关页面跳转动作
-      });
-    }
-  );
+  closeOverTimeDetailStep({ specialStepId: data.detail?.specialStepId ?? 0 }, () => {
+    // 阶段+1
+    addStage(taskId, () => {
+      // 后续执行相关页面跳转动作
+    });
+  });
 };
 
 const _addRound = () => {
   const taskId = data.taskId;
-  closeOverTimeDetailStep(
-    { specialStepId: data.detail?.specialStepId ?? 0 },
-    () => {
-      // 回合数+1
-      addRound(taskId, () => {
-        savePoint(
-          {
-            stepNum: 0,
-            stepType: 'stage_round_content',
-            taskId,
-          },
-          () => {
-            getListInfo();
-          }
-        );
-      });
-    }
-  );
+  closeOverTimeDetailStep({ specialStepId: data.detail?.specialStepId ?? 0 }, () => {
+    // 回合数+1
+    addRound(taskId, () => {
+      savePoint(
+        {
+          stepNum: 0,
+          stepType: 'stage_round_content',
+          taskId,
+        },
+        () => {
+          getListInfo();
+        }
+      );
+    });
+  });
 };
 
 /**
@@ -211,10 +178,9 @@ const _getDetail = async () => {
   data.detail = detail;
 };
 
-// 熟悉1阶段，大cd1
+// 熟悉1阶段，大cd1 / cd2
 const runCd = async (type: StageEnumType) => {
   if (data.detail.stepType === type) {
-    // _getDetail();
     data.stepSign = 'lookfor';
   } else {
     savePoint(
@@ -225,6 +191,7 @@ const runCd = async (type: StageEnumType) => {
       },
       () => {
         _getDetail();
+        data.stepSign = 'lookfor';
       }
     );
   }
@@ -300,8 +267,8 @@ const handleCopy = async (
   //     }
   //   );
   // }
-  // 离开库处理
-  if (!!data.pageInfo?.closeContent) {
+  // 离开库处理 | 对方主动找处理
+  if (!!data.pageInfo?.closeContent || data.stepSign == 'lookfor') {
     // 分数+1
     const bool = await addRoundIntegral({
       taskId: data.taskId,
@@ -376,11 +343,7 @@ const getListInfo = async (
 };
 
 // 对方主动找处理逻辑
-const lookfor = async (props: {
-  isStage?: boolean;
-  warehouseName?: string;
-  notRound?: boolean;
-}) => {
+const lookfor = async (props: { isStage?: boolean; warehouseName?: string; notRound?: boolean }) => {
   const bool = await getListInfo({ warehouseName: props?.warehouseName });
 
   if (bool) {
@@ -391,17 +354,19 @@ const lookfor = async (props: {
       stageNum: data.detail?.stageNum ?? 0,
     });
     if (Object.keys(timeInfo || {})?.length) {
-      const cdTime = getRandomInt(
-        timeInfo?.intervalStNum || 0,
-        timeInfo?.intervalEndNum || 0
-      );
+      // 对方找 弹窗cd时间
+      const cdTime = getRandomInt(timeInfo?.intervalStNum || 0, timeInfo?.intervalEndNum || 0);
+      console.log(cdTime, timeInfo);
+      const _intervalTimeType = timeInfo?.intervalTimeType || 'SECONDS';
       data.cdTime = cdTime;
+      data.cdTimeInfo = { [_intervalTimeType]: cdTime };
       saveTempTime({
         time: cdTime,
-        intervalTimeType: timeInfo?.intervalTimeType || 'SECONDS',
+        intervalTimeType: _intervalTimeType,
       });
       // 打开对方找弹窗
       popup.value!.open();
+      countdownRef.value!.update();
     }
   }
 };
@@ -411,25 +376,17 @@ const handleNext = async (type: string) => {
   // 对方找
   if (type === 'lookfor') {
     // 对方主动找倒计时【未结束】，不能点击
-    if (
-      data.detail?.otherFindEndTime &&
-      !hasItTimeOut(data.detail.otherFindEndTime)
-    ) {
+    if (data.detail?.otherFindEndTime && !hasItTimeOut(data.detail.otherFindEndTime)) {
       return;
     }
     // 第0阶段，主动库S1
     if (data.detail.stepType === 'familiar_s4') {
       lookfor({ warehouseName: '主动库s1' });
-      // addStage(data.taskId);
       _addStage(data.taskId);
     }
     if (['familiar_1_cd', 'familiar_1_cd2'].includes(data.detail.stepType)) {
       lookfor({ warehouseName: '主动库S2' });
     }
-    // if (data.detail.stageNum == 0) {
-    // } else if (data.detail.stageNum == 1) {
-    //   lookfor({ warehouseName: '主动库S2' });
-    // }
   } else if (type === 'd') {
     return;
     // D
@@ -541,26 +498,11 @@ onLoad(async options => {
     height: 72rpx;
     line-height: 72rpx;
     border-radius: 16rpx;
-    background: radial-gradient(
-          100% 12158.24% at 99.42% 0%,
-          #f9753d 0%,
-          #f8a04f 48.44%,
-          #f7b261 100%
-        )
+    background: radial-gradient(100% 12158.24% at 99.42% 0%, #f9753d 0%, #f8a04f 48.44%, #f7b261 100%)
         /* warning: gradient uses a rotation that is not supported by CSS and may not behave as expected */,
-      radial-gradient(
-          100% 12158.24% at 99.42% 0%,
-          #f8ad3c 0%,
-          #f0c778 48.44%,
-          #ffd18d 100%
-        )
+      radial-gradient(100% 12158.24% at 99.42% 0%, #f8ad3c 0%, #f0c778 48.44%, #ffd18d 100%)
         /* warning: gradient uses a rotation that is not supported by CSS and may not behave as expected */,
-      radial-gradient(
-          100% 12158.24% at 99.42% 0%,
-          #faa580 0%,
-          #fc983c 48.44%,
-          #f08f1d 100%
-        )
+      radial-gradient(100% 12158.24% at 99.42% 0%, #faa580 0%, #fc983c 48.44%, #f08f1d 100%)
         /* warning: gradient uses a rotation that is not supported by CSS and may not behave as expected */;
     color: white;
     weight: 600;

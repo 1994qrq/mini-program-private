@@ -1,16 +1,18 @@
 <template>
-  <view :class="['countdown', size === 'default' ? 'm-b-60' : '']">
+  <view
+    :class="['countdown', size === 'default' ? 'm-b-60' : '']"
+    :style="{ 'align-items': alignStyle == 'left' ? 'start' : alignStyle == 'right' ? 'end' : 'center' }">
     <uni-countdown
+      ref="countdownRef"
       :font-size="size === 'default' ? 30 : 16"
-      :show-day="!!getCountdown(time)?.days"
-      :day="getCountdown(time)?.days"
-      :hour="getCountdown(time)?.hours"
-      :minute="getCountdown(time)?.minutes"
-      :second="getCountdown(time)?.seconds"
+      :show-day="!!day || !!getCountdown(time)?.days"
+      :day="!time ? day : getCountdown(time)?.days"
+      :hour="!time ? hour : getCountdown(time)?.hours"
+      :minute="!time ? minute : getCountdown(time)?.minutes"
+      :second="!time ? second : getCountdown(time)?.seconds"
       @timeup="timerup"
       color="#000000"
-      :background-color="bgType === 'dark' ? '#fff70e' : '#ffaaaa'"
-    />
+      :background-color="bgType === 'dark' ? '#fff70e' : '#ffaaaa'" />
     <bc-tip-row :bgType="bgType" v-if="!hideTip">{{ desc }}</bc-tip-row>
   </view>
 </template>
@@ -20,6 +22,12 @@ import { getCountdown } from '@/utils/util';
 import { onMounted, ref } from 'vue';
 const emit = defineEmits(['timeup']);
 const isMounted = ref(false);
+const countdownRef = ref<any>(null);
+defineExpose({
+  update() {
+    countdownRef.value?.update();
+  },
+});
 
 defineProps({
   size: {
@@ -40,8 +48,16 @@ defineProps({
   },
   hideTip: {
     type: Boolean,
-    default: false
-  }
+    default: false,
+  },
+  day: Number,
+  hour: Number,
+  minute: Number,
+  second: Number,
+  alignStyle: {
+    type: String,
+    default: 'center', // left | right | center
+  },
 });
 
 onMounted(() => {

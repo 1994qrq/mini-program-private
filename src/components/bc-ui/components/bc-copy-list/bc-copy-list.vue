@@ -1,17 +1,8 @@
 <template>
-  <view
-    class="copylist"
-    v-for="item in info.contentList"
-    :key="item.stepDetailId"
-  >
+  <view class="copylist" v-for="item in info.contentList" :key="item.stepDetailId">
     <view class="item flex-c m-bottom-30">
       <view class="content m-right-20">{{ _setContent(item.content) }}</view>
-      <md-icon
-        name="copy_icon"
-        width="60"
-        height="60"
-        @click="() => handleCopy(item)"
-      ></md-icon>
+      <md-icon name="copy_icon" width="60" height="60" @click="() => handleCopy(item)"></md-icon>
     </view>
   </view>
 </template>
@@ -31,7 +22,6 @@ const props = defineProps({
   },
 });
 const emit = defineEmits(['copy']);
-console.log(props.info);
 
 // 设置内容
 const _setContent = (content: string) => {
@@ -48,13 +38,17 @@ const _setContent = (content: string) => {
 };
 
 const handleCopy = (item: any) => {
-  const { stepDetailId, ...other } = props?.info?.statusVo;
-  const params = { ...item, preStepDetailId: stepDetailId, ...other };
   if (props.disabled) {
     Toast('请等待倒计时结束');
     return;
   }
-  emit('copy', params);
+  if (!!props?.info?.statusVo) {
+    const { stepDetailId, ...other } = props?.info?.statusVo;
+    const params = { ...item, preStepDetailId: stepDetailId || undefined, ...other };
+    emit('copy', params);
+  } else {
+    emit('copy', item);
+  }
 };
 </script>
 
