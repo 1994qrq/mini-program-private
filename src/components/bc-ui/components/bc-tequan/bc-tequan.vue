@@ -1,5 +1,5 @@
 <template>
-  <md-icon name="tequan" width="110" height="56" @click="handleOpen"></md-icon>
+  <md-icon name="tequan" width="90" height="46" @click="handleOpen"></md-icon>
   <md-dialog ref="popup" title="特权信息" @ok="handleOk" okText="充值" cancelText="关闭">
     <view class="content">
       <view>有效期剩余天数：{{ 100 }}</view>

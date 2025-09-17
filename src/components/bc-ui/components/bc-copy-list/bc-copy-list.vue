@@ -2,7 +2,7 @@
   <view class="copylist" v-for="item in info.contentList" :key="item.stepDetailId">
     <view class="item flex-c m-bottom-30">
       <view class="content m-right-20">{{ _setContent(item.content) }}</view>
-      <md-icon name="copy_icon" width="60" height="60" @click="() => handleCopy(item)"></md-icon>
+      <md-icon name="copy_icon" width="45" height="45" @click="() => handleCopy(item)"></md-icon>
     </view>
   </view>
 </template>

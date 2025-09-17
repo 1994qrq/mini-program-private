@@ -3,7 +3,7 @@
     <template #head>
       <view class="flex-l" style="justify-content: flex-end">
         <view class="flex flex-b p-right-30" style="width: calc(50% + 10rpx)">
-          <md-icon type="bg" name="image_text_icon" width="80" height="80"></md-icon>
+          <md-icon type="bg" name="image_text_icon" width="60" height="60"></md-icon>
           <bc-tequan />
         </view>
       </view>
@@ -22,7 +22,7 @@
       <block v-for="item in data.list" :key="item">
         <bc-img-text-item
           disabled
-          :item="{ ...item, title: item.dataType == 1 ? '特殊图文内容' : item.title }"></bc-img-text-item>
+          :item="{ ...item, title: item.title }"></bc-img-text-item>
       </block>
       <view class="bottom-btn">
         <view class="btn" @click="handleClick">开启图文权限</view>
@@ -89,7 +89,7 @@ const getList = async () => {
     const res = await api.task.moduleImg();
     data.list = res.data?.moduleImgVoList.map(item => ({
       ...item,
-      title: '图文内容',
+      title: item?.title || '图文内容',
       content: item.imgContent,
       imgs: item.imgUrlList,
       type: 'img_text',

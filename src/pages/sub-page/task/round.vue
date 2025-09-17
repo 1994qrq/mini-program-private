@@ -8,7 +8,7 @@
 			<view class="list" v-for="item in 3" :key="item">
 				<view class="item flex-c m-bottom-30">
 					<view class="content m-right-20">好！你放心大胆地去 我会在你身后支持你的@别的不说 我一定会在精神和眼神上支持你的哈！</view>
-					<md-icon name="copy_icon" width="60" height="60"></md-icon>
+					<md-icon name="copy_icon" width="45" height="45"></md-icon>
 				</view>
 			</view>
 			<view class="countdown">

@@ -9,7 +9,7 @@
           class="copy_icon"
           @click="() => handleCopy(item.content)"
           v-if="!selectedNum || item.replayId == selectedNum">
-          <md-icon name="copy_icon" width="60" height="60"></md-icon>
+          <md-icon name="copy_icon" width="45" height="45"></md-icon>
         </view>
         {{ item.content }}
       </view>

@@ -11,7 +11,7 @@
   </uni-nav-bar>
   <!-- 问号图片 -->
   <view v-if="!notDescribe" class="wenhao">
-    <md-icon name="wenhao" width="80" height="80" @click="handleJump"></md-icon>
+    <md-icon name="wenhao" width="60" height="60" @click="handleJump"></md-icon>
   </view>
   <!-- 提示弹窗 -->
   <md-dialog ref="popup" @ok="handleOk">

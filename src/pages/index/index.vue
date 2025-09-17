@@ -47,7 +47,7 @@
     <!-- 底部背景图 -->
     <div class="bottom_bg" :style="`background: url(${data.bottom_bg})`"></div>
     <!-- 问号图片 -->
-    <view class="wenhao" @click="handleWenhao"><md-icon name="wenhao" width="80" height="80"></md-icon></view>
+    <view class="wenhao" @click="handleWenhao"><md-icon name="wenhao" width="60" height="60"></md-icon></view>
   </view>
   <bottom-tab-bar :current="2" />
 </template>

@@ -188,6 +188,7 @@ export namespace ImageText {
       imgContent: string;
       imgUrlList: string[];
       type: number | null; // null为普通图片，1为特殊图文
+      title?: string;
     }
 
     export interface Data {
