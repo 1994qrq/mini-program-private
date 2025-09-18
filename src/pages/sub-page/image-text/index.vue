@@ -29,7 +29,12 @@
       </view>
     </view>
     <!-- 创建弹窗 -->
-    <md-dialog ref="popup" @ok="handleOk" :okText="popupInfo?.okText">
+    <md-dialog 
+      ref="popup" 
+      @ok="handleOk" 
+      @cancel="handleCancel"
+      :okText="popupInfo?.okText"
+      :cancelText="popupInfo?.cancelText">
       <view class="pupup-content">{{ popupInfo.text }}</view>
     </md-dialog>
   </md-page>
@@ -40,17 +45,20 @@ import { reactive, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 // 接口
 import api from '@/api';
-import type { Task } from '@/api/data';
+import type { Task, Common } from '@/api/data';
 // 工具
-import { taskModule } from '@/utils/data';
+import { taskModule, payModule } from '@/utils/data';
 
 const data = reactive<any>({
   describe: '', // 图文说明
   list: [],
   value: '',
 });
-const popup = ref(null);
-const popupInfo = ref<{ type: 'create' | 'recharge'; okText?: string; text?: string }>({
+
+// 添加用户信息
+const userInfo = ref<Common.Info.Data>();
+const popup = ref<any>(null);
+const popupInfo = ref<{ type: 'create' | 'recharge'; okText?: string; text?: string; cancelText?: string }>({
   type: 'create',
 });
 
@@ -68,21 +76,68 @@ const handleOk = () => {
   popup.value!.close();
 };
 
-const handleClick = () => {
-  // 确认余额是否充足
-  // 余额不足
-  let _price = true;
-  if (!_price) {
-    popupInfo.value = { type: 'recharge', text: '您的余额不足，请充值后开通图文权限', okText: '去充值' };
-  } else {
-    popupInfo.value = { type: 'create', text: '是否进入用户问答界面' };
+const handleClick = async () => {
+  try {
+    // 1. 获取用户余额信息
+    await getUserInfo();
+    
+    // 2. 检查余额是否充足
+    const isBalanceSufficient = await checkVirtualCoin();
+    
+    if (!isBalanceSufficient) {
+      // 余额不足
+      popupInfo.value = { 
+        type: 'recharge', 
+        text: '您的余额不足，请充值后开通图文权限', 
+        okText: '去充值',
+        cancelText: '取消'
+      };
+    } else {
+      // 余额充足，确认开通
+      popupInfo.value = { 
+        type: 'create', 
+        text: '是否确认开通图文权限并进入用户问答界面？',
+        okText: '确定',
+        cancelText: '取消'
+      };
+    }
+    popup.value!.open();
+  } catch (error) {
+    uni.showToast({
+      title: '获取用户信息失败',
+      icon: 'none'
+    });
   }
-  popup.value!.open();
+};
+
+// 添加取消按钮处理
+const handleCancel = () => {
+  popup.value!.close();
 };
 
 /**
  * 接口相关
  */
+// 获取用户信息
+const getUserInfo = async () => {
+  try {
+    const res = await api.common.info();
+    userInfo.value = res.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+// 检查虚拟币是否充足
+const checkVirtualCoin = async () => {
+  try {
+    const res = await api.common.checkVirtualCoin({ payScene: payModule['图文一阶段付费'] });
+    return res.data;
+  } catch (error) {
+    return false;
+  }
+};
+
 // 查询图文列表
 const getList = async () => {
   try {
@@ -111,6 +166,7 @@ const fetchCreateTask = async (params: Pick<Task.Create.Body, 'taskName'>) => {
 
 onShow(() => {
   getList();
+  getUserInfo(); // 页面显示时获取用户信息
 });
 </script>
 
