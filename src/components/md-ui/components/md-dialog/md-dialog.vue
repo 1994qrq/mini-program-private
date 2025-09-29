@@ -76,49 +76,62 @@ defineExpose({
 <style lang="scss" scoped>
 .popup-wrapper {
   width: 520rpx;
-  border-radius: 24rpx;
   box-sizing: border-box;
-  background: white;
-  overflow: hidden;
   margin: 0 auto;
+  background: url('/static/images/msgbox.png') no-repeat center/100% 100%;
+  border-radius: 0;
+  overflow: hidden;
+  position: relative;
+
   .title {
     width: 100%;
-    height: 76rpx;
-    line-height: 76rpx;
-    padding: 0 24rpx;
+    padding: 5rpx 80rpx 12rpx;
     box-sizing: border-box;
     font-weight: 800;
-    font-size: 32rpx;
-    background: linear-gradient(0deg, #f89494 -24.14%, #fff3f3 125.86%);
+    font-size: 28rpx;
+    color: #ffffff;
+    line-height: 1.2;
+    background: transparent;
   }
   .content {
-    padding: 40rpx;
+    padding: 62rpx 42rpx 140rpx; /* 底部留白，避免被固定按钮遮挡 */
+    box-sizing: border-box;
   }
   .btns {
-    gap: 24rpx;
-    color: white;
-    justify-content: flex-end;
-    padding: 24rpx;
+    position: absolute;
+    right: 48rpx;
+    bottom: 24rpx;
+    width: 282rpx;
+    height: 64rpx;
+    background: url('/static/images/msgbox_btn.png') no-repeat center/100% 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     box-sizing: border-box;
-    .btn {
-      width: 160rpx;
-      height: 56rpx;
-      line-height: 56rpx;
-      border-radius: 24rpx;
-      text-align: center;
-      border-radius: 24rpx;
-    }
-    .confirm {
-      background: radial-gradient(100% 12158.24% at 99.42% 0%, #eb8e15 0%, #feb30b 48.44%, #f1b42c 100%)
-          /* warning: gradient uses a rotation that is not supported by CSS and may not behave as expected */,
-        radial-gradient(100% 12158.24% at 99.42% 0%, #f8ad3c 0%, #f0c778 48.44%, #ffd18d 100%)
-          /* warning: gradient uses a rotation that is not supported by CSS and may not behave as expected */,
-        radial-gradient(100% 12158.24% at 99.42% 0%, #ffb240 0%, #f2b61d 48.44%, #f1c35c 100%)
-          /* warning: gradient uses a rotation that is not supported by CSS and may not behave as expected */;
-    }
-    .cancel {
-      background: linear-gradient(90deg, #f48484 -25%, #fa0808 110%);
-    }
+    color: #fff;
   }
+  .btns .btn {
+    flex: 1;
+    line-height: 64rpx;
+    text-align: center;
+    background: transparent;
+    color: #fff;
+  }
+}
+
+/* 输入框（对话框内）的统一样式 */
+:deep(.uni-easyinput__content) {
+  border: 2rpx solid #8c87ff;
+  border-radius: 16rpx;
+  background-color: #ffffff;
+  height: 72rpx;
+  padding: 0 20rpx;
+}
+:deep(.uni-easyinput__content input) {
+  font-size: 26rpx;
+  color: #333;
+}
+:deep(.uni-easyinput__placeholder-class) {
+  color: #999 !important;
 }
 </style>

@@ -19,6 +19,16 @@
           <md-icon type="bg" height="210" width="146" :name="'home/' + item.key"></md-icon>
         </div>
       </div>
+      <!-- 信息滚动条 -->
+      <div class="info-marquee">
+        <div class="inner">
+          <div class="track">
+            <div class="marquee">可以左右滚动的信息文案</div>
+          </div>
+          <div class="arrow"><md-icon name="arrow" width="28" height="28"></md-icon></div>
+        </div>
+      </div>
+
       <!-- 问诊、超熟、定制、线下 -->
       <div class="main">
         <div class="ad m-right-18" @click="() => handleJump('imageText')">
@@ -41,8 +51,9 @@
         </div>
       </div>
       <div class="offline m-top-20" @click="() => handleJump('offline')">
-        <md-icon type="bg" name="home/offline" width="656" height="156"></md-icon>
+        <md-icon type="bg" name="home/offline" width="668" height="156"></md-icon>
       </div>
+      <div class="offline-tip">——据说 每颗星都有自己的小秘密</div>
     </div>
     <!-- 底部背景图 -->
     <div class="bottom_bg" :style="`background: url(${data.bottom_bg})`"></div>
@@ -210,8 +221,35 @@ onShow(() => {
         }
       }
     }
+      & > .info-marquee {
+        margin: 0 30rpx;
+        .inner {
+          position: relative;
+          display: flex;
+          align-items: center;
+          padding: 14rpx 20rpx;
+          background: #f6f8ff; /* 浅蓝紫底 */
+          border: 1rpx solid #c9d5ff; /* 淡边框 */
+          border-radius: 28rpx; /* 圆角胶囊 */
+          box-shadow: 0 4rpx 14rpx rgba(0, 0, 0, 0.06);
+          overflow: hidden;
+        }
+        .track { flex: 1; overflow: hidden; }
+        .marquee { white-space: nowrap; color: #5f6c7b; font-size: 26rpx; animation: marquee 12s linear infinite; }
+        .arrow { margin-left: 16rpx; flex-shrink: 0; display: flex; align-items: center; opacity: 0.8; }
+      }
+
+      @keyframes marquee { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
+
     .offline {
       padding: 0 20rpx;
+    }
+    .offline-tip {
+      padding: 10rpx 40rpx 0;
+      color: #5f6c7b;
+      font-size: 24rpx;
+      text-align: right;
+      opacity: 0.9;
     }
   }
   .wenhao {

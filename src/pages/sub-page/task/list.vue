@@ -13,22 +13,35 @@
 </template>
 
 <script setup lang="ts">
+import { onLoad } from '@dcloudio/uni-app';
 import { reactive } from 'vue';
-const data = reactive({
-  list: [
-    { id: 1, title: '王老师的摄影超熟任务', date: '21:21:21' },
-    { id: 2, title: '王老师的摄影超熟任务', date: '21:21:21' },
-    { id: 3, title: '王老师的摄影超熟任务', date: '21:21:21' },
-  ],
+import api from '@/api';
+import { taskModule } from '@/utils/data';
+
+const data = reactive<any>({
+  list: [],
 });
 
-const onSwipeClick = () => {};
+const loadList = async () => {
+  try {
+    const res = await api.task.list({ moduleCode: taskModule['超熟模块'] });
+    data.list = res.data || [];
+  } catch (e) {}
+};
+
+const onSwipeClick = () => {
+  loadList();
+};
 
 const handleJump = () => {
   uni.navigateTo({
     url: '/pages/sub-page/task/problem',
   });
 };
+
+onLoad(() => {
+  loadList();
+});
 </script>
 
 <style lang="scss" scoped>

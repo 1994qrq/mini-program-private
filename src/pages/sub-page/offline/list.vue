@@ -27,9 +27,9 @@
     <md-dialog title="创建线下计划" ref="popup" @ok="handleOk" @cancel="handleCancel">
       <uni-easyinput
         v-model="data.value"
-        primaryColor="#FD7A7A"
+        primaryColor="#827afd"
         :styles="{
-          borderColor: '#FD7A7A',
+          borderColor: '#827afd',
         }"
         :maxlength="6"
         placeholder="请输入名称"></uni-easyinput>

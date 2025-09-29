@@ -51,11 +51,14 @@ const fetchAuthMobileLogin = async (code: string) => {
     uni.setStorageSync('token', res.data);
     // 返回的页面执行刷新
     uni.setStorageSync('isRefresh', 1);
-    setTimeout(() => {
-      uni.navigateBack({
-        delta: 1,
-      });
-    }, 500);
+    // 返回上一页；如果当前是第一个页面（无返回栈），跳转到首页 Tab
+    const pages = getCurrentPages();
+    if (pages && pages.length > 1) {
+      uni.navigateBack({ delta: 1 });
+    } else {
+      // 注意：switchTab 只能跳转到 tabBar 页面
+      uni.switchTab({ url: '/pages/task/index' });
+    }
   } catch (e) {
     //TODO handle the exception
   }

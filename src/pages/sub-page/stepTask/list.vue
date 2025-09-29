@@ -1,14 +1,13 @@
 <template>
-  <md-page
-    :title="data.title"
-    isBtn
-    :btnTextItems="[{ text: `创建${data.title.slice(0, 2)}任务`, key: 'create' }]"
-    @btnClick="bottomBtnClick">
+  <view class="page-wrap" :style="`background-image: url(${data.bottom_bg}); background-repeat: no-repeat; background-size: cover; background-position: center bottom;`">
+    <md-page
+      :title="data.title">
     <template #head>
       <view>
         <view class="flex-l" style="justify-content: flex-end">
           <view class="flex flex-b p-right-30" style="width: calc(50% + 10rpx)">
-            <md-icon type="bg" name="chaoshu_icon" width="80" height="80" circle></md-icon>
+            <!-- <md-icon type="bg" name="chaoshu_icon" width="80" height="80" circle></md-icon> -->
+             <view></view>
             <bc-tequan />
           </view>
         </view>
@@ -30,36 +29,60 @@
       <!-- :maxlength="6" -->
       <uni-easyinput
         v-model="data.value"
-        primaryColor="#FD7A7A"
+        primaryColor="#827afd"
         :styles="{
-          borderColor: '#FD7A7A',
+          borderColor: '#827afd',
         }"
         placeholder="请输入名称"></uni-easyinput>
     </md-dialog>
-  </md-page>
+    <!-- 自定义底部创建免费任务按钮 -->
+    <template #footer>
+      <view class="mf-footer">
+        <view class="mf-btn" @click="openCreateDialog">
+          <image class="mf-bg" :src="footerConfig.bg" mode="widthFix" />
+          <view class="mf-text">
+            <text class="mf-plus">＋</text>
+            <text class="mf-label">{{ footerConfig.label }}</text>
+          </view>
+        </view>
+      </view>
+    </template>
+    </md-page>
+
+  </view>
 </template>
 
 <script setup lang="ts">
 import { onLoad } from '@dcloudio/uni-app';
-import { reactive, ref } from 'vue';
+import { reactive, ref, computed } from 'vue';
 // 接口
 import api from '@/api';
 import type { Four, Task } from '@/api/data';
 // 工具
 import { taskModule } from '@/utils/data';
 import type { taskModuleKey } from '@/utils/data';
-import { hasItTimeOut, Toast } from '@/utils/util';
-import type { BtnTextItem } from '@/components/md-ui/components/md-page/md-page.vue';
-import { question3, shuxiModule } from './shuxi/stage0';
-import { closeOverTimeDetailStep, getTaskDetail, savePoint } from '@/utils/api';
+import { hasItTimeOut, Toast, convertToBase64 } from '@/utils/util';
+import { question3 } from './shuxi/stage0';
+import { getTaskDetail } from '@/utils/api';
 
 const data = reactive<any>({
   title: '',
   list: [],
   module: '',
   value: '',
+  bottom_bg: '',
 });
 const popup = ref<any>(null);
+
+
+const footerConfig = computed(() => {
+  if (data.title.includes('超熟')) return { bg: '/static/images/chaoshu.png', label: '创建超熟任务' };
+  if (data.title.includes('熟悉')) return { bg: '/static/images/shuxi.png', label: '创建熟悉任务' };
+  if (data.title.includes('不熟')) return { bg: '/static/images/bushu.png', label: '创建不熟任务' };
+  if (data.title.includes('陌生')) return { bg: '/static/images/mosheng.png', label: '创建陌生任务' };
+  if (data.title.includes('免费')) return { bg: '/static/images/mianfei.png', label: '创建免费任务' };
+  return { bg: '/static/images/mianfei.png', label: '创建免费任务' };
+});
 
 const roundDesc = (status: number) => {
   if ([61, 62].includes(status)) {
@@ -84,12 +107,23 @@ const handleCancel = () => {
   data.value = '';
 };
 
-const bottomBtnClick = (info: { item: BtnTextItem }) => {
-  const { key } = info.item;
-  if (key === 'create') {
-    popup.value!.open();
+const openCreateDialog = () => {
+  const inst: any = popup.value;
+  if (inst && typeof inst.open === 'function') {
+    inst.open();
+  } else {
+    // 等待下一帧再尝试，避免未挂载时点击
+    setTimeout(() => {
+      const again: any = popup.value;
+      if (again && typeof again.open === 'function') {
+        again.open();
+      } else {
+        Toast('弹窗暂未就绪，请稍后再试');
+      }
+    }, 0);
   }
 };
+
 
 const handleJump = async (item: Task.List.Data & Four.GetTaskDetail.Data) => {
   if (item.stepType === 'familiar_s2') {
@@ -157,11 +191,13 @@ const fetchCreateTask = async (params: Pick<Task.Create.Body, 'taskName'>) => {
   } catch (error) {}
 };
 
-onLoad((options: any) => {
+onLoad(async (options: any) => {
   const module = options?.module as taskModuleKey;
   data.module = taskModule[module];
   data.title = module;
-  getTaskList(taskModule[module]);
+  await getTaskList(taskModule[module]);
+  data.bottom_bg = await convertToBase64('/static/images/page_bottom_bg.png');
+
 });
 </script>
 
@@ -170,4 +206,24 @@ onLoad((options: any) => {
   padding: 180rpx 30rpx 30rpx;
   box-sizing: border-box;
 }
+
+/* 底部免费按钮 */
+.mf-footer {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  padding: 16rpx 30rpx;
+  padding-bottom: calc(env(safe-area-inset-bottom) + 16rpx);
+  box-sizing: border-box;
+  z-index: 99;
+}
+
+/* 页面底部背景 */
+.page-wrap { position: relative; min-height: 100vh; }
+
+.mf-btn { width: 100%; position: relative; }
+.mf-bg { width: 100%; display: block; }
+.mf-text { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; transform: translateY(20rpx); }
+.mf-plus { color: #fff; font-size: 40rpx; font-weight: 700; margin-right: 12rpx; line-height: 1; }
+.mf-label { color: #fff; font-size: 32rpx; font-weight: 600; line-height: 1; }
+
 </style>

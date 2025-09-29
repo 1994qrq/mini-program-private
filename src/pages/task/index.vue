@@ -1,15 +1,15 @@
 <template>
 	<md-page title="任务列表" :showLeft="false">
 		<view class="container">
-			<view class="list" v-for="item in 3" :key="item" @click="handleJump">
+			<view class="list" v-for="item in data.list" :key="item.taskId" @click="handleJump">
 				<md-icon type="bg" name="apple" width="76" height="76"></md-icon>
 				<view class="right m-left-20">
 					<view class="top-wrap m-bottom-40 flex-c">
 						<view class="top">
-							<view class="title fs-32 font-bold">王老师的摄影不熟任务</view>
+							<view class="title fs-32 font-bold">{{ item.taskName }}</view>
 							<view class="date-wrap flex-l">
 								{{ '下回合开启时间:' }}
-								<view class="date font-bold">{{ '2024-09-30 21:21:21' }}</view>
+								<view class="date font-bold">{{ item.endTime }}</view>
 							</view>
 						</view>
 						<view class="btn full">特权</view>
@@ -28,29 +28,32 @@
 
 <script setup lang="ts">
 import { reactive } from 'vue';
+import { onLoad } from '@dcloudio/uni-app';
 // 接口
-import api from '@/api/index';
-const data = reactive({});
+import api from '@/api';
+import { taskModule } from '@/utils/data';
+
+const data = reactive<any>({
+  list: [],
+});
 
 const handleJump = () => {
-	uni.navigateTo({
-		url: '/pages/sub-page/task/list',
-	});
+  uni.navigateTo({
+    url: '/pages/sub-page/task/list',
+  });
 };
 
-/**
- * 接口相关
- */
+// 获取任务列表（示例：超熟模块）
 const fetchTaskList = async () => {
-	try{
-		const res = await api.task.list({
-			appId: '',
-			code: ''
-		});
-	}catch(e){
-		//TODO handle the exception
-	}
-}
+  try {
+    const res = await api.task.list({ moduleCode: taskModule['超熟模块'] });
+    data.list = res.data || [];
+  } catch (e) {}
+};
+
+onLoad(() => {
+  fetchTaskList();
+});
 </script>
 
 <style lang="scss" scoped>

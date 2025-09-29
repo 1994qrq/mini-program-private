@@ -209,6 +209,7 @@ onMounted(() => {
     .text {
       padding: 6rpx 14rpx;
       box-sizing: border-box;
+      color:black
     }
   }
   .right_arrow {

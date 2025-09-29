@@ -27,9 +27,9 @@
     <md-dialog ref="popup" @ok="handleOk" @cancel="handleCancel" title="创建问诊分析">
       <uni-easyinput
         v-model="data.value"
-        primaryColor="#FD7A7A"
+        primaryColor="#827afd"
         :styles="{
-          borderColor: '#FD7A7A',
+          borderColor: '#827afd',
         }"
         :maxlength="6"
         placeholder="请输入名称"></uni-easyinput>

@@ -8,7 +8,8 @@
       </view>
       <view v-else class="tab-bar-home flex-c" @click="() => switchTab(index)">
         <view :class="['tab-bar-home-inner', 'flex-c', data.selected === index ? 'active' : '']">
-          <md-icon :url="item.iconPath" width="52" height="52"></md-icon>
+          <image v-if="data.selected === index" src="/static/images/home/qrcode.png" class="qrcode-img" />
+          <md-icon v-else :url="item.iconPath" width="52" height="52"></md-icon>
         </view>
       </view>
     </block>
@@ -109,9 +110,11 @@ onShow(() => {
     height: 108rpx;
     border-radius: 50%;
     background: #333;
+    overflow: hidden;
     &.active {
-      background: linear-gradient(180deg, #eb4c60 0%, #fa5721 66.7%, #d41e3c 100%);
+      background: transparent; /* 选中时完全使用图片 */
     }
+    .qrcode-img { width: 108rpx; height: 108rpx; border-radius: 50%; display: block; }
   }
 }
 
