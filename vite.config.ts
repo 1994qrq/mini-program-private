@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import uni from '@dcloudio/vite-plugin-uni';
 
 const CONFIG = {
-  VUE_APP_BASEHOST: 'https://www-test.zghuixiang.com',
+  VUE_APP_BASEHOST: 'https://mini.997555.xyz',
   VUE_APP_THEME: '#EB4C60',
 };
 
