@@ -365,7 +365,7 @@ const handleNext = async (type: string) => {
     }
     // 第0阶段，主动库S1
     if (data.detail.stageNum == 0) {
-      lookfor({ warehouseName: '主动库S1' });
+      lookfor({ warehouseName: '对主动库s1' });
     } else if (data.detail.stageNum == 1) {
       lookfor({ warehouseName: '主动库S2' });
     }
