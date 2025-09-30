@@ -24,10 +24,10 @@
             'circle_status',
             'status_lookfor',
             'flex-c',
-            { disabeld: !hasItTimeOut(data.detail?.otherFindEndTime) },
+            { disabeld: !data.canLookfor },
           ]"
           v-if="data.stepSign === 'lookfor'"
-          @click="() => handleNext('lookfor')">
+          @click="() => data.canLookfor && handleNext('lookfor')">
           对方找
         </view>
       </view>
@@ -57,7 +57,8 @@
         :minute="data.cdTimeInfo?.MINUTES"
         :second="data.cdTimeInfo?.SECONDS"
         desc="倒计时结束后，复制按钮可点击"
-        alignStyle="left" />
+        alignStyle="left"
+        @timeup="copyCdTimeup" />
     </md-dialog>
   </md-page>
 </template>
@@ -117,6 +118,8 @@ const data = reactive<any>({
     HOURS: 0,
     DAYS: 0,
   },
+  // 对方找按钮是否可点击（小倒计时结束置为 true）
+  canLookfor: false,
 });
 const popup = ref<any>(null);
 const countdownRef = ref<any>(null);
@@ -166,7 +169,16 @@ const roundTimeup = async () => {
 
 // 对方找CD倒计时回调
 const lookforTimeup = () => {
+  // 小倒计时结束，置为可点，触发视图刷新
+  data.canLookfor = true;
+  // 如需到时自动弹窗，可按需打开：
   // if (['familiar_1_cd2', 'familiar_1_cd'].includes(data.detail.stepType)) {
+
+  // 弹窗内复制按钮小CD结束
+  const copyCdTimeup = () => {
+    data.cdTime = 0;
+  };
+
   //   lookfor({ warehouseName: '主动库S2' });
   // }
 };
@@ -375,13 +387,13 @@ const lookfor = async (props: { isStage?: boolean; warehouseName?: string; notRo
 const handleNext = async (type: string) => {
   // 对方找
   if (type === 'lookfor') {
-    // 对方主动找倒计时【未结束】，不能点击
-    if (data.detail?.otherFindEndTime && !hasItTimeOut(data.detail.otherFindEndTime)) {
+    // 若未到可点击状态，直接返回
+    if (!data.canLookfor) {
       return;
     }
     // 第0阶段，主动库S1
     if (data.detail.stepType === 'familiar_s4') {
-      lookfor({ warehouseName: '主动库s1' });
+      lookfor({ warehouseName: '对主动库s1' });
       _addStage(data.taskId);
     }
     if (['familiar_1_cd', 'familiar_1_cd2'].includes(data.detail.stepType)) {
@@ -417,6 +429,58 @@ onLoad(async options => {
     // 获取任务详情
     const detail = await getTaskDetail(taskId);
     data.detail = detail;
+    // 小倒计时初始可点击态：若无倒计时或已超时即可点击
+    data.canLookfor = !detail?.otherFindEndTime || hasItTimeOut(detail.otherFindEndTime);
+
+    // 
+    // 
+    //      
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    //  
+    // otherFindEndTime 
+    data.canLookfor = !detail?.otherFindEndTime || hasItTimeOut(detail.otherFindEndTime);
     // const detail = await stage1(taskId);
     // 熟悉0阶段问卷的提示板s4
     if (['familiar_s4'].includes(detail.stepType)) {

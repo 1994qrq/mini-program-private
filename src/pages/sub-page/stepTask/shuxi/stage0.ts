@@ -53,6 +53,7 @@ const hint4 = (params: { taskId: number; specialStepId?: number; flag?: boolean 
 // 问3
 export const question3 = async (params: { taskId: number; specialStepId?: number }) => {
   const w3 = await getQuestion('q3');
+  console.log('w3:',w3)
   if (w3 === 'y') {
     // 提示S4
     hint4({ ...params });

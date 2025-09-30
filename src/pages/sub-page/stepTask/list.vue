@@ -16,11 +16,12 @@
     </template>
     <view class="container">
       <block v-for="item in data.list" :key="item.id">
-        <bc-task-item
-          :item="item"
-          :desc="roundDesc(item.taskStatus)"
-          @click="() => handleJump(item)"
-          @swipeClick="onSwipeClick"></bc-task-item>
+        <view @click="() => handleJump(item)">
+          <bc-task-item
+            :item="item"
+            :desc="roundDesc(item.taskStatus)"
+            @swipeClick="onSwipeClick"></bc-task-item>
+        </view>
       </block>
       <mescroll-empty v-if="data.list.length == 0"></mescroll-empty>
     </view>
@@ -126,32 +127,21 @@ const openCreateDialog = () => {
 
 
 const handleJump = async (item: Task.List.Data & Four.GetTaskDetail.Data) => {
+  // familiar_s2（阶段0的问答流程）需要等大CD结束
   if (item.stepType === 'familiar_s2') {
-    // 获取目标时间是否超时
     const _hasItTimeOut = hasItTimeOut(item?.endTime);
-    // 如果时间倒计时未结束，则不让点击
-    if (!_hasItTimeOut) {
-      return;
-    }
-    question3({
-      taskId: item.taskId,
-      specialStepId: item.specialStepId,
-    });
+    if (!_hasItTimeOut) return;
+    await question3({ taskId: item.taskId, specialStepId: item.specialStepId });
+    return; // 该流程会在内部引导跳转
   }
-  // if (item.stepType === 'familiar_s4') {
-  // }
-  // 跳转对方主动找页面
+
+  // “对方找倒计时”未结束时禁止点击（taskStatus=65）
+  if (item.taskStatus === 65 && item.otherFindEndTime && !hasItTimeOut(item.otherFindEndTime)) {
+    return;
+  }
+
+  // 进入回合页
   uni.redirectTo({ url: '/pages/sub-page/stepTask/round?module=熟悉模块&taskId=' + item.taskId });
-  // shuxiModule({
-  //   isScoreFlag: 0,
-  //   taskId: item.taskId,
-  //   endTime: item.endTime,
-  //   // stepType: item.stepType,
-  // });
-  // const data = await fetchGetTaskDetail(item.taskId);
-  // uni.navigateTo({
-  //   url: '/pages/sub-page/stepTask/problem',
-  // });
 };
 
 const onSwipeClick = () => {
