@@ -7,12 +7,23 @@
         </view>
         <md-icon name="search_btn" width="76" height="76"></md-icon>
       </view>
+      <!-- 状态条：模块/阶段/回合/步骤 -->
+      <view class="m-bottom-20" style="font-size: 24rpx; color: #666; line-height: 1.6;">
+        <text>模块：{{ data.moduleCodeName || data.moduleCode || '-' }}</text>
+        <text class="m-left-12">｜</text>
+        <text>阶段：{{ data.detail?.stageNum ?? '-' }}</text>
+        <text class="m-left-12">｜</text>
+        <text>回合：{{ data.detail?.roundNum ?? '-' }}</text>
+        <text class="m-left-12">｜</text>
+        <text>步骤：{{ stepLabel }}</text>
+      </view>
+
       <!-- 大CD倒计时 -->
-      <view class="m-bottom-30" v-if="data.stepSign === 'lookfor'">
+      <view class="m-bottom-30" v-if="['lookfor','stage_cd'].includes(data.stepSign)">
         <bc-countdown :time="data.detail?.endTime" :desc="data.cdMsg" @timeup="cdTimeup" />
       </view>
       <!-- 问题列表 -->
-      <block v-if="['d', 'z'].includes(data.stepSign)">
+      <block v-if="['d', 'z', 'normal'].includes(data.stepSign)">
         <bc-copy-list :info="data.pageInfo || {}" @copy="handleCopy" />
       </block>
       <!-- 三个状态圆圈 -->
@@ -32,11 +43,15 @@
         </view>
       </view>
       <!-- D出现 -->
+      <!-- 空状态/错误提示 -->
+      <view v-if="!data.detail" class="m-bottom-20" style="font-size: 26rpx; color: #999;">
+        当前任务没有有效步骤，请稍后重试或联系管理员。
+      </view>
       <bc-tip-row v-if="['d', 'z'].includes(data.stepSign)">
         这里是关于{{ data.stepSign?.toLocaleUpperCase() }}这个操作的提示，只有前三次显示。
       </bc-tip-row>
       <!-- 大CD倒计时 -->
-      <bc-countdown v-if="['z'].includes(data.stepSign)" :time="data.detail?.endTime" :desc="data.cdMsg" />
+      <bc-countdown v-if="['z'].includes(data.stepSign)" :time="data.detail?.endTime" :desc="data.cdMsg" @timeup="zTimeup" />
       <!-- 对方找倒计时 -->
       <bc-countdown
         v-if="data.stepSign === 'lookfor'"
@@ -47,20 +62,27 @@
     </view>
     <!-- 提示弹窗 -->
     <md-dialog ref="popup" @cancel="handleClose" title="请选择对方找的回复内容" :width="730" hideOk cancelText="关闭">
-      <bc-copy-list :info="data.pageInfo || {}" @copy="handleCopy" />
+      <!-- ✅ 倒计时提示 -->
+      <view v-if="data.lookforCountdown > 0" class="countdown-tip">
+        <view class="countdown-text">倒计时结束后，复制按钮将变为可点击</view>
+        <view class="countdown-number">{{ data.lookforCountdown }}秒</view>
+      </view>
+
+      <!-- ✅ 内容列表，根据倒计时状态禁用复制按钮 -->
+      <bc-copy-list
+        :info="data.pageInfo || {}"
+        :disabled="!data.canCopyLookfor"
+        @copy="handleCopy" />
     </md-dialog>
   </md-page>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue';
+import { reactive, ref, onUnmounted, computed } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 // 工具
 import { hasItTimeOut } from '@/utils/util';
 import {
-  addRound,
-  addRoundIntegral,
-  addStage,
   closeOverTimeDetailStep,
   copyContentDetail,
   getContentList,
@@ -73,7 +95,7 @@ import {
 import { taskModule } from '@/utils/data';
 import type { taskModuleKey } from '@/utils/data';
 import type { Four, StageEnumType } from '@/api/data';
-import stage1 from './shuxi/stage1';
+
 
 const data = reactive<any>({
   taskId: null,
@@ -104,8 +126,71 @@ const data = reactive<any>({
   loading: false,
   // 防止重复添加阶段
   isAddingStage: false,
+
+  // ✅ 对方找弹窗倒计时相关
+  lookforCountdown: 0,        // 倒计时秒数
+  lookforCountdownTimer: null as any,  // 倒计时定时器
+  canCopyLookfor: false,      // 是否可以复制（倒计时结束后为true）
+
+  // 弹窗关闭防抖（防止cancel事件导致重复进入）
+  isClosingPopup: false,
 });
 const popup = ref<any>(null);
+
+
+// 状态显示：步骤中文名
+const stepLabel = computed(() => {
+  const t = data.detail?.stepType as string;
+  const map: Record<string, string> = {
+    stage_round_content: '回合内容',
+    familiar_1_cd: '回合CD',
+    familiar_1_cd2: '回合延时CD',
+    familiar_1_stage_cd: '阶段间大CD',
+    familiar_s2: 'S2（阶段0提示板）',
+    familiar_s3: 'S3（阶段0提示板）',
+    familiar_s4: 'S4（阶段0对方找）',
+  };
+  return map[t] || t || '-';
+});
+
+// ✅ 启动对方找弹窗倒计时
+const startLookforCountdown = () => {
+  // 清除之前的定时器
+  if (data.lookforCountdownTimer) {
+    clearInterval(data.lookforCountdownTimer);
+  }
+
+  // 优先使用后端下发的 cutDownTime（秒）；若无则使用3-50秒随机
+  const serverSeconds = Number(data.pageInfo?.statusVo?.cutDownTime || 0);
+  const fallback = Math.floor(Math.random() * (50 - 3 + 1)) + 3;
+  data.lookforCountdown = serverSeconds > 0 ? serverSeconds : fallback;
+  data.canCopyLookfor = false;
+
+  console.log('启动对方找弹窗倒计时:', data.lookforCountdown, '秒');
+
+  // 启动倒计时
+  data.lookforCountdownTimer = setInterval(() => {
+    data.lookforCountdown--;
+
+    if (data.lookforCountdown <= 0) {
+      // 倒计时结束
+      clearInterval(data.lookforCountdownTimer);
+      data.lookforCountdownTimer = null;
+      data.canCopyLookfor = true;
+      console.log('对方找弹窗倒计时结束，复制按钮可点击');
+    }
+  }, 1000);
+};
+
+// ✅ 停止对方找弹窗倒计时
+const stopLookforCountdown = () => {
+  if (data.lookforCountdownTimer) {
+    clearInterval(data.lookforCountdownTimer);
+    data.lookforCountdownTimer = null;
+  }
+  data.lookforCountdown = 0;
+  data.canCopyLookfor = false;
+};
 
 // 增加一个阶段
 const _addStage = async (taskId: number, nextStageNum: number) => {
@@ -120,28 +205,22 @@ const _addStage = async (taskId: number, nextStageNum: number) => {
 
   try {
     // 关闭上一个步骤
-    await new Promise<void>((resolve, reject) => {
+    await new Promise<void>((resolve) => {
       closeOverTimeDetailStep({ specialStepId: data.detail?.specialStepId ?? 0 }, () => {
         console.log('closeOverTimeDetailStep 完成');
         resolve();
       });
     });
 
-    // 阶段+1
-    await new Promise<void>((resolve, reject) => {
-      addStage(taskId, () => {
-        console.log('addStage 完成，阶段已+1');
-        resolve();
-      });
-    });
-
+    // ✅ 修复：不调用 addStage，直接调用 savePoint
+    // savePoint 会根据 stepType 自动创建阶段
     // 根据文档要求：每个阶段进入下一阶段时需要经过一个阶段间的大CD
     // 保存阶段间大CD节点
-    await new Promise<void>((resolve, reject) => {
+    await new Promise<void>((resolve) => {
       savePoint(
         {
-          stepNum: nextStageNum,
-          stepType: `familiar_${nextStageNum}_stage_cd`,  // 阶段间大CD
+          stepNum: 0,
+          stepType: (`familiar_${nextStageNum}_stage_cd` as unknown as StageEnumType),
           taskId,
         },
         () => {
@@ -163,37 +242,26 @@ const _addStage = async (taskId: number, nextStageNum: number) => {
   }
 };
 
-const _addRound = () => {
-  const taskId = data.taskId;
-  closeOverTimeDetailStep({ specialStepId: data.detail?.specialStepId ?? 0 }, () => {
-    // 回合数+1
-    addRound(taskId, () => {
-      savePoint(
-        {
-          stepNum: 0,
-          stepType: 'stage_round_content',
-          taskId,
-        },
-        () => {
-          getListInfo();
-        }
-      );
-    });
-  });
-};
+
 
 /**
  * CD倒计时回调
  */
-// 大CD倒计时回调
-const cdTimeup = () => {
-  _addRound();
+// Z/AZ 对话进行中倒计时回调：结束后刷新，后端将补全链路并推进
+const zTimeup = () => {
+  _round();
 };
 
-// 回合CD
-const roundTimeup = async () => {
-  stage1(data.taskId, { finish: true });
+// 大CD倒计时回调：结束后刷新，由后端决定是否进入下一回合
+const cdTimeup = async () => {
+  await _round();
+  // 若后端还未来得及切换（仍为阶段CD且时间已过），轻微重试一次
+  if (data.detail?.stepType === 'familiar_1_stage_cd' && hasItTimeOut(data.detail?.endTime)) {
+    setTimeout(() => _round(), 1500);
+  }
 };
+
+
 
 // 对方找CD倒计时回调
 const lookforTimeup = () => {
@@ -201,81 +269,67 @@ const lookforTimeup = () => {
   data.canLookfor = true;
 };
 
-// 获取任务详情
-const _getDetail = async () => {
-  // 获取任务详情
-  const detail = await getTaskDetail(data.taskId);
-  data.detail = detail;
-};
 
-// 熟悉1阶段，大cd1 / cd2
-const runCd = async (type: StageEnumType) => {
-  if (data.detail.stepType === type) {
-    data.stepSign = 'lookfor';
-  } else {
-    savePoint(
-      {
-        stepNum: 0,
-        stepType: type,
-        taskId: data.taskId,
-      },
-      () => {
-        _getDetail();
-        data.stepSign = 'lookfor';
-      }
-    );
-  }
-};
+
+
 
 const _round = async (r?: { taskId?: number }) => {
   const _taskId = r?.taskId || data.taskId;
+
+  // 先刷新任务详情，消费后端最新节点
+  const detail = await getTaskDetail(_taskId);
+  if (detail) {
+    data.detail = detail;
+    // 更新“对方找按钮是否可点击”
+    data.canLookfor = !detail?.otherFindEndTime || hasItTimeOut(detail.otherFindEndTime);
+  }
+
   const scoreInfo = await getRoundIntegral(_taskId);
-  const stageNum = data.detail.stageNum; // 当前阶段
+  const stageNum = data.detail?.stageNum; // 当前阶段
   const score = scoreInfo?.integral ?? 0; // 当前阶段的分数
   const roundNum = data.detail?.roundNum ?? 0; // 当前阶段的回合数
-  const stepType = data.detail.stepType;
+  const stepType = data.detail?.stepType;
 
   console.log('_round 调试信息:', { stageNum, score, roundNum, stepType });
 
   // 第零阶段
   if (stageNum == 0) {
-    // 第0阶段逻辑（问卷阶段）
-    console.log('第0阶段，等待问卷完成');
+    console.log('第0阶段，stepType:', stepType);
+    // S2/S3 提示板：直接显示（由 md-page 或其他组件处理）
+    if (['familiar_s2', 'familiar_s3'].includes(stepType)) {
+      console.log('第0阶段提示板 S2/S3，等待用户关闭');
+      // 前端不需要额外处理，提示板组件会自动显示
+      data.stepSign = 'tip'; // 标记为提示板状态
+    }
+    // S4：对方找（对主动库s1）
+    else if (stepType === 'familiar_s4') {
+      console.log('第0阶段 S4，显示对方找按钮');
+      data.stepSign = 'lookfor';
+    }
+    // 其他情况：尝试拉取内容
+    else {
+      console.log('第0阶段其他情况，尝试拉取内容');
+      await getListInfo();
+    }
   }
 
   // 第一阶段
   if (stageNum == 1) {
     // 初始阶段
-    if (roundNum == 0 && stepType === 'stage_round_content') {
+    // 后端托管回合推进与CD节点生成：前端被动消费
+    if (stepType === 'stage_round_content') {
       await getListInfo();
+    } else if (['familiar_1_cd', 'familiar_1_cd2'].includes(stepType)) {
+      // 回合间大CD，展示“对方找”按钮与倒计时
+      data.stepSign = 'lookfor';
+      data.cdMsg = '倒计时结束后，对方找按钮将变为可点击';
+    } else if (stepType === 'familiar_1_stage_cd') {
+      // 阶段间大CD（进入阶段1后到第1回合前），不提供“对方找”
+      data.stepSign = 'stage_cd';
+      data.cdMsg = '阶段间倒计时，结束后进入第1回合';
     } else {
-      // 分数 >= 2
-      if (score >= 2) {
-        if (roundNum >= 4) {
-          // await getListInfo();
-          savePoint(
-            {
-              stepNum: 0,
-              stepType: 'familiar_1_stage_cd',
-              taskId: _taskId,
-            },
-            async () => {
-              // 获取任务详情
-              const detail = await getTaskDetail(_taskId);
-              data.detail = detail;
-            }
-          );
-        } else {
-          // await getListInfo({ preStepDetailId: r.stepDetailId });
-          runCd('familiar_1_cd');
-        }
-      } else {
-        if (roundNum < 3) {
-          runCd('familiar_1_cd');
-        } else {
-          runCd('familiar_1_cd2');
-        }
-      }
+      // 其余情况尝试拉取内容
+      await getListInfo();
     }
   }
 
@@ -366,8 +420,33 @@ const _round = async (r?: { taskId?: number }) => {
 /**
  * 弹窗相关
  */
-const handleClose = () => {
-  // popup.value!.close();
+const handleClose = async () => {
+  console.log('用户点击关闭按钮');
+
+  // 防抖：避免重复进入
+  if (data.isClosingPopup) {
+    console.warn('handleClose 已触发，忽略重复调用');
+    return;
+  }
+  data.isClosingPopup = true;
+
+  // ✅ 停止倒计时
+  stopLookforCountdown();
+
+  // 注意：此处不要再调用 popup.close()，否则会触发 @cancel 再次进入此方法形成递归
+
+  // ✅ 特殊处理：第0阶段的"对主动库s1"，关闭弹窗后进入第1阶段
+  if (data.detail.stepType === 'familiar_s4' && data.detail.stageNum === 0) {
+    console.log('第0阶段对主动库s1，关闭弹窗后进入第1阶段');
+    await _addStage(data.taskId, 1);
+    return; // 阶段切换会 redirect，不再本页刷新
+  }
+
+  // ✅ 阶段1等其它情况：关闭弹窗后立即刷新一次，UI 立刻切换到CD/内容
+  await _round();
+
+  // 允许再次触发关闭
+  data.isClosingPopup = false;
 };
 
 // 点击复制按钮
@@ -378,6 +457,18 @@ const handleCopy = async (
     }
 ) => {
   console.log('handleCopy 参数:', r);
+
+  // ✅ 检查倒计时是否结束（对方找弹窗）
+  if (data.stepSign === 'lookfor' && !data.canCopyLookfor) {
+    console.log('倒计时未结束，复制按钮不可点击');
+    uni.showToast({
+      title: `倒计时结束后才能复制（还剩${data.lookforCountdown}秒）`,
+      icon: 'none',
+      duration: 2000
+    });
+    return;
+  }
+
   // if (r.content?.split('@')?.length > 1) {
   //   data.pageInfo.contentList?.forEach(
   //     (s: { stepDetailId: number; content: string }) => {
@@ -388,17 +479,7 @@ const handleCopy = async (
   //   );
   // }
   // 离开库处理 | 对方主动找处理
-  if (!!data.pageInfo?.closeContent || data.stepSign == 'lookfor') {
-    // 分数+1
-    const bool = await addRoundIntegral({
-      taskId: data.taskId,
-      integralNum: 1,
-    });
-
-    if (!bool) {
-      return;
-    }
-  }
+  // 计分交由后端托管：对方找点击+1、离库激活+1 由后端生成，前端不再主动加分
 
   // ✅ 修复：检查是否是D标记
   // D标记的content为"D"，不应该被复制
@@ -408,6 +489,8 @@ const handleCopy = async (
     // ✅ 特殊处理：第0阶段的"对主动库s1"，D标记表示内容已全部复制完毕
     if (data.detail.stepType === 'familiar_s4' && data.detail.stageNum === 0) {
       console.log('第0阶段对主动库s1，D标记表示内容已全部复制完毕，准备进入第1阶段');
+      // 防抖：标记关闭，避免触发 @cancel 再次进入 handleClose
+      data.isClosingPopup = true;
       // 关闭弹窗
       popup.value?.close();
       // 进入第1阶段
@@ -421,11 +504,14 @@ const handleCopy = async (
 
   // 复制内容详情
   // r.stepDetailId 是当前要复制的内容详情ID（来自 contentList）
+  // 规范 sign：仅在内容本身为 D/AD 时才传递 D/AD；否则传空串
+  const pureSign = (r.content === 'D' || r.content === 'AD') ? r.content : '';
+
   // r.preStepDetailId 是上一个步骤的ID（来自 statusVo.stepDetailId）
   const isStop = await copyContentDetail({
     taskId: data.taskId,
     stepDetailId: r.stepDetailId,  // 修复：使用当前内容的 stepDetailId
-    sign: r.sign,
+    sign: pureSign,
     moduleCode: data.moduleCode,
     stepId: data.pageInfo?.stepId,
   });
@@ -461,11 +547,11 @@ const getListInfo = async (
   // 有库名，通过库名获取
   if (props?.warehouseName) {
     console.log('通过库名获取内容:', props.warehouseName);
-    content = await getContentListOfAppoint({
+    content = (await getContentListOfAppoint({
       taskId: data.taskId,
       warehouseName: props.warehouseName,
       moduleCode: data.moduleCode,
-    });
+    })) as any;
   } else if (props?.preStepDetailId || props?.stepId) {
     console.log('通过preStepDetailId/stepId获取内容');
     content = await getContentList({
@@ -477,11 +563,16 @@ const getListInfo = async (
   } else {
     // 没有库名，通过模块获取
     console.log('通过getStep获取当前步骤，然后获取内容');
-    content = await getContentListOfStep({
+    content = (await getContentListOfStep({
       taskId: data.taskId,
       moduleCode: data.moduleCode,
-    });
+    })) as any;
   }
+  // 兼容类型：确保 contentList 至少是空数组，避免 TS 可选类型不匹配
+  if (content) {
+    (content as any).contentList = (content as any).contentList || [];
+  }
+
   console.log('getListInfo 返回的内容:', content);
   if (Object.keys(content || {})?.length) {
     const _sgin = content?.statusVo?.sign || '';
@@ -493,11 +584,16 @@ const getListInfo = async (
       console.warn('警告：statusVo 为 null，无法判断sign类型');
       data.stepSign = 'normal';  // 设置为普通模式
     } else if (['Z', 'AZ'].includes(_sgin)) {
+      // 对话进行中倒计时（Z/AZ）
       data.stepSign = 'z';
+      data.cdMsg = '对话进行中倒计时，结束后将补全当前链条并进入下一节点';
     } else if (['D', 'AD'].includes(_sgin)) {
       data.stepSign = 'd';
+      data.cdMsg = '点击 D 可以获取下一条内容';
     } else {
       data.stepSign = 'lookfor';
+      // 大CD或普通CD
+      data.cdMsg = '倒计时结束后，将根据您的会员等级显示下一回合内容';
     }
 
     data.pageInfo = content;
@@ -517,8 +613,11 @@ const lookfor = async (props: { isStage?: boolean; warehouseName?: string; notRo
   const bool = await getListInfo({ warehouseName: props?.warehouseName });
 
   if (bool) {
-    // 直接打开对方找弹窗，无需倒计时
+    // ✅ 打开对方找弹窗，并启动倒计时
     popup.value!.open();
+
+    // ✅ 启动倒计时（3-50秒）
+    startLookforCountdown();
   }
 };
 
@@ -565,8 +664,9 @@ const handleNext = async (type: string) => {
       }
     }
     else if (['familiar_1_cd', 'familiar_1_cd2'].includes(data.detail.stepType)) {
+      // 阶段1回合间CD：点击“对方找”后，打开 对主动库S2 弹窗
       try {
-        await lookfor({ warehouseName: '主动库S2' });
+        await lookfor({ warehouseName: '对主动库S2' });
       } finally {
         data.loading = false;
       }
@@ -644,8 +744,17 @@ onLoad(async options => {
   if (taskId) {
     // 获取任务详情
     const detail = await getTaskDetail(taskId);
-    data.detail = detail;
     console.log('onLoad - 任务详情:', detail);
+
+    // 若后端返回 null，说明任务不存在或步骤未初始化
+    if (!detail) {
+      console.error('任务详情为空，taskId:', taskId);
+      data.detail = null;
+      uni.showToast({ title: '任务不存在或未初始化', icon: 'none' });
+      return;
+    }
+
+    data.detail = detail;
 
     // 小倒计时初始可点击态：若无倒计时或已超时即可点击
     data.canLookfor = !detail?.otherFindEndTime || hasItTimeOut(detail.otherFindEndTime);
@@ -724,6 +833,11 @@ onLoad(async options => {
       taskId,
     });
   }
+});
+
+// ✅ 页面卸载时清理定时器
+onUnmounted(() => {
+  stopLookforCountdown();
 });
 </script>
 
@@ -804,6 +918,27 @@ onLoad(async options => {
     color: white;
     weight: 600;
     text-align: center;
+  }
+
+  // ✅ 对方找弹窗倒计时样式
+  .countdown-tip {
+    padding: 30rpx;
+    margin-bottom: 20rpx;
+    background: #fff3e0;
+    border-radius: 16rpx;
+    text-align: center;
+
+    .countdown-text {
+      font-size: 28rpx;
+      color: #ff6b00;
+      margin-bottom: 10rpx;
+    }
+
+    .countdown-number {
+      font-size: 48rpx;
+      font-weight: bold;
+      color: #ff6b00;
+    }
   }
 }
 </style>
