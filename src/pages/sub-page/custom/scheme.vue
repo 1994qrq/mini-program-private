@@ -34,8 +34,8 @@ const data = reactive<any>({
 const popup = ref(null);
 
 const handleDetail = () => {
-  uni.navigateTo({
-    url: '/pages/sub-page/custom/custom',
+  uni.redirectTo({
+    url: '/pages/sub-page/custom/custom?taskId='+ data.prevPageQuery.taskId,
   });
 };
 

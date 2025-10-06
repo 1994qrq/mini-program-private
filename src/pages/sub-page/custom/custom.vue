@@ -60,7 +60,7 @@ import api from '@/api';
 import type { Custom } from '@/api/data';
 // 工具
 import { checkVirtualCoin } from '@/utils/api';
-import { queryString } from '@/utils/util';
+import { queryString, Toast } from '@/utils/util';
 import { payModule } from '@/utils/data';
 
 const data = reactive<any>({
@@ -149,13 +149,14 @@ const fetchSubmitSecondQuestion = async (params: Custom.SubmitSecondQuestion.Bod
       questionId: data.item?.questionId,
       taskId: data.prevPageQuery?.taskId,
     });
+    console.log(123,queryString(data.prevPageQuery))
     uni.showModal({
       title: '提示',
       content: '提交成功',
       showCancel: false,
       success: res => {
         if (res.confirm) {
-          uni.navigateTo({
+          uni.redirectTo({
             url: '/pages/sub-page/custom/detail?' + queryString(data.prevPageQuery),
           });
         }
@@ -165,7 +166,21 @@ const fetchSubmitSecondQuestion = async (params: Custom.SubmitSecondQuestion.Bod
 };
 
 onLoad(option => {
-  data.prevPageQuery = option;
+   data.prevPageQuery = option || {};
+  
+  // 提取并验证taskId
+  const taskId = option?.taskId?.toString().trim();
+  
+  if (!taskId) {
+    Toast('未获取到有效的任务ID');
+    // 1.5秒后跳回列表页
+    setTimeout(() => {
+      uni.redirectTo({
+        url: '/pages/sub-page/custom/list' // 假设列表页路径
+      });
+    }, 1500);
+    return;
+  }
   fetchCustomerSearchSecondQuestion(option?.taskId);
 });
 </script>

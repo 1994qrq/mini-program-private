@@ -78,6 +78,18 @@ const getQuestionAnswerList = async (taskId: number) => {
 
 onLoad(option => {
   data.prevPageQuery = option as Record<string, any>;
+  // 验证taskId是否存在并转换为数字
+    const taskId = Number(data.prevPageQuery.taskId);
+    if (isNaN(taskId) || !taskId) {
+      Toast('参数错误，无法获取任务信息');
+      // 可以跳回列表页或其他处理
+      // setTimeout(() => {
+      //   uni.redirectTo({
+      //     url: '/pages/sub-page/wenzhen/list'
+      //   });
+      // }, 1500);
+      return;
+    }
   getQuestionAnswerList(option?.taskId);
 });
 </script>
