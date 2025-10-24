@@ -14,8 +14,8 @@
 					</view>
 					<view class="bottom">
 						<view class="btn">重置</view>
-						<view class="btn">删除</view>
-						<view class="btn active">充值</view>
+						<view class="btn" @click.stop="handleDelete(item.taskId)">删除</view>
+						<view class="btn active" @click.stop="handleRenew(item.taskId)">充值</view>
 					</view>
 				</view>
 			</view>
@@ -28,8 +28,8 @@
 import { reactive } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 // 接口
-import api from '@/api';
-import { taskModule } from '@/utils/data';
+import { initFamiliarLocal, listTasks, createTask, deleteTask, renewTask } from '@/utils/familiar-local';
+
 
 const data = reactive<any>({
   list: [],
@@ -41,12 +41,35 @@ const handleJump = () => {
   });
 };
 
-// 获取任务列表（示例：超熟模块）
 const fetchTaskList = async () => {
-  try {
-    const res = await api.task.list({ moduleCode: taskModule['熟悉模块'] });
-    data.list = res.data || [];
-  } catch (e) {}
+  initFamiliarLocal();
+  let lt = listTasks();
+  // 首次无任务，自动创建一个示例订单，便于立刻看到效果
+  if (!lt || lt.length === 0) {
+    const created = createTask({ name: '测试订单', durationDays: 5 });
+    if (created.ok) {
+      lt = listTasks();
+      uni.showToast({ title: '已创建示例订单', icon: 'none' });
+    }
+  }
+  // 映射为现有模板字段，避免改动模板
+  data.list = (lt || []).map((i) => ({
+    taskId: i.id,
+    taskName: i.name,
+    endTime: i.countdownEndAt ? new Date(i.countdownEndAt).toLocaleString() : '',
+  }));
+};
+
+const handleDelete = (id: string) => {
+  deleteTask(id);
+  uni.showToast({ title: '已删除', icon: 'none' });
+  fetchTaskList();
+};
+
+const handleRenew = (id: string) => {
+  const r = renewTask(id, 5, 46);
+  uni.showToast({ title: r.success ? '续时成功' : (r.reason || '续时失败'), icon: r.success ? 'success' : 'none' });
+  fetchTaskList();
 };
 
 onLoad(() => {

@@ -79,22 +79,19 @@ import { onLoad } from '@dcloudio/uni-app';
 import { getRandomIntInclusive, hasItTimeOut } from '@/utils/util';
 import {
   addRound,
-  addRoundIntegral,
-  addStage,
+  addPoint,
+  startStage,
   closeOverTimeDetailStep,
-  copyContentDetail,
-  getContentList,
-  getContentListOfAppoint,
-  getContentListOfStep,
-  getHint,
-  getRoundIntegral,
+  copySegment,
+  getMockContentByLibrary,
+  getNextChainContent,
+  getCurrentChainContent,
   getTaskDetail,
   savePoint,
   timeConfig,
-} from '@/utils/api';
+} from '@/utils/familiar-local';
 import { taskModule } from '@/utils/data';
 import type { taskModuleKey } from '@/utils/data';
-import type { Four } from '@/api/data';
 import stage1 from './shuxi/stage1';
 
 const data = reactive<any>({

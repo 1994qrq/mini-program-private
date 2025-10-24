@@ -24,10 +24,10 @@
                 <!--  使用计算属性 countdownTime，根据实际情况选择时间字段 -->
                 <uni-countdown
                   :font-size="14"
-                  :day="getCountdown(countdownTime)?.days"
-                  :hour="getCountdown(countdownTime)?.hours"
-                  :minute="getCountdown(countdownTime)?.minutes"
-                  :second="getCountdown(countdownTime)?.seconds"
+                  :day="countdownResult?.days"
+                  :hour="countdownResult?.hours"
+                  :minute="countdownResult?.minutes"
+                  :second="countdownResult?.seconds"
                   color="#000000" />
               </view>
             </view>
@@ -125,6 +125,15 @@ const countdownTime = computed(() => {
 
   // 其他状态，使用 endTime
   return item.endTime;
+});
+
+// 调试：计算倒计时结果
+const countdownResult = computed(() => {
+  const time = countdownTime.value;
+  if (!time) return null;
+  const result = getCountdown(time);
+  console.log('[bc-task-item] 倒计时计算:', { time, result });
+  return result;
 });
 
 /**

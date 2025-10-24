@@ -25,7 +25,7 @@ const props = defineProps({
     default: '确定',
   },
   hideOk: {
-    type: String,
+    type: [String, Boolean],
     default: false,
   },
   cancelText: {

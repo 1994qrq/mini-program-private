@@ -45,7 +45,7 @@ const hint4 = (params: { taskId: number; specialStepId?: number; flag?: boolean 
             },
             () => {
               // 跳转对方主动找页面
-              uni.redirectTo({ url: '/pages/sub-page/stepTask/round?module=熟悉模块&taskId=' + taskId });
+              uni.navigateTo({ url: '/pages/sub-page/stepTask/round?module=熟悉模块&taskId=' + taskId });
             }
           );
         });
