@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>测试不熟模块库内容</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+    .section h3 { margin-top: 0; color: #333; }
+    .content-item { margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 3px; }
+    .label { font-weight: bold; color: #666; }
+    .text { color: #333; margin-left: 10px; }
+    .special { color: #e74c3c; font-weight: bold; }
+    .type { display: inline-block; padding: 2px 8px; background: #3498db; color: white; border-radius: 3px; font-size: 12px; margin-left: 10px; }
+  </style>
+</head>
+<body>
+  <h1>不熟模块库内容测试</h1>
+  
+  <div class="section">
+    <h3>开库 (Opening)</h3>
+    <div class="content-item">
+      <span class="label">B1:</span>
+      <span class="text">嗨，{对方称呼}<span class="special">@</span>好久不见，最近怎么样？<span class="special">@</span>看到你的朋友圈，感觉你最近挺忙的<span class="special">@</span>有空的话，想和你聊聊天</span>
+      <span class="type">Z倒计时</span>
+    </div>
+    <div class="content-item">
+      <span class="label">B2:</span>
+      <span class="text">{对方称呼}，你好<span class="special">@</span>上次聊得挺开心的<span class="special">@</span>今天想继续和你聊聊<span class="special">@</span>有个事情想听听你的意见</span>
+      <span class="type">Z倒计时</span>
+    </div>
+    <div class="content-item">
+      <span class="label">B3:</span>
+      <span class="text">嘿，{对方称呼}<span class="special">@</span>最近有个想法，想和你分享一下<span class="special">@</span>不知道你有没有时间<span class="special">@</span>我觉得你可能会感兴趣</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <h3>内容库 (Content)</h3>
+    <div class="content-item">
+      <span class="label">B1:</span>
+      <span class="text">最近我在想，咱们认识也有一段时间了<span class="special">@</span>虽然平时联系不多，但我一直觉得你是个很有意思的人<span class="special">@</span>（其实我一直想找机会和你多聊聊<span class="special">&</span><span class="special">///</span>我觉得咱们应该有很多共同话题可以聊<span class="special">++</span>）<span class="special">@</span>你最近在忙什么呢？</span>
+      <span class="type">AZ倒计时</span>
+    </div>
+    <div class="content-item">
+      <span class="label">B2:</span>
+      <span class="text">上次你说的那个事情，我后来想了想<span class="special">@</span>确实挺有道理的<span class="special">@</span>（我觉得你的想法很独特<span class="special">&</span><span class="special">///</span>你的观点让我有了新的思考<span class="special">++</span>）<span class="special">@</span>想听听你对这方面更多的看法</span>
+      <span class="type">AZ倒计时</span>
+    </div>
+    <div class="content-item">
+      <span class="label">B5:</span>
+      <span class="text">我一直在思考我们之间的关系<span class="special">@</span>我觉得我们已经不只是普通朋友了<span class="special">@</span>（我想坦诚地告诉你我的想法<span class="special">&</span><span class="special">///</span>我希望你能理解我的心意<span class="special">++</span>）<span class="special">@</span>你能感受到吗？</span>
+      <span class="type">D模式</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <h3>离库 (Leaving)</h3>
+    <div class="content-item">
+      <span class="label">B1:</span>
+      <span class="text"><span class="special">FF</span>那先不打扰你了，有空再聊<span class="special">LL</span><span class="special">FF</span>如果你有时间的话，随时可以找我<span class="special">LL</span><span class="special">FF</span>我先忙了，改天再聊<span class="special">LL</span></span>
+    </div>
+    <div class="content-item">
+      <span class="label">B2:</span>
+      <span class="text">（好的，那你先忙，我们下次再聊<span class="special">&</span><span class="special">///</span>行，那就这样，有空再联系<span class="special">++</span>）<span class="special">@</span>（希望下次能聊得更深入一些<span class="special">&</span><span class="special">///</span>期待我们下次的交流<span class="special">++</span>）<span class="special">@</span>（那就先这样，拜拜<span class="special">&</span><span class="special">///</span>好的，回见<span class="special">++</span>）</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <h3>对方找 (Opponent)</h3>
+    <div class="content-item">
+      <span class="label">B20:</span>
+      <span class="text">哎呀，真巧，我正想找你呢<span class="special">@</span>你怎么突然想起联系我了？<span class="special">@</span>（是有什么事情吗？<span class="special">&</span><span class="special">///</span>还是单纯想聊聊天？<span class="special">++</span>）<span class="special">@</span>我很高兴你能主动找我</span>
+    </div>
+    <div class="content-item">
+      <span class="label">B21:</span>
+      <span class="text">关于你问的这个问题<span class="special">@</span>我觉得可以这样理解<span class="special">@</span>（从这个角度来看<span class="special">&</span><span class="special">///</span>换个思路想想<span class="special">++</span>）<span class="special">@</span>你觉得呢？</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <h3>特殊符号说明</h3>
+    <ul>
+      <li><span class="special">@</span> - 分段符号，用于将内容分成多个段落</li>
+      <li><span class="special">&</span> - 并行选择开始标记</li>
+      <li><span class="special">///</span> - 并行选项分隔符</li>
+      <li><span class="special">++</span> - 并行选择结束标记</li>
+      <li><span class="special">FF</span> - 前缀标记（用于离库）</li>
+      <li><span class="special">LL</span> - 分段标记（用于离库）</li>
+      <li><span class="type">Z倒计时</span> - 遇到此标记时触发Z倒计时</li>
+      <li><span class="type">AZ倒计时</span> - 内容后附加Z倒计时</li>
+      <li><span class="type">D模式</span> - 触发D模式</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h3>逻辑说明</h3>
+    <ul>
+      <li><strong>Z倒计时：</strong>只有遇到 Z 或 AZ 标记时才会触发，不是随便出现的</li>
+      <li><strong>并行选择：</strong>使用 & /// ++ 标记的内容表示可以从多个选项中选择一个</li>
+      <li><strong>分段逻辑：</strong>@ 符号用于分段，每次复制推进一段</li>
+      <li><strong>离库特殊处理：</strong>FF 和 LL 标记用于离库的特殊分段逻辑</li>
+    </ul>
+  </div>
+
+</body>
+</html>
+

@@ -40,9 +40,9 @@
           <text class="countdown-text">回合允许时间：{{ Math.floor(data.roundAllowedTime / 1000) }}秒</text>
         </view>
       </view>
-      
-      <!-- Z倒计时 -->
-      <view class="m-bottom-30" v-if="data.currentStep === 'z'">
+
+      <!-- Z倒计时（只在有倒计时结束时间时显示） -->
+      <view class="m-bottom-30" v-if="data.currentStep === 'z' && data.zEndTimeStr">
         <bc-countdown
           :key="data.zEndTimeStr"
           size="small"
@@ -78,6 +78,7 @@
       >
         对方找
       </view>
+      <!-- 第二个Z倒计时组件（只在有倒计时结束时间时显示） -->
       <bc-countdown
           :key="data.zEndTimeStr"
           :time="''"
@@ -86,8 +87,8 @@
           :minute="zInit.minutes"
           :second="zInit.seconds"
           desc="倒计时结束后，将回复新内容"
-          @timeup="zTimeup" 
-          v-if="data.currentStep === 'z'"
+          @timeup="zTimeup"
+          v-if="data.currentStep === 'z' && data.zEndTimeStr"
           :size="small"
           />
       <!-- D出现 -->
@@ -1157,10 +1158,11 @@ const handleCopy = (item: any) => {
           const cleaned = afterAt.replace(/）?AZ\s*$/i, '').trim();
           console.log('[round] @后半句:', cleaned, ' hasAZTail=', hasAZTail);
 
-          // 展示@后半句
+          // 展示@后半句（注意：不要在这里立即进入Z，应该等用户复制后再进入）
+          const stepId = `${data.currentRound}_${data.currentChainIndex}_${data.currentSegmentIndex}_at_show`;
           data.pageInfo = {
             contentList: [{
-              stepDetailId: `${data.currentRound}_${data.currentChainIndex}_${data.currentSegmentIndex}_at_show`,
+              stepDetailId: stepId,
               content: cleaned,
               segmentIndex: 1,
               type: 'text',
@@ -1170,14 +1172,13 @@ const handleCopy = (item: any) => {
           };
           data.currentStep = 'normal';
 
-          // 若尾部带AZ，则进入Z倒计时
+          // 若尾部带AZ，标记该条目，在复制后进入Z倒计时（而不是现在立即进入）
           if (hasAZTail) {
-            const task = getTask(data.taskId);
-            if (task && task.stage1) {
-              data.zEndTime = Date.now() + task.stage1.zTimerMs;
-            }
-            console.log('[round] 检测到AZ尾部，切换到Z倒计时，结束时间:', new Date(data.zEndTime));
-            data.currentStep = 'z';
+            // @ts-ignore
+            if (!data.azAfterById) data.azAfterById = {};
+            // @ts-ignore
+            data.azAfterById[stepId] = true;
+            console.log('[round] 检测到AZ尾部，标记该条目，复制后将进入Z倒计时');
           }
           return;
         } else {
@@ -1209,14 +1210,31 @@ const handleCopy = (item: any) => {
           return;
         }
         
-        // 检查是否包含Z/AZ符号
-        if (nextSegment.includes('Z') || nextSegment.includes('AZ')) {
-          // 包含Z/AZ符号，显示Z按钮
-          const task = getTask(data.taskId);
-          if (task && task.stage1) {
-            data.zEndTime = Date.now() + task.stage1.zTimerMs;
-          }
+        // 检查是否以Z/AZ符号结尾（注意：不是包含，而是结尾）
+        const trimmedSegment = nextSegment.trim();
+        const hasZTail = /Z\s*$/i.test(trimmedSegment) || /）Z\s*$/i.test(trimmedSegment);
+        const hasAZTail = /AZ\s*$/i.test(trimmedSegment) || /）AZ\s*$/i.test(trimmedSegment);
+
+        if (hasZTail || hasAZTail) {
+          // 以Z/AZ符号结尾，清理尾部符号后展示内容，并显示Z按钮
+          const cleanedContent = trimmedSegment.replace(/）?(A)?Z\s*$/i, '').trim();
+
+          data.pageInfo = {
+            contentList: [{
+              stepDetailId: `${data.currentRound}_${data.currentChainIndex}_${data.currentSegmentIndex}`,
+              content: cleanedContent,
+              segmentIndex: data.currentSegmentIndex,
+              type: 'text',
+              totalSegments: data.currentSegments.length,
+              currentSegment: data.currentSegmentIndex
+            }]
+          };
+
+          // 显示Z按钮（用户点击后才进入倒计时）
+          // 注意：这里只设置 currentStep = 'z'，清空 zEndTimeStr，所以不会显示倒计时
           data.currentStep = 'z';
+          data.zEndTimeStr = ''; // 清空倒计时，只显示Z按钮
+          console.log('[round] 检测到Z/AZ结尾，展示内容并显示Z按钮（等待用户点击）');
           return;
         }
         

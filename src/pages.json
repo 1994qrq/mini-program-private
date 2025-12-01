@@ -56,6 +56,23 @@
           "path": "stepTask/round",
           "title": "超熟模块对话页"
         },
+        {
+          "path": "stepTask/round-local",
+          "title": "不熟模块对话页（旧）"
+        },
+        {
+          "path": "stepTask/round-new",
+          "title": "不熟模块对话页"
+        },
+        {
+          "path": "stepTask/round-stranger",
+          "title": "陌生模块对话页"
+        },
+        {
+          "path": "stepTask/test-page",
+          "title": "测试页面"
+        },
+
         // 线下模块
         {
           "path": "offline/list",
