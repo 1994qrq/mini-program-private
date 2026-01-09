@@ -8,20 +8,33 @@
         </button>
       </view>
     </view>
+
+    <!-- 免责声明弹窗 -->
+    <DisclaimerModal
+      :visible="showDisclaimer"
+      @agree="handleDisclaimerAgree"
+      @disagree="handleDisclaimerDisagree"
+    />
   </md-page>
 </template>
 
 <script lang="ts" setup>
-import { reactive } from 'vue';
+import { reactive, ref } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 // 接口
 import api from '@/api/index';
+// 免责声明组件
+import DisclaimerModal from '@/components/DisclaimerModal.vue';
+// 免责声明工具
+import { hasUserAgreedDisclaimer, setUserAgreedDisclaimer } from '@/utils/disclaimer';
 
 const data = reactive<any>({
   userId: null,
   configInfo: {},
   isLoadingUserId: false, // 是否正在获取 userId
 });
+
+const showDisclaimer = ref(false); // 是否显示免责声明弹窗
 
 // 等待 userId 获取完成（最多等待10秒）
 const waitForUserId = async (): Promise<boolean> => {
@@ -40,6 +53,13 @@ const waitForUserId = async (): Promise<boolean> => {
 // 授权手机号回调
 async function decryptPhoneNumber(e: any) {
   console.log('[decryptPhoneNumber] 开始处理手机号授权', e.detail);
+
+  // 首先检查免责声明
+  if (!hasUserAgreedDisclaimer()) {
+    console.log('[decryptPhoneNumber] 用户尚未同意免责声明，显示弹窗');
+    showDisclaimer.value = true;
+    return;
+  }
 
   // 如果 userId 还没获取到，显示加载提示并等待
   if (!data.userId) {
@@ -79,6 +99,38 @@ const fetchWxLogin = async (code: string) => {
   }
 };
 
+// 免责声明处理函数
+const handleDisclaimerAgree = () => {
+  console.log('[handleDisclaimerAgree] 用户同意免责声明');
+  setUserAgreedDisclaimer(true);
+  showDisclaimer.value = false;
+
+  // 显示同意成功的提示
+  uni.showToast({
+    title: '感谢您的信任！',
+    icon: 'success',
+    duration: 2000
+  });
+};
+
+const handleDisclaimerDisagree = () => {
+  console.log('[handleDisclaimerDisagree] 用户不同意免责声明');
+  setUserAgreedDisclaimer(false);
+  showDisclaimer.value = false;
+
+  // 显示不同意后的提示，并阻止继续登录
+  uni.showModal({
+    title: '提示',
+    content: '很抱歉，您需要同意用户协议才能继续使用我们的服务。感谢您的理解。',
+    showCancel: false,
+    confirmText: '知道了',
+    success: () => {
+      // 用户点击确定后，可以选择退出小程序或停留在当前页面
+      console.log('[handleDisclaimerDisagree] 用户确认不同意，阻止登录流程');
+    }
+  });
+};
+
 // 授权手机登录
 const fetchAuthMobileLogin = async (code: string) => {
   try {
@@ -108,6 +160,12 @@ const fetchAuthMobileLogin = async (code: string) => {
 };
 
 onLoad(() => {
+  // 检查用户是否已同意免责声明
+  if (!hasUserAgreedDisclaimer()) {
+    console.log('[onLoad] 用户尚未同意免责声明，显示弹窗');
+    showDisclaimer.value = true;
+  }
+
   uni.login({
     provider: 'weixin', //使用微信登录
     success: function (res) {

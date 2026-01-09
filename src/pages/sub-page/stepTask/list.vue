@@ -20,6 +20,10 @@
           <bc-task-item
             :item="item"
             :desc="roundDesc(item)"
+            :taskType="data.title.includes('熟悉') ? '熟悉' :
+                      data.title.includes('不熟') ? '不熟' :
+                      data.title.includes('超熟') ? '超熟' :
+                      data.title.includes('陌生') ? '陌生' : ''"
             @swipeClick="onSwipeClick"></bc-task-item>
         </view>
       </block>
@@ -82,12 +86,12 @@ const popup = ref<any>(null);
 
 
 const footerConfig = computed(() => {
-  if (data.title.includes('超熟')) return { bg: '/static/images/chaoshu.png', label: '创建超熟任务' };
-  if (data.title.includes('熟悉')) return { bg: '/static/images/shuxi.png', label: '创建熟悉任务' };
-  if (data.title.includes('不熟')) return { bg: '/static/images/bushu.png', label: '创建不熟任务' };
-  if (data.title.includes('陌生')) return { bg: '/static/images/mosheng.png', label: '创建陌生任务' };
-  if (data.title.includes('免费')) return { bg: '/static/images/mianfei.png', label: '创建免费任务' };
-  return { bg: '/static/images/mianfei.png', label: '创建免费任务' };
+  if (data.title.includes('超熟')) return { bg: '/static/images/chaoshu.png', label: '创建超熟对话' };
+  if (data.title.includes('熟悉')) return { bg: '/static/images/shuxi.png', label: '创建熟悉对话' };
+  if (data.title.includes('不熟')) return { bg: '/static/images/bushu.png', label: '创建不熟对话' };
+  if (data.title.includes('陌生')) return { bg: '/static/images/mosheng.png', label: '创建陌生对话' };
+  if (data.title.includes('免费')) return { bg: '/static/images/mianfei.png', label: '创建免费对话' };
+  return { bg: '/static/images/mianfei.png', label: '创建免费对话' };
 });
 
 const roundDesc = (item: Task.List.Data) => {
@@ -136,6 +140,12 @@ const handleCancel = () => {
 };
 
 const openCreateDialog = () => {
+  // 如果是免费对话，直接创建，无需弹出问卷
+  if (data.title.includes('免费')) {
+    fetchCreateTask({ taskName: '免费对话' });
+    return;
+  }
+
   const inst: any = popup.value;
   if (inst && typeof inst.open === 'function') {
     inst.open();
@@ -487,10 +497,11 @@ const fetchCreateTask = async (params: Pick<Task.Create.Body, 'taskName'>) => {
         await getTaskList();
       }
     } else {
+      // 熟悉/超熟/免费模块保持原有逻辑，需要问卷
       fm.initFamiliarLocal();
       const res = fm.createTask({ name, durationDays: 5 });
       if (res.ok && res.task) {
-        // 熟悉/超熟模块问卷页（保持原路由）
+        // 熟悉/超熟/免费模块问卷页（保持原路由）
         uni.navigateTo({ url: `/pages/sub-page/stepTask/questionnaire?taskId=${res.task.id}&taskName=${params?.taskName}&module=${data.title}` });
       } else {
         uni.showToast({ title: res.reason || '创建失败', icon: 'none' });
@@ -545,7 +556,7 @@ onShow(() => {
 .page-wrap { position: relative; min-height: 100vh; }
 
 .mf-btn { width: 100%; position: relative; }
-.mf-bg { width: 100%; display: block; }
+.mf-bg { width: 100%; display: block; image-rendering: pixelated; }
 .mf-text { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; transform: translateY(20rpx); }
 .mf-plus { color: #fff; font-size: 40rpx; font-weight: 700; margin-right: 12rpx; line-height: 1; }
 .mf-label { color: #fff; font-size: 32rpx; font-weight: 600; line-height: 1; }

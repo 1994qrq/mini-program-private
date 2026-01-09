@@ -18,4 +18,12 @@ page {
 	font-size: 24rpx;
 	color: $title;
 }
+
+/* 全局 image 标签样式 - 使图片在缩放时保持像素风格 */
+image,
+img {
+	// image-rendering: pixelated;
+		image-rendering: -moz-crisp-edges;
+		image-rendering: crisp-edges;
+}
 </style>

@@ -7,7 +7,7 @@
       @click="onSwipeClick">
       <view class="list" @click="onClick">
         <view class="left_arrow">
-          <md-icon :name="bgType == 'yellow'?'yellow_left_arrow':(bgType == 'dark' ? 'left_arrow_grey' : 'left_arrow')" width="80" height="80">
+          <md-icon :name="getLeftArrowIcon" width="80" height="80">
             <view class="text">{{ tag }}</view>
           </md-icon>
         </view>
@@ -78,6 +78,14 @@ const props = defineProps({
     type: String,
     default: 'white', // dark
   },
+  useAltArrow: {
+    type: Boolean,
+    default: false, // 是否使用备用的 left_arrow1 图标
+  },
+  taskType: {
+    type: String,
+    default: '', // 任务类型：熟悉、不熟、超熟、陌生
+  },
   disabled: {
     type: Boolean,
     default: false,
@@ -134,6 +142,37 @@ const countdownResult = computed(() => {
   const result = getCountdown(time);
   console.log('[bc-task-item] 倒计时计算:', { time, result });
   return result;
+});
+
+// 计算属性：根据任务类型选择左侧箭头图标
+const getLeftArrowIcon = computed(() => {
+  // 如果指定了任务类型，优先使用任务类型对应的图标
+  if (props.taskType) {
+    switch (props.taskType) {
+      case '熟悉':
+        return 'left_arrow1';
+      case '不熟':
+        return 'left_arrow_bushu';
+      case '超熟':
+        return 'left_arrow_chaoshu';
+      case '陌生':
+        // 陌生类型使用默认的 left_arrow，与免费类型一致
+        return 'left_arrow';
+      default:
+        break;
+    }
+  }
+
+  // 回退到原有的 bgType 逻辑
+  if (props.bgType === 'yellow') {
+    return 'yellow_left_arrow';
+  } else if (props.bgType === 'dark') {
+    return 'left_arrow_grey';
+  } else if (props.useAltArrow) {
+    return 'left_arrow1';
+  }
+
+  return 'left_arrow';
 });
 
 /**
@@ -238,7 +277,7 @@ onMounted(() => {
     .text {
       padding: 6rpx 14rpx;
       box-sizing: border-box;
-      color:black
+      color: black;
     }
   }
   .right_arrow {

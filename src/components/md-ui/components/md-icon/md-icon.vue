@@ -1,11 +1,15 @@
 <template>
   <view
     class="md-icon"
-    :style="{ width: width + 'rpx', height: height + 'rpx', borderRadius: circle ? '50%' : 'initial' }"
+    :style="{
+      width: width && width.includes('%') ? width : (width ? width + 'rpx' : '100%'),
+      height: imageMode === 'widthFix' ? 'auto' : (height && height.includes('%') ? height : (height ? height + 'rpx' : '100%')),
+      borderRadius: circle ? '50%' : 'initial'
+    }"
     @click="onClick">
     <image
       class="image"
-      mode="aspectFill"
+      :mode="imageMode"
       :src="url ? url : `/static/${type === 'icon' ? 'icons' : 'images'}/${name}.png`" />
     <!-- 默认插槽 -->
     <view class="content" :style="customStyle">
@@ -36,6 +40,10 @@ defineProps({
     type: Boolean,
     default: false,
   },
+  imageMode: {
+    type: String,
+    default: 'aspectFill', // aspectFill | aspectFit | widthFix | scaleToFill
+  },
 });
 
 const onClick = () => emit('click');
@@ -44,16 +52,21 @@ const onClick = () => emit('click');
 <style lang="scss" scoped>
 .md-icon {
   position: relative;
+  display: block;
   overflow: hidden;
-  .image,
+
+  .image {
+    width: 100% !important;
+    height: 100% !important;
+    display: block;
+  }
+
   .content {
-    width: 100%;
-    height: 100%;
     position: absolute;
     top: 0;
     left: 0;
-  }
-  .content {
+    width: 100%;
+    height: 100%;
     z-index: 1;
   }
 }

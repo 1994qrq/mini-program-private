@@ -9,6 +9,15 @@
       </div>
       <!-- 文案 -->
       <div class="text m-left-30">This is the advertising Advertising slogan</div>
+      <!-- 信息滚动条 -->
+      <div class="info-marquee">
+        <div class="inner">
+          <div class="track">
+            <div class="marquee">可以左右滚动的信息文案</div>
+          </div>
+          <div class="arrow"><md-icon name="arrow" width="28" height="28"></md-icon></div>
+        </div>
+      </div>
       <!-- 四个模块 -->
       <div class="four_tab flex">
         <div
@@ -17,15 +26,6 @@
           :key="item.key"
           @click="() => handleJump('step', item.label)">
           <md-icon type="bg" height="210" width="146" :name="'home/' + item.key"></md-icon>
-        </div>
-      </div>
-      <!-- 信息滚动条 -->
-      <div class="info-marquee">
-        <div class="inner">
-          <div class="track">
-            <div class="marquee">可以左右滚动的信息文案</div>
-          </div>
-          <div class="arrow"><md-icon name="arrow" width="28" height="28"></md-icon></div>
         </div>
       </div>
 
@@ -45,13 +45,13 @@
             <md-icon type="bg" name="home/dingzhi" width="236" height="140"></md-icon>
           </div>
           <!-- @click="() => handleJump('key')" -->
-          <div class="item flex-c">
+          <div class="item flex-c" @click="() => handleJump('key')">
             <md-icon type="bg" name="home/key" width="200" height="120"></md-icon>
           </div>
         </div>
       </div>
       <div class="offline m-top-20" @click="() => handleJump('offline')">
-        <md-icon type="bg" name="home/offline" width="668" height="156"></md-icon>
+        <md-icon type="bg" name="home/offline" width="100%" height="156" imageMode="scaleToFill"></md-icon>
       </div>
       <div class="offline-tip">——据说 每颗星都有自己的小秘密</div>
     </div>
@@ -117,6 +117,10 @@ const handleJump = (type: string, module?: string) => {
   } else if (type === 'custom') {
     uni.navigateTo({
       url: '/pages/sub-page/custom/list',
+    });
+  } else if (type === 'key') {
+    uni.navigateTo({
+      url: '/pages/sub-page/common/description',
     });
   }
 };
@@ -191,8 +195,10 @@ onShow(() => {
     & > .text {
       width: 40%;
     }
+    & > .info-marquee {
+      margin: 100rpx 30rpx 20rpx;
+    }
     & > .four_tab {
-      margin-top: 100rpx;
       padding: 20rpx;
     }
     & > .main {
@@ -243,6 +249,9 @@ onShow(() => {
 
     .offline {
       padding: 0 20rpx;
+      width: 100%;
+      box-sizing: border-box;
+      height: 156rpx;
     }
     .offline-tip {
       padding: 10rpx 40rpx 0;

@@ -12,6 +12,20 @@
         <text style="color: #ff6b6b; font-weight: bold;">积分：{{ stageScore }}</text>
       </view>
 
+      <!-- 搜索框 -->
+      <view v-if="showSearch" class="search-wrap m-bottom-30">
+        <md-icon class="wenhao" name="wenhao" width="48" height="48" @click="handleWenhao"></md-icon>
+        <view class="search flex-c m-right-12">
+          <input
+            v-model="searchKeyword"
+            placeholder="请输入对方的问题"
+            class="m-left-20 input"
+            placeholder-style="color: #7A59ED;"
+          />
+        </view>
+        <md-icon name="search_btn" width="76" height="76" @click="handleSearch"></md-icon>
+      </view>
+
       <!-- 大CD倒计时 -->
       <view v-if="currentView === 'big_cd'" class="big-cd-view">
         <view class="cd-title">{{ cdTitle }}</view>
@@ -99,6 +113,37 @@
         </view>
       </view>
     </md-dialog>
+
+    <!-- 搜索结果弹窗 -->
+    <md-dialog
+      ref="searchDialog"
+      title="搜索结果"
+      :width="730"
+      hideOk
+      cancelText="关闭"
+      @cancel="handleCloseSearchDialog"
+    >
+      <view v-if="searchResults.length > 0" class="search-results">
+        <view
+          v-for="(item, index) in searchResults"
+          :key="index"
+          class="search-result-item"
+        >
+          <view class="result-title">{{ item.title }}</view>
+          <view class="result-content">{{ item.content }}</view>
+          <view
+            class="copy-btn"
+            :class="{ disabled: searchCopyDisabled }"
+            @click="handleCopySearch(item, index)"
+          >
+            复制
+          </view>
+        </view>
+      </view>
+      <view v-else class="empty-state">
+        <text>未找到相关内容</text>
+      </view>
+    </md-dialog>
   </md-page>
 </template>
 
@@ -138,6 +183,13 @@ const stepLabel = computed(() => {
   if (currentView.value === 'd') return 'D模式';
   return '对话中';
 });
+
+// 搜索相关
+const showSearch = ref(true);
+const searchKeyword = ref('');
+const searchResults = ref<any[]>([]);
+const searchDialog = ref<any>(null);
+const searchCopyDisabled = ref(false);
 
 const pageInfoLike = computed(() => ({
   contentList: (contentList.value || []).map((it: any, i: number) => ({
@@ -664,6 +716,48 @@ const handlePromptClick = (key: string) => {
   promptDialog.value?.close();
   loadTaskData();
 };
+// 搜索相关方法
+const handleWenhao = () => {
+  uni.navigateTo({ url: '/pages/sub-page/describe/wenhao' });
+};
+
+const handleSearch = () => {
+  if (!searchKeyword.value.trim()) {
+    uni.showToast({ title: '请输入搜索内容', icon: 'none' });
+    return;
+  }
+
+  // 模拟搜索结果，实际应该调用搜索API
+  searchResults.value = [
+    {
+      title: '搜索结果示例',
+      content: '这是搜索结果的示例内容，实际应该调用搜索API获取真实数据。'
+    }
+  ];
+
+  searchDialog.value?.open();
+};
+
+const handleCloseSearchDialog = () => {
+  searchDialog.value?.close();
+};
+
+const handleCopySearch = (item: any, index: number) => {
+  if (searchCopyDisabled.value) return;
+
+  // 复制到剪贴板
+  uni.setClipboardData({
+    data: item.content,
+    success: () => {
+      uni.showToast({ title: '已复制', icon: 'success' });
+      searchCopyDisabled.value = true;
+      setTimeout(() => {
+        searchCopyDisabled.value = false;
+      }, 3000);
+    }
+  });
+};
+
 </script>
 
 <style lang="scss" scoped>
@@ -758,4 +852,86 @@ const handlePromptClick = (key: string) => {
     }
   }
 }
+
+// 搜索框样式
+.search-wrap {
+  width: 100%;
+  display: flex;
+  align-items: center;
+
+  .wenhao {
+    margin-right: 12rpx;
+  }
+
+  .search {
+    border-radius: 100rpx;
+    border: solid 1px #7A59ED;
+    box-shadow: 0 8rpx 8rpx 0 #00000040;
+    background: white;
+    height: 72rpx;
+    line-height: 72rpx;
+    width: 100%;
+    padding: 0 30rpx;
+    box-sizing: border-box;
+    flex: 1;
+
+    .input {
+      width: 100%;
+      border: none;
+      outline: none;
+      background: transparent;
+    }
+  }
+}
+
+// 搜索结果弹窗样式
+.search-results {
+  max-height: 500rpx;
+  overflow-y: auto;
+}
+
+.search-result-item {
+  padding: 20rpx 0;
+  border-bottom: 1px solid #eee;
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  .result-title {
+    font-size: 28rpx;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 10rpx;
+  }
+
+  .result-content {
+    font-size: 26rpx;
+    color: #666;
+    line-height: 1.5;
+    margin-bottom: 20rpx;
+  }
+
+  .copy-btn {
+    display: inline-block;
+    padding: 8rpx 20rpx;
+    background: #667eea;
+    color: #fff;
+    border-radius: 8rpx;
+    font-size: 24rpx;
+    text-align: center;
+
+    &.disabled {
+      background: #ccc;
+    }
+  }
+}
+
+.empty-state {
+  padding: 40rpx 0;
+  text-align: center;
+  color: #999;
+  font-size: 28rpx;
+}
+
 </style>

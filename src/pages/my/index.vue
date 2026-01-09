@@ -2,7 +2,7 @@
   <md-page title="个人中心" :showLeft="false">
     <view class="container">
       <!-- 个人信息头部 -->
-      <view class="header">
+      <view class="header" @click="handleProfileClick">
         <view class="avatar">
           <md-icon type="bg" name="apple"></md-icon>
         </view>
@@ -11,6 +11,7 @@
             <text class="nickname">{{ data.info?.nickname || '牛大胆' }}</text>
             <text class="arrow">›</text>
           </view>
+          <view class="member-number">会员编号: {{ data.info?.memberNumber || '013919' }}</view>
           <view class="labels">
             <text class="chip">预留标签</text>
             <bc-vip :level="data.info?.userLevel" />
@@ -20,22 +21,22 @@
 
       <!-- 统计卡片 -->
       <view class="stats">
-        <view class="card">
+        <view class="card" @click="handleMemberCardClick">
           <view class="card-title">我的会员等级</view>
           <view class="card-main">
             <text class="vip-level">VIP等级 {{ data.info?.userLevel ?? 2 }}</text>
           </view>
           <view class="card-sub">
             距离下一级会员还有
-            <text class="num">5,000,000</text> 个金币
+            <text class="num">{{ formatMoney(data.info?.nextLevelMoney || 0) }}</text>
           </view>
           <view class="card-arrow">→</view>
         </view>
 
-        <view class="card">
+        <view class="card" @click="handleRechargeClick">
           <view class="card-title">我的金币</view>
           <view class="card-main">
-            <text class="coin">200,000</text>
+            <text class="coin">{{ formatMoney(data.info?.remainingVirtual || 0) }}</text>
           </view>
           <view class="card-sub link">去充值</view>
         </view>
@@ -43,7 +44,7 @@
 
       <!-- 列表项 -->
       <view class="list">
-        <view class="item">
+        <view class="item" @click="handlePrivilegeClick">
           <view class="left">
             <view class="icon-badge">💎</view>
             <text>我的特权</text>
@@ -67,6 +68,18 @@ const data = reactive<any>({
 });
 
 /**
+ * 工具函数
+ */
+// 格式化金额，只显示数值，不显示单位
+const formatMoney = (money: number): string => {
+  if (!money) return '0';
+  return money.toLocaleString('zh-CN', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  });
+};
+
+/**
  * 接口相关
  */
 // 获取会员信息
@@ -74,13 +87,71 @@ const getVipInfo = async () => {
   try {
     const res = await api.common.info();
     data.info = res.data;
-  } catch (error) {}
-  // console.log('获取会员信息');
+    console.log('会员信息:', data.info);
+
+    // 计算距离下一级还需要的金额
+    if (data.info?.userLevel && data.info?.accumulateMoney !== undefined) {
+      // 这里需要根据实际情况计算下一级所需金额
+      // 暂时使用示例数据，实际应该根据等级规则计算
+      const nextLevelMoney = getNextLevelMoney(data.info.userLevel, data.info.accumulateMoney);
+      data.info.nextLevelMoney = nextLevelMoney;
+    }
+  } catch (error) {
+    console.error('获取会员信息失败:', error);
+  }
+};
+
+// 计算下一级所需金额（示例函数，需要根据实际情况调整）
+const getNextLevelMoney = (currentLevel: number, currentMoney: number): number => {
+  // 这里应该根据实际的等级规则计算
+  // 示例：每级需要10000元，返回差额
+  const levelRequirements = [0, 1000, 5000, 10000, 50000, 100000, 500000, 1000000]; // 各级所需累计金额
+  const nextLevelRequirement = levelRequirements[currentLevel] || levelRequirements[levelRequirements.length - 1];
+  return Math.max(0, nextLevelRequirement - currentMoney);
 };
 
 onShow(() => {
   getVipInfo();
 });
+
+/**
+ * 事件处理函数
+ */
+// 会员卡片点击
+const handleMemberCardClick = () => {
+  console.log('点击会员卡片');
+  uni.navigateTo({
+    url: '/pages/sub-page/vip/level'
+  });
+};
+
+// 充值点击
+const handleRechargeClick = () => {
+  console.log('点击充值');
+  uni.navigateTo({
+    url: '/pages/recharge/index'
+  });
+};
+
+// 特权点击
+const handlePrivilegeClick = () => {
+  console.log('点击我的特权');
+  uni.showToast({
+    title: '特权功能开发中...',
+    icon: 'none',
+    duration: 2000
+  });
+};
+
+// 个人信息点击
+const handleProfileClick = () => {
+  console.log('点击个人信息');
+  uni.showToast({
+    title: '个人信息功能开发中...',
+    icon: 'none',
+    duration: 2000
+  });
+};
 </script>
 
 <style lang="scss" scoped>
@@ -118,6 +189,11 @@ onShow(() => {
 .row {
   display: flex;
   align-items: center;
+  margin-bottom: 12rpx;
+}
+.member-number {
+  font-size: 24rpx;
+  color: #666;
   margin-bottom: 12rpx;
 }
 .nickname {

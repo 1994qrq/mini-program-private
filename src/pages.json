@@ -173,6 +173,25 @@
         {
           "path": "describe/wenhao",
           "title": "问号解释说明页"
+        },
+        // VIP相关
+        {
+          "path": "vip/level",
+          "title": "我的会员等级"
+        },
+        // 协议相关
+        {
+          "path": "agreement/privacy-policy",
+          "title": "隐私政策"
+        },
+        {
+          "path": "agreement/user-agreement",
+          "title": "用户服务协议"
+        },
+        // 通用页面
+        {
+          "path": "common/description",
+          "title": "总说明"
         }
       ]
     }
@@ -184,11 +203,11 @@
     "list": [
       {
         "pagePath": "pages/task/index",
-        "text": "任务列表"
+        "text": "对话列表"
       },
       {
         "pagePath": "pages/describe/index",
-        "text": "说明"
+        "text": "AO"
       },
       {
         "pagePath": "pages/index/index",

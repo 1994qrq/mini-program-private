@@ -62,6 +62,7 @@ const data = reactive<any>({
   statusBarHeight: uni.getWindowInfo().statusBarHeight + 'px', // 手机头部状态栏高度
   list: [],
   value: '',
+  loading: false, // 创建任务的加载状态
 });
 const popup = ref(null);
 
@@ -70,6 +71,11 @@ const onSwipeClick = () => {
 };
 
 const handleOk = () => {
+  // 防止重复点击
+  if (data.loading) {
+    return;
+  }
+
   if (!data.value) {
     Toast('请输入任务名称');
     return;
@@ -123,13 +129,33 @@ const getTaskList = async () => {
 
 // 创建任务
 const fetchCreateTask = async (params: Pick<Task.Create.Body, 'taskName'>) => {
+  // 设置加载状态
+  data.loading = true;
+  uni.showLoading({
+    title: '创建中...',
+    mask: true, // 显示透明蒙层，防止触摸穿透
+  });
+
   try {
     const res = await api.task.createTask({ ...params, moduleCode: taskModule['定制模块'] });
+
+    // 关闭弹窗
+    popup.value?.close();
+    handleCancel();
+
+    // 跳转到问卷页面
     uni.navigateTo({
       url: `/pages/sub-page/custom/questionnaire?taskId=${res.data?.taskId}&taskName=${params?.taskName}`,
     });
-    handleCancel();
-  } catch (error) {}
+  } catch (error) {
+    console.error('创建定制任务失败:', error);
+    // 如果失败，提示用户
+    Toast('创建失败，请重试');
+  } finally {
+    // 无论成功还是失败，都要关闭加载状态
+    data.loading = false;
+    uni.hideLoading();
+  }
 };
 
 onShow(() => {
