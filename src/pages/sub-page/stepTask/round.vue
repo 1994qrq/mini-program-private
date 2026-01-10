@@ -141,6 +141,8 @@ import {
   enterStageCd,
   startRound,
   markChainUsed,
+  // 第1阶段函数
+  enterStage1,
   startStage1Round,
   checkStage1RoundTransition,
   setRoundCdUnlock,
@@ -286,7 +288,31 @@ const loadTaskData = () => {
   if (task.stageIndex === 1) {
     // 第一阶段
     console.log('[loadTaskData] 第一阶段');
-    
+
+    // 【修复】检查stage1数据是否初始化，如果没有则自动初始化
+    if (!task.stage1) {
+      console.log('[loadTaskData] stage1数据未初始化，自动调用enterStage1');
+      const result = enterStage1(data.taskId);
+      if (result.ok) {
+        // 重新读取任务数据
+        const updatedTask = getTask(data.taskId);
+        if (updatedTask) {
+          task = updatedTask;
+          data.stage1 = task.stage1;
+          console.log('[loadTaskData] stage1初始化成功');
+        }
+      } else {
+        uni.showToast({
+          title: result.reason || '初始化失败',
+          icon: 'error'
+        });
+        setTimeout(() => {
+          uni.navigateBack();
+        }, 2000);
+        return;
+      }
+    }
+
     // 检查是否在回合CD中，如果是则清除离库恢复数据并显示CD倒计时
     const now = Date.now();
     if (task.roundCdUnlockAt && now < (task.roundCdUnlockAt as number)) {
@@ -294,9 +320,27 @@ const loadTaskData = () => {
       try {
         uni.removeStorageSync(`fm:leaving:${data.taskId}`);
       } catch (e) {}
-      
+
+      // 设置倒计时显示
       data.currentStep = 'stage_cd';
       data.cdMsg = '下次聊天开启倒计时';
+
+      // 【修复】设置endTime用于倒计时组件显示
+      const roundCdTime = task.roundCdUnlockAt as number;
+      const d = new Date(roundCdTime);
+      const pad = (n:number)=> (n<10?`0${n}`:`${n}`);
+      const y = d.getFullYear();
+      const m = pad(d.getMonth()+1);
+      const dd = pad(d.getDate());
+      const h = pad(d.getHours());
+      const mi = pad(d.getMinutes());
+      const s = pad(d.getSeconds());
+      data.detail = {
+        endTime: `${y}-${m}-${dd} ${h}:${mi}:${s}`,
+        stageNum: task.stageIndex,
+        roundNum: task.roundIndex || 0
+      };
+
       return;
     }
     
