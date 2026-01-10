@@ -3246,6 +3246,10 @@ onLoad(async options => {
     }
     // 最小内容列表占位（当前链路可选）
     data.pageInfo = data.pageInfo || { contentList: [], statusVo: {}, closeContent: false };
+
+    // 【修复】重新进入页面时也需要调用 loadTaskData() 来加载内容
+    // 确保 stage 对象初始化、currentLibChain 设置、内容加载等逻辑正常执行
+    loadTaskData();
     return;
   }
 
