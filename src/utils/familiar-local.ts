@@ -970,22 +970,178 @@ export function submitQuestionnaire(taskId: string): { routed: RoutedModule; nex
   const X = libs.questionnaire.thresholdX;
   const score = t.questionnaire.totalScore;
 
-  // 更新任务状态
+  // 更新任务状态：无论得分多少，都保持在第0阶段
   t.stageIndex = 0;
   t.stepIndex = 0;
   t.lastActionAt = Date.now();
+
+  // 保存问卷路由信息供前端判断使用：
+  // - 得分≥X(10分)：问1 → 问2 → S2提示板 → 9-10天倒计时 → 问3 → S4提示板 → XX-XX天倒计时 → 第一阶段
+  // - 得分<X(10分)：问1 → (是→不熟模块 / 否→陌生模块)
+  if (score >= X) {
+    t.questionnaire.routedModule = "familiar"; // 得分达标，后续走熟悉模块的问1/问2/问3流程
+  } else {
+    t.questionnaire.routedModule = "familiar"; // 得分不足，问1后路由到不熟/陌生模块
+  }
+
   set(`fm:task:${taskId}`, t);
 
-  // 根据得分判断路由
+  // 无论得分多少，都先进入"问1"流程
+  return { routed: "familiar", next: "问1" };
+}
+
+/**
+ * 处理"问1"的用户选择
+ * 问题："有对方微信或其他线上可交流方式吗？"
+ * 选项："是"和"否"
+ */
+export function handleAsk1(taskId: string, answer: "是" | "否"): { ok: boolean; action: string; reason?: string } {
+  initDefaults();
+  const t = getTask(taskId);
+  if (!t) return { ok: false, action: "error", reason: "任务不存在" };
+
+  const libs: Libs = get("fm:libs");
+  const X = libs.questionnaire.thresholdX;
+  const score = t.questionnaire.totalScore;
+
+  // 记录问1的答案
+  t.askFlow.ask1 = answer;
+  t.lastActionAt = Date.now();
+  set(`fm:task:${taskId}`, t);
+
   if (score >= X) {
-    // 得分达到阈值(10分),可以进入第一阶段
-    return { routed: "familiar", next: "第一阶段" };
+    // 得分达标的情况
+    if (answer === "是") {
+      // 进入"问2"
+      return { ok: true, action: "showAsk2", reason: "进入问2流程" };
+    } else {
+      // 显示提示板S1，然后回到"问1"
+      return { ok: true, action: "showPromptS1", reason: "显示提示板S1，用户点击确定后回到问1" };
+    }
   } else {
-    // 得分不足,进入问1流程
-    // 按文档：问1之后"是" -> 不熟模块；"否" -> 陌生模块
-    return { routed: "familiar", next: "问1" };
+    // 得分不足的情况
+    if (answer === "是") {
+      // 进入不熟模块
+      t.questionnaire.routedModule = "unfamiliar";
+      set(`fm:task:${taskId}`, t);
+      return { ok: true, action: "routeToUnfamiliar", reason: "得分不足，路由到不熟模块" };
+    } else {
+      // 进入陌生模块
+      t.questionnaire.routedModule = "stranger";
+      set(`fm:task:${taskId}`, t);
+      return { ok: true, action: "routeToStranger", reason: "得分不足，路由到陌生模块" };
+    }
   }
 }
+
+/**
+ * 处理"问2"的用户选择
+ * 问题："需要让对方见不到您20天左右。其中前10天左右什么也不用做，后10天左右请根据之后指引操作，确定可以开始并准备好之后请选"是"（即是否准备好）"
+ * 选项："是"和"否"
+ */
+export function handleAsk2(taskId: string, answer: "是" | "否"): { ok: boolean; action: string; reason?: string } {
+  initDefaults();
+  const t = getTask(taskId);
+  if (!t) return { ok: false, action: "error", reason: "任务不存在" };
+
+  // 记录问2的答案
+  t.askFlow.ask2 = answer;
+  t.lastActionAt = Date.now();
+
+  if (answer === "是") {
+    // 显示提示板S2，然后进入9-10天的倒计时
+    const daysRange = { minDays: 9, maxDays: 10 };
+    const days = randInt(daysRange.minDays, daysRange.maxDays);
+    const countdownMs = getCountdownTimeMs(days * 24 * 60 * 60 * 1000);
+
+    t.stageCdUnlockAt = Date.now() + countdownMs;
+    t.listBadge = "下次聊天开启倒计时";
+    t.listCountdownEndAt = t.stageCdUnlockAt;
+
+    // 标记当前在等待问3
+    t.stepIndex = 2; // 0=问卷, 1=问1, 2=等待问3
+
+    set(`fm:task:${taskId}`, t);
+    return { ok: true, action: "showPromptS2AndStartCountdown", reason: `显示提示板S2，进入${days}天倒计时，倒计时结束后弹出问3` };
+  } else {
+    // 显示提示板S3，然后回到"问2"
+    set(`fm:task:${taskId}`, t);
+    return { ok: true, action: "showPromptS3", reason: "显示提示板S3，用户点击确定后回到问2" };
+  }
+}
+
+/**
+ * 处理"问3"的用户选择
+ * 问题："请确定完成第一阶段，即倒计时结束前未与对方见面或主动联系，是或否？"
+ * 选项："是"和"否"
+ */
+export function handleAsk3(taskId: string, answer: "是" | "否"): { ok: boolean; action: string; reason?: string; countdownDays?: number } {
+  initDefaults();
+  const t = getTask(taskId);
+  if (!t) return { ok: false, action: "error", reason: "任务不存在" };
+
+  // 记录问3的答案
+  t.askFlow.ask3 = answer;
+  t.lastActionAt = Date.now();
+
+  if (answer === "是") {
+    // 显示提示板S4，然后进入XX-XX天的倒计时，倒计时结束后进入第一阶段
+    // TODO: 需要确认具体天数范围，这里暂时使用3-5天
+    const daysRange = { minDays: 3, maxDays: 5 };
+    const days = randInt(daysRange.minDays, daysRange.maxDays);
+    const countdownMs = getCountdownTimeMs(days * 24 * 60 * 60 * 1000);
+
+    t.stageCdUnlockAt = Date.now() + countdownMs;
+    t.listBadge = "下次聊天开启倒计时";
+    t.listCountdownEndAt = t.stageCdUnlockAt;
+
+    // 标记准备进入第一阶段
+    t.stepIndex = 3; // 0=问卷, 1=问1, 2=等待问3, 3=等待进入第一阶段
+
+    // TODO: 激活图文模块的图文特殊库权限
+    // 在6-9天的时间范围内随机一个时间，达到随机时间后，刷新该用户图文特殊库的返回内容
+
+    set(`fm:task:${taskId}`, t);
+    return { ok: true, action: "showPromptS4AndStartCountdown", reason: `显示提示板S4，进入${days}天倒计时，倒计时结束后进入第一阶段`, countdownDays: days };
+  } else {
+    // 显示提示板S3，然后回到"问2"
+    set(`fm:task:${taskId}`, t);
+    return { ok: true, action: "showPromptS3", reason: "显示提示板S3，用户点击确定后回到问2" };
+  }
+}
+
+/**
+ * 检查第0阶段的倒计时是否结束，并执行相应动作
+ */
+export function checkStage0Countdown(taskId: string): { ok: boolean; action: string; reason?: string } {
+  initDefaults();
+  const t = getTask(taskId);
+  if (!t) return { ok: false, action: "error", reason: "任务不存在" };
+
+  const now = Date.now();
+
+  // 如果有stageCdUnlockAt且已到期
+  if (t.stageCdUnlockAt && now >= t.stageCdUnlockAt) {
+    if (t.stepIndex === 2) {
+      // 问2后的倒计时结束，弹出问3
+      t.stageCdUnlockAt = null;
+      t.listCountdownEndAt = null;
+      t.listBadge = "聊天任务进行中";
+      set(`fm:task:${taskId}`, t);
+      return { ok: true, action: "showAsk3", reason: "问2后的倒计时结束，弹出问3" };
+    } else if (t.stepIndex === 3) {
+      // 问3后的倒计时结束，进入第一阶段
+      t.stageCdUnlockAt = null;
+      t.listCountdownEndAt = null;
+      t.listBadge = "聊天任务进行中";
+      set(`fm:task:${taskId}`, t);
+      return { ok: true, action: "enterStage1", reason: "问3后的倒计时结束，进入第一阶段" };
+    }
+  }
+
+  return { ok: true, action: "waiting", reason: "倒计时尚未结束" };
+}
+
 
 // Idle handling
 export function updateLastAction(taskId: string) {
