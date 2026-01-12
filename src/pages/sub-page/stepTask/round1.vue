@@ -105,6 +105,7 @@ import {
 } from '@/utils/api';
 import stage1 from './shuxi/stage1';
 import stage2 from './shuxi/stage2';
+import stage3 from './shuxi/stage3';
 
 const data = reactive<any>({
   taskId: null,
@@ -204,6 +205,9 @@ const handleCopy = async (r: Four.GetContentDetail.ContentList & Four.GetContent
     } else if (stageIndex === 2) {
       // 第二阶段判分逻辑
       result = await stage2(taskId);
+    } else if (stageIndex === 3) {
+      // 第三阶段判分逻辑
+      result = await stage3(taskId);
     } else {
       // 其他阶段（待实现）
       console.warn(`阶段 ${stageIndex} 的判分逻辑尚未实现`);
