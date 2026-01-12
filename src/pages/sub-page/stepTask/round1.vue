@@ -104,6 +104,7 @@ import {
   copyContentDetail,
 } from '@/utils/api';
 import stage1 from './shuxi/stage1';
+import stage2 from './shuxi/stage2';
 
 const data = reactive<any>({
   taskId: null,
@@ -192,8 +193,21 @@ const handleCopy = async (r: Four.GetContentDetail.ContentList & Four.GetContent
   if (isKeep) {
     getListInfo({ preStepDetailId: r.stepDetailId });
   } else {
-    // 离库结束，调用stage1判分逻辑
-    const result = await stage1(taskId);
+    // 离库结束，根据阶段调用不同的判分逻辑
+    const stageIndex = data.detail?.stageIndex || data.detail?.stageNum || 1;
+    console.log(`离库结束，当前阶段: ${stageIndex}`);
+
+    let result;
+    if (stageIndex === 1) {
+      // 第一阶段判分逻辑
+      result = await stage1(taskId);
+    } else if (stageIndex === 2) {
+      // 第二阶段判分逻辑
+      result = await stage2(taskId);
+    } else {
+      // 其他阶段（待实现）
+      console.warn(`阶段 ${stageIndex} 的判分逻辑尚未实现`);
+    }
 
     // 更新任务详情
     if (result?.detail) {

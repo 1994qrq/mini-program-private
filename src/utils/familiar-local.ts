@@ -1852,6 +1852,40 @@ export function startStage2Round(taskId: string, roundNumber: number) {
 }
 
 /**
+ * 完成第二阶段回合
+ * @param taskId 任务ID
+ * @param roundScore 本回合得分
+ * @returns 操作结果
+ */
+export function finishStage2Round(taskId: string, roundScore: number) {
+  initDefaults();
+  const t = getTask(taskId);
+  if (!t || !t.stage2) return { ok: false, reason: "任务不在第二阶段" };
+
+  const roundNumber = t.roundIndex || 0;
+
+  // 记录当前回合得分
+  t.stage2.roundScores[roundNumber - 1] = roundScore;
+  t.stageScore += roundScore;
+  t.totalScore += roundScore;
+
+  // 如果是第二回合，计算前两回合总分
+  if (roundNumber === 2) {
+    t.stage2.firstTwoRoundsTotal =
+      t.stage2.roundScores.slice(0, 2).reduce((sum, score) => sum + score, 0);
+
+    console.log(`[finishStage2Round] 第${roundNumber}回合结束:`, {
+      roundScore,
+      stageScore: t.stageScore,
+      firstTwoRoundsTotal: t.stage2.firstTwoRoundsTotal
+    });
+  }
+
+  set(`fm:task:${taskId}`, t);
+  return { ok: true, task: t };
+}
+
+/**
  * 检查第二阶段回合转换
  */
 export function checkStage2RoundTransition(taskId: string) {
