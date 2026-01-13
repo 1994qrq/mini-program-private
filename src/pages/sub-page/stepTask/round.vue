@@ -231,7 +231,12 @@ const data = reactive<any>({
 
   // 弹窗关闭防抖（防止cancel事件导致重复进入）
   isClosingPopup: false,
-  
+
+  // 倒计时暂停/恢复相关
+  isPaused: false,              // 是否处于暂停状态
+  pausedRemainingMs: 0,         // 暂停时的剩余毫秒数
+  pausedEndTime: '',            // 暂停前的结束时间（用于恢复）
+
 });
 const popup = ref<any>(null);
 
@@ -803,6 +808,23 @@ const handleLookforClick = async () => {
   data.lookforScored = false;
   data.canCopyLookfor = false;
   data.lookforCountdown = 0;
+
+  // 【新增】暂停功能页面的倒计时
+  if (data.detail?.endTime && !data.isPaused) {
+    // 计算当前剩余时间（毫秒）
+    const endMs = new Date(data.detail.endTime.replace(/-/g, '/')).getTime();
+    const remainingMs = Math.max(0, endMs - Date.now());
+
+    // 保存剩余时间和原始endTime
+    data.pausedRemainingMs = remainingMs;
+    data.pausedEndTime = data.detail.endTime;
+    data.isPaused = true;
+
+    // 清空endTime，让倒计时组件停止显示
+    data.detail.endTime = '';
+
+    console.log('[handleLookforClick] 暂停倒计时，剩余时间:', remainingMs, 'ms (', Math.floor(remainingMs/1000), '秒)');
+  }
 
   // 打开对话框
   popup.value?.open();
@@ -2748,6 +2770,23 @@ const handleClose = async () => {
     return;
   }
   data.isClosingPopup = true;
+
+  // 【新增】恢复功能页面的倒计时
+  if (data.isPaused && data.pausedRemainingMs > 0) {
+    // 根据剩余时间计算新的结束时间
+    const newEndMs = Date.now() + data.pausedRemainingMs;
+    const d = new Date(newEndMs);
+    const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
+    const newEndTime = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+
+    console.log('[handleClose] 恢复倒计时，剩余时间:', data.pausedRemainingMs, 'ms，新endTime:', newEndTime);
+
+    // 恢复倒计时
+    data.detail.endTime = newEndTime;
+    data.isPaused = false;
+    data.pausedRemainingMs = 0;
+    data.pausedEndTime = '';
+  }
 
   //  停止倒计时
   stopLookforCountdown();
