@@ -25,7 +25,7 @@
 
       <!-- 大CD倒计时（下方） -->
       <!-- 特殊回合a/b的大CD使用大倒计时，其他使用小倒计时 -->
-      <view class="m-bottom-30" v-if="data.currentStep === 'stage_cd'">
+      <view class="m-bottom-30" v-if="data.currentStep === 'stage_cd' && !data.isPaused">
         <bc-countdown
           :size="isSpecialRoundBigCd ? 'default' : 'small'"
           :time="data.detail?.endTime"
@@ -42,7 +42,7 @@
       </view>
 
       <!-- Z倒计时（只在有倒计时结束时间时显示） -->
-      <view class="m-bottom-30" v-if="data.currentStep === 'z' && data.zEndTimeStr">
+      <view class="m-bottom-30" v-if="data.currentStep === 'z' && data.zEndTimeStr && !data.isPaused">
         <bc-countdown
           :key="data.zEndTimeStr"
           size="small"
@@ -88,7 +88,7 @@
           :second="zInit.seconds"
           desc="倒计时结束后，将回复新内容"
           @timeup="zTimeup"
-          v-if="data.currentStep === 'z' && data.zEndTimeStr"
+          v-if="data.currentStep === 'z' && data.zEndTimeStr && !data.isPaused"
           :size="small"
           />
       <!-- D出现 -->
@@ -100,10 +100,10 @@
         这里是关于{{ data.stepSign?.toLocaleUpperCase() }}这个操作的提示，只有前三次显示。
       </bc-tip-row>
       <!-- 大CD倒计时 -->
-      <bc-countdown v-if="['z'].includes(data.stepSign)" size="small" :time="data.detail?.endTime" :desc="zCountdownMsg"
+      <bc-countdown v-if="['z'].includes(data.stepSign) && !data.isPaused" size="small" :time="data.detail?.endTime" :desc="zCountdownMsg"
         @timeup="zTimeup" />
       <!-- 对方找倒计时 -->
-      <bc-countdown v-if="data.stepSign === 'lookfor'" size="small" :time="data.detail?.otherFindEndTime"
+      <bc-countdown v-if="data.stepSign === 'lookfor' && !data.isPaused" size="small" :time="data.detail?.otherFindEndTime"
         desc="倒计时结束后，对方找按钮将变为可点击" @timeup="lookforTimeup" />
     </view>
     <!-- 提示弹窗 -->
@@ -233,9 +233,7 @@ const data = reactive<any>({
   isClosingPopup: false,
 
   // 倒计时暂停/恢复相关
-  isPaused: false,              // 是否处于暂停状态
-  pausedRemainingMs: 0,         // 暂停时的剩余毫秒数
-  pausedEndTime: '',            // 暂停前的结束时间（用于恢复）
+  isPaused: false,              // 是否处于暂停状态（控制倒计时组件显示/隐藏）
 
 });
 const popup = ref<any>(null);
@@ -810,20 +808,9 @@ const handleLookforClick = async () => {
   data.lookforCountdown = 0;
 
   // 【新增】暂停功能页面的倒计时
-  if (data.detail?.endTime && !data.isPaused) {
-    // 计算当前剩余时间（毫秒）
-    const endMs = new Date(data.detail.endTime.replace(/-/g, '/')).getTime();
-    const remainingMs = Math.max(0, endMs - Date.now());
-
-    // 保存剩余时间和原始endTime
-    data.pausedRemainingMs = remainingMs;
-    data.pausedEndTime = data.detail.endTime;
+  if (!data.isPaused) {
     data.isPaused = true;
-
-    // 清空endTime，让倒计时组件停止显示
-    data.detail.endTime = '';
-
-    console.log('[handleLookforClick] 暂停倒计时，剩余时间:', remainingMs, 'ms (', Math.floor(remainingMs/1000), '秒)');
+    console.log('[handleLookforClick] 暂停页面倒计时');
   }
 
   // 打开对话框
@@ -2772,20 +2759,9 @@ const handleClose = async () => {
   data.isClosingPopup = true;
 
   // 【新增】恢复功能页面的倒计时
-  if (data.isPaused && data.pausedRemainingMs > 0) {
-    // 根据剩余时间计算新的结束时间
-    const newEndMs = Date.now() + data.pausedRemainingMs;
-    const d = new Date(newEndMs);
-    const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
-    const newEndTime = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-
-    console.log('[handleClose] 恢复倒计时，剩余时间:', data.pausedRemainingMs, 'ms，新endTime:', newEndTime);
-
-    // 恢复倒计时
-    data.detail.endTime = newEndTime;
+  if (data.isPaused) {
     data.isPaused = false;
-    data.pausedRemainingMs = 0;
-    data.pausedEndTime = '';
+    console.log('[handleClose] 恢复页面倒计时');
   }
 
   //  停止倒计时
