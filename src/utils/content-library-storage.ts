@@ -10,11 +10,23 @@ const CONTENT_LIBRARY_KEY = 'content_library_data';
  */
 export const saveContentLibraryData = (data: Four.GetAllContent.Data) => {
   try {
-    uni.setStorageSync(CONTENT_LIBRARY_KEY, JSON.stringify(data));
-    console.log('内容库数据已保存到本地存储:', data);
+    console.log('📝 准备保存数据到本地存储...');
+    console.log('📝 数据内容:', data);
+    console.log('📝 数据长度:', data.length);
+
+    const jsonString = JSON.stringify(data);
+    console.log('📝 JSON字符串长度:', jsonString.length);
+
+    uni.setStorageSync(CONTENT_LIBRARY_KEY, jsonString);
+    console.log('✅ 数据已写入本地存储，键名:', CONTENT_LIBRARY_KEY);
+
+    // 验证是否写入成功
+    const savedData = uni.getStorageSync(CONTENT_LIBRARY_KEY);
+    console.log('✅ 验证读取成功:', savedData ? '有数据' : '无数据');
+
     return true;
   } catch (error) {
-    console.error('保存内容库数据失败:', error);
+    console.error('❌ 保存内容库数据失败:', error);
     return false;
   }
 };
@@ -54,6 +66,7 @@ export const clearContentLibraryData = () => {
  * 将接口数据转换为易于使用的格式
  */
 export const formatContentLibraryData = (data: Four.GetAllContent.Data) => {
+  console.log('🔄 开始格式化数据...');
   const formatted = data.map(item => ({
     id: item.id,
     warehouseId: item.warehouseId,
@@ -64,6 +77,32 @@ export const formatContentLibraryData = (data: Four.GetAllContent.Data) => {
     type: item.type,
   }));
 
-  console.log('格式化后的内容库数据:', formatted);
+  console.log('✅ 格式化完成，共', formatted.length, '条数据');
   return formatted;
+};
+
+/**
+ * 验证并打印本地存储的内容库数据
+ * 用于调试和验证数据是否正确保存
+ */
+export const verifyContentLibraryData = () => {
+  console.log('🔍 开始验证本地存储数据...');
+
+  try {
+    const data = getContentLibraryData();
+
+    if (!data) {
+      console.warn('⚠️ 本地存储中没有内容库数据');
+      return false;
+    }
+
+    console.log('✅ 找到内容库数据');
+    console.log('📊 数据条数:', data.length);
+    console.log('📊 前3条数据示例:', data.slice(0, 3));
+
+    return true;
+  } catch (error) {
+    console.error('❌ 验证失败:', error);
+    return false;
+  }
 };
