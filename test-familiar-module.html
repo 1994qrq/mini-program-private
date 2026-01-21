@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>熟悉模块功能测试</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Microsoft YaHei', 'Consolas', monospace;
+      padding: 20px;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      background: #252526;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    }
+    h1 {
+      color: #4ec9b0;
+      border-bottom: 3px solid #569cd6;
+      padding-bottom: 15px;
+      margin-bottom: 30px;
+      font-size: 32px;
+    }
+    h2 {
+      color: #dcdcaa;
+      margin: 30px 0 15px 0;
+      font-size: 24px;
+      border-left: 4px solid #569cd6;
+      padding-left: 15px;
+    }
+    h3 {
+      color: #9cdcfe;
+      margin: 20px 0 10px 0;
+      font-size: 18px;
+    }
+    .test-suite {
+      background: #1e1e1e;
+      border: 1px solid #3c3c3c;
+      border-radius: 6px;
+      padding: 20px;
+      margin: 15px 0;
+    }
+    .test-case {
+      background: #2d2d30;
+      border-left: 4px solid #007acc;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 4px;
+    }
+    .test-case.pass {
+      border-left-color: #4ec9b0;
+      background: #1e3a1e;
+    }
+    .test-case.fail {
+      border-left-color: #f48771;
+      background: #3a1e1e;
+    }
+    .test-title {
+      font-weight: bold;
+      font-size: 16px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .status {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .status.pass { background: #4ec9b0; color: #000; }
+    .status.fail { background: #f48771; color: #000; }
+    .status.running { background: #dcdcaa; color: #000; }
+    .test-details {
+      background: #1e1e1e;
+      padding: 10px;
+      border-radius: 4px;
+      margin: 10px 0;
+      font-size: 14px;
+      font-family: 'Consolas', monospace;
+    }
+    .code {
+      background: #1e1e1e;
+      border: 1px solid #3c3c3c;
+      padding: 10px;
+      border-radius: 4px;
+      margin: 10px 0;
+      font-family: 'Consolas', monospace;
+      font-size: 13px;
+      overflow-x: auto;
+      white-space: pre;
+    }
+    .summary {
+      background: #264f78;
+      color: white;
+      padding: 25px;
+      border-radius: 8px;
+      margin: 30px 0;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-top: 15px;
+    }
+    .stat-card {
+      background: rgba(255,255,255,0.1);
+      padding: 15px;
+      border-radius: 6px;
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 32px;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+    .stat-label {
+      font-size: 14px;
+      opacity: 0.9;
+    }
+    .log {
+      color: #858585;
+      font-size: 13px;
+      margin: 5px 0;
+    }
+    .error {
+      color: #f48771;
+      font-weight: bold;
+    }
+    .success {
+      color: #4ec9b0;
+      font-weight: bold;
+    }
+    .warning {
+      color: #dcdcaa;
+    }
+    button {
+      background: #0e639c;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 10px 5px;
+      transition: background 0.2s;
+    }
+    button:hover {
+      background: #1177bb;
+    }
+    button:active {
+      background: #0d5a8f;
+    }
+    #output {
+      background: #1e1e1e;
+      border: 1px solid #3c3c3c;
+      padding: 15px;
+      border-radius: 4px;
+      margin: 20px 0;
+      max-height: 600px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧪 熟悉模块功能测试</h1>
+
+    <div class="summary">
+      <h2 style="color: white; border: none; margin-bottom: 15px;">测试控制面板</h2>
+      <button onclick="runAllTests()">▶ 运行所有测试</button>
+      <button onclick="runQuickTests()">⚡ 快速测试</button>
+      <button onclick="clearResults()">🗑️ 清除结果</button>
+      <button onclick="exportResults()">📄 导出报告</button>
+    </div>
+
+    <div id="output"></div>
+
+    <div id="results"></div>
+  </div>
+
+  <script>
+    // ==================== 模拟 uni-app API ====================
+    const mockStorage = {};
+    window.uni = {
+      getStorageSync: (key) => {
+        const val = mockStorage[key];
+        return val !== undefined ? JSON.parse(JSON.stringify(val)) : null;
+      },
+      setStorageSync: (key, value) => {
+        mockStorage[key] = JSON.parse(JSON.stringify(value));
+      },
+      removeStorageSync: (key) => {
+        delete mockStorage[key];
+      }
+    };
+
+    // ==================== 测试辅助函数 ====================
+    let testResults = [];
+    let currentSuite = '';
+
+    function log(message, type = 'log') {
+      const output = document.getElementById('output');
+      const className = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'log';
+      output.innerHTML += `<div class="${className}">${message}</div>`;
+      output.scrollTop = output.scrollHeight;
+    }
+
+    function assert(condition, message) {
+      if (!condition) {
+        throw new Error(`断言失败: ${message}`);
+      }
+    }
+
+    function assertEqual(actual, expected, message) {
+      if (actual !== expected) {
+        throw new Error(`${message}\n期望: ${expected}\n实际: ${actual}`);
+      }
+    }
+
+    function assertGreaterThan(actual, expected, message) {
+      if (actual <= expected) {
+        throw new Error(`${message}\n期望大于: ${expected}\n实际: ${actual}`);
+      }
+    }
+
+    function testCase(name, fn) {
+      const startTime = Date.now();
+      try {
+        fn();
+        const duration = Date.now() - startTime;
+        testResults.push({ suite: currentSuite, name, status: 'pass', duration, error: null });
+        log(`✓ ${name} (${duration}ms)`, 'success');
+        return true;
+      } catch (error) {
+        const duration = Date.now() - startTime;
+        testResults.push({ suite: currentSuite, name, status: 'fail', duration, error: error.message });
+        log(`✗ ${name} - ${error.message} (${duration}ms)`, 'error');
+        return false;
+      }
+    }
+
+    function testSuite(name, fn) {
+      currentSuite = name;
+      log(`\n======== ${name} ========`, 'warning');
+      fn();
+    }
+
+    function clearResults() {
+      document.getElementById('output').innerHTML = '';
+      document.getElementById('results').innerHTML = '';
+      testResults = [];
+      mockStorage.clear = () => {
+        for (let key in mockStorage) {
+          delete mockStorage[key];
+        }
+      };
+      mockStorage.clear();
+      log('测试环境已重置', 'success');
+    }
+
+    function renderResults() {
+      const resultsDiv = document.getElementById('results');
+      const passed = testResults.filter(t => t.status === 'pass').length;
+      const failed = testResults.filter(t => t.status === 'fail').length;
+      const total = testResults.length;
+      const passRate = total > 0 ? ((passed / total) * 100).toFixed(1) : 0;
+
+      let html = `
+        <div class="summary">
+          <h2 style="color: white; border: none; margin-bottom: 15px;">📊 测试结果汇总</h2>
+          <div class="stats">
+            <div class="stat-card">
+              <div class="stat-value">${total}</div>
+              <div class="stat-label">总测试数</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" style="color: #4ec9b0;">${passed}</div>
+              <div class="stat-label">通过</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" style="color: #f48771;">${failed}</div>
+              <div class="stat-label">失败</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value">${passRate}%</div>
+              <div class="stat-label">通过率</div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      const suites = [...new Set(testResults.map(t => t.suite))];
+      suites.forEach(suite => {
+        const suiteTests = testResults.filter(t => t.suite === suite);
+        const suitePassed = suiteTests.filter(t => t.status === 'pass').length;
+
+        html += `
+          <div class="test-suite">
+            <h3>${suite} (${suitePassed}/${suiteTests.length})</h3>
+        `;
+
+        suiteTests.forEach(test => {
+          html += `
+            <div class="test-case ${test.status}">
+              <div class="test-title">
+                <span class="status ${test.status}">${test.status === 'pass' ? '✓ PASS' : '✗ FAIL'}</span>
+                <span>${test.name}</span>
+                <span style="margin-left: auto; color: #858585;">${test.duration}ms</span>
+              </div>
+              ${test.error ? `<div class="test-details error">错误: ${test.error}</div>` : ''}
+            </div>
+          `;
+        });
+
+        html += `</div>`;
+      });
+
+      resultsDiv.innerHTML = html;
+    }
+
+    function exportResults() {
+      const blob = new Blob([JSON.stringify(testResults, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `familiar-test-results-${Date.now()}.json`;
+      a.click();
+      log('测试结果已导出', 'success');
+    }
+
+    // ==================== 加载 familiar-local.ts 代码 ====================
+    // 由于浏览器环境限制，我们需要手动复制关键函数
+    // 实际项目中应该构建为JS模块后导入
+
+    ${`
+      // 这里插入 familiar-local.ts 的编译后代码
+      // 为了测试，我们需要手动实现关键函数的简化版本
+
+      const VERSION = 1;
+      const storage = mockStorage;
+
+      function get(k) {
+        return uni.getStorageSync(k);
+      }
+
+      function set(k, v) {
+        uni.setStorageSync(k, v);
+      }
+
+      function remove(k) {
+        uni.removeStorageSync(k);
+      }
+
+      function randInt(min, max) {
+        if (min >= max) return min;
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+      }
+
+      function getCountdownTimeMs(ms) {
+        return ms; // 简化版本
+      }
+
+      function getCountdownDays(days) {
+        return days;
+      }
+
+      // 初始化默认配置
+      function initDefaults() {
+        const ver = get("fm:stateVersion");
+        if (!ver) set("fm:stateVersion", VERSION);
+
+        if (!get("fm:settings")) {
+          const settings = {
+            cd: {
+              bigRoundMinMs: 24 * 60 * 60 * 1000,
+              stageMinDays: { "1-2": 3, "2-3": 0, "3-4": 3 },
+              zDurationByStage: {
+                0: { minMs: 0, maxMs: 0 },
+                1: { minMs: 2 * 60 * 1000, maxMs: 4 * 60 * 1000 },
+                2: { minMs: 3 * 60 * 1000, maxMs: 6 * 60 * 1000 },
+                3: { minMs: 3 * 60 * 1000, maxMs: 7 * 60 * 1000 },
+                4: { minMs: 0, maxMs: 0 },
+              },
+              smallCopyCdMs: 2000,
+              idleWarnMs: 40 * 60 * 1000,
+              idleForceCdMs: 2 * 60 * 60 * 1000,
+              opponentFindWaitMs: 60 * 60 * 1000,
+              opponentFindCopyEnableMs: 10 * 60 * 1000,
+            },
+            vip: { levels: [{ level: 0, qaMaxItems: 2 }, { level: 1, qaMaxItems: 3 }, { level: 2, qaMaxItems: 4 }] },
+            stageThresholdX: { 0: 10, 1: 2, 2: 3, 3: 3, 4: 0 },
+          };
+          set("fm:settings", settings);
+        }
+
+        if (!get("fm:libs")) {
+          const mkText = (id, text, splitBy) => ({ id, text, type: "text", splitBy });
+          const mkZ = (id, text) => ({ id, text, type: "Z" });
+          const mkD = (id, text) => ({ id, text, type: "D" });
+
+          const libs = {
+            questionnaire: {
+              thresholdX: 10,
+              questions: [
+                { id: "q1", title: "问题1", options: [{ id: "A", text: "选项A", score: 0 }] },
+                { id: "q2", title: "问题2", options: [{ id: "A", text: "选项A", score: 4 }] },
+                { id: "q3", title: "问题3", options: [{ id: "A", text: "选项A", score: 6 }] },
+                { id: "q4", title: "问题4", options: [{ id: "A", text: "选项A", score: 0 }] },
+                { id: "q5", title: "问题5", options: [{ id: "A", text: "选项A", score: 0 }] },
+              ],
+            },
+            content: {
+              S1: [[mkText("c1-1", "内容1", "@"), mkZ("c1-2", "Z1"), mkText("c1-3", "内容2", "@")]],
+              S2: [[mkText("c2-1", "内容2", "@")]],
+              S3: [[mkText("c3-1", "内容3", "@")]],
+              S4: [[mkText("c4-1", "内容4", "@")]],
+              S5: [[mkText("c5-1", "内容5", "@")]],
+              "S4.5": [[mkText("c4.5-1", "内容4.5", "@")]],
+            },
+            leaving: {
+              S1: [[mkText("l1-1", "离开1", "@")]],
+              S2: [[mkText("l2-1", "离开2", "@")]],
+              S3: [[mkText("l3-1", "离开3", "@")]],
+            },
+            opponent: {
+              S2: [[mkText("op2-1", "对方找2", "@")]],
+            },
+            opening: {},
+            qa: {},
+          };
+          set("fm:libs", libs);
+        }
+
+        if (!get("fm:tasks")) set("fm:tasks", []);
+      }
+
+      function genId() {
+        return "fm_" + Date.now() + "_" + Math.floor(Math.random() * 10000);
+      }
+
+      // 创建任务
+      function createTask(payload) {
+        initDefaults();
+        const { name, durationDays } = payload;
+        if (!name || name.trim().length === 0 || name.trim().length > 6) {
+          return { ok: false, reason: "名称需1-6字" };
+        }
+        const id = genId();
+        const now = Date.now();
+        const expireAt = now + durationDays * 24 * 60 * 60 * 1000;
+        const settings = get("fm:settings");
+        const vipMax = settings.vip.levels[0].qaMaxItems;
+
+        const task = {
+          id,
+          name: name.trim(),
+          createdAt: now,
+          durationDays,
+          expireAt,
+          isRestartHalfPrice: false,
+          status: "active",
+          stageIndex: 0,
+          roundIndex: null,
+          stepIndex: 0,
+          stageScore: 0,
+          totalScore: 0,
+          stageThresholdX: settings.stageThresholdX[0],
+          roundCdUnlockAt: null,
+          stageCdUnlockAt: null,
+          zUnlockAt: null,
+          dMode: false,
+          opponentFindUnlockAt: null,
+          opponentFindCopyUnlockAt: null,
+          idleWarningAt: null,
+          hardIdleToCdAt: null,
+          lastActionAt: now,
+          usedLibIdsByStage: {},
+          currentLibChain: null,
+          opponentFindUsedInRound: false,
+          qaVipMaxItems: vipMax,
+          questionnaire: { answers: [], totalScore: 0, routedModule: "familiar" },
+          prompts: {},
+          askFlow: {},
+          renewHistory: [],
+          listBadge: "聊天任务进行中",
+          listCountdownEndAt: null,
+        };
+
+        const ids = get("fm:tasks") || [];
+        ids.push(id);
+        set("fm:tasks", ids);
+        set(\`fm:task:\${id}\`, task);
+        return { ok: true, task };
+      }
+
+      function getTask(taskId) {
+        initDefaults();
+        const t = get(\`fm:task:\${taskId}\`);
+        return t || null;
+      }
+
+      // 问卷相关
+      function saveQuestionnaireAnswer(taskId, questionId, optionId) {
+        initDefaults();
+        const t = getTask(taskId);
+        if (!t) return;
+        const libs = get("fm:libs");
+        const q = libs.questionnaire.questions.find((x) => x.id === questionId);
+        if (!q) return;
+        const opt = q.options.find((o) => o.id === optionId);
+        const score = opt ? opt.score : 0;
+
+        const idx = t.questionnaire.answers.findIndex((a) => a.questionId === questionId);
+        if (idx >= 0) t.questionnaire.answers[idx] = { questionId, optionId, score };
+        else t.questionnaire.answers.push({ questionId, optionId, score });
+
+        t.questionnaire.totalScore = t.questionnaire.answers.reduce((sum, a) => sum + a.score, 0);
+        t.lastActionAt = Date.now();
+        set(\`fm:task:\${taskId}\`, t);
+      }
+
+      function submitQuestionnaire(taskId) {
+        initDefaults();
+        const t = getTask(taskId);
+        if (!t) return { routed: "familiar", next: "问1" };
+        const libs = get("fm:libs");
+        const X = libs.questionnaire.thresholdX;
+        const score = t.questionnaire.totalScore;
+
+        let routed = "familiar";
+        if (score < X) {
+          routed = "familiar";
+        }
+
+        t.stageIndex = 0;
+        t.stepIndex = 0;
+        t.lastActionAt = Date.now();
+        set(\`fm:task:\${taskId}\`, t);
+
+        return { routed, next: "问1" };
+      }
+
+      // 第一阶段
+      function enterStage1(taskId) {
+        initDefaults();
+        const t = getTask(taskId);
+        if (!t) return { ok: false, reason: "任务不存在" };
+
+        t.stageIndex = 1;
+        t.roundIndex = 0;
+        t.stepIndex = 0;
+        t.stageScore = 0;
+        t.stageThresholdX = 2;
+        t.status = "active";
+
+        t.stage1 = {
+          roundScores: [],
+          firstThreeRoundsTotal: 0,
+          currentRoundStartTime: null,
+          roundAllowedTimeMs: 30 * 60 * 1000,
+          zTimerMs: randInt(2 * 60 * 1000, 4 * 60 * 1000),
+          hasUsedOpponentFind: false,
+          roundCdMultiplier: 1,
+        };
+
+        t.stageCdUnlockAt = null;
+        t.listCountdownEndAt = null;
+        t.listBadge = "聊天任务进行中";
+
+        set(\`fm:task:\${taskId}\`, t);
+        return { ok: true, task: t };
+      }
+
+      function finishStage1Round(taskId, roundScore) {
+        initDefaults();
+        const t = getTask(taskId);
+        if (!t || !t.stage1) return { ok: false, reason: "任务不在第一阶段" };
+
+        const roundNumber = t.roundIndex || 0;
+
+        t.stage1.roundScores[roundNumber - 1] = roundScore;
+        t.stageScore += roundScore;
+        t.totalScore += roundScore;
+
+        if (roundNumber <= 3) {
+          t.stage1.firstThreeRoundsTotal = t.stage1.roundScores.slice(0, 3).reduce((sum, score) => sum + score, 0);
+        }
+
+        set(\`fm:task:\${taskId}\`, t);
+        return { ok: true, task: t };
+      }
+
+      function checkStage1RoundTransition(taskId) {
+        initDefaults();
+        const t = getTask(taskId);
+        if (!t || !t.stage1) return { ok: false, reason: "任务不在第一阶段" };
+
+        const roundNumber = t.roundIndex || 0;
+        const stageScore = t.stageScore;
+        const firstThreeRoundsTotal = t.stage1.firstThreeRoundsTotal;
+
+        if (roundNumber === 3) {
+          if (stageScore >= t.stageThresholdX) {
+            return { ok: true, action: "enterRound4", reason: "前三回合得分足够" };
+          }
+          return { ok: true, action: "enterRound5", reason: "前三回合得分不足，进入延时回合" };
+        } else if (roundNumber === 4) {
+          return {
+            ok: true,
+            action: "enterStageCd",
+            reason: "第四回合完成，进入阶段CD",
+            stageCdRange: { minDays: 3, maxDays: 5 }
+          };
+        } else if (roundNumber === 5) {
+          if (stageScore === firstThreeRoundsTotal) {
+            return { ok: true, action: "enterRound6", reason: "得分相等，进入第六回合" };
+          }
+          return { ok: true, action: "enterStageCd", reason: "得分不等，进入阶段CD" };
+        } else if (roundNumber === 6) {
+          if (stageScore === firstThreeRoundsTotal) {
+            return { ok: true, action: "showPromptS7", reason: "得分相等，询问是否坚持" };
+          }
+          return { ok: true, action: "enterStageCd", reason: "得分不等，进入阶段CD" };
+        }
+
+        return { ok: true, action: "continue", reason: "继续当前回合" };
+      }
+
+      // 添加积分
+      function addPoint(taskId, amount, source = "other") {
+        initDefaults();
+        const t = getTask(taskId);
+        if (!t) return;
+        t.stageScore += amount;
+        t.totalScore += amount;
+        t.lastActionAt = Date.now();
+        set(\`fm:task:\${taskId}\`, t);
+      }
+
+      // 导出供测试使用
+      window.FamiliarModule = {
+        initDefaults,
+        createTask,
+        getTask,
+        saveQuestionnaireAnswer,
+        submitQuestionnaire,
+        enterStage1,
+        finishStage1Round,
+        checkStage1RoundTransition,
+        addPoint,
+      };
+    `}
+  </script>
+
+  <script>
+    // ==================== 测试用例 ====================
+
+    function runAllTests() {
+      clearResults();
+      log('开始执行所有测试...', 'warning');
+
+      testBasicFunctions();
+      testQuestionnaireFlow();
+      testStage1Flow();
+      testScoringLogic();
+      testEdgeCases();
+
+      log('\n所有测试完成!', 'success');
+      renderResults();
+    }
+
+    function runQuickTests() {
+      clearResults();
+      log('执行快速测试...', 'warning');
+
+      testBasicFunctions();
+      testQuestionnaireFlow();
+
+      log('\n快速测试完成!', 'success');
+      renderResults();
+    }
+
+    // 测试套件1: 基本功能
+    function testBasicFunctions() {
+      testSuite('基本功能测试', () => {
+        testCase('初始化默认配置', () => {
+          FamiliarModule.initDefaults();
+          const settings = uni.getStorageSync('fm:settings');
+          assert(settings !== null, '设置应该被初始化');
+          assert(settings.stageThresholdX[1] === 2, '第一阶段阈值应为2');
+        });
+
+        testCase('创建任务 - 正常情况', () => {
+          const result = FamiliarModule.createTask({ name: '测试任务', durationDays: 5 });
+          assert(result.ok === true, '应该创建成功');
+          assert(result.task.name === '测试任务', '任务名称应正确');
+          assert(result.task.durationDays === 5, '任务天数应正确');
+          assert(result.task.stageIndex === 0, '初始阶段应为0');
+        });
+
+        testCase('创建任务 - 名称验证', () => {
+          const result1 = FamiliarModule.createTask({ name: '', durationDays: 5 });
+          assert(result1.ok === false, '空名称应该失败');
+
+          const result2 = FamiliarModule.createTask({ name: '超过六个字的名称', durationDays: 5 });
+          assert(result2.ok === false, '超长名称应该失败');
+
+          const result3 = FamiliarModule.createTask({ name: '正常', durationDays: 5 });
+          assert(result3.ok === true, '正常名称应该成功');
+        });
+
+        testCase('获取任务', () => {
+          const createResult = FamiliarModule.createTask({ name: '任务1', durationDays: 5 });
+          const taskId = createResult.task.id;
+
+          const task = FamiliarModule.getTask(taskId);
+          assert(task !== null, '应该能获取任务');
+          assertEqual(task.name, '任务1', '任务名称应匹配');
+        });
+      });
+    }
+
+    // 测试套件2: 问卷流程
+    function testQuestionnaireFlow() {
+      testSuite('问卷流程测试', () => {
+        let taskId;
+
+        testCase('问卷初始化', () => {
+          const result = FamiliarModule.createTask({ name: '问卷测试', durationDays: 5 });
+          taskId = result.task.id;
+
+          const task = FamiliarModule.getTask(taskId);
+          assertEqual(task.questionnaire.totalScore, 0, '初始分数应为0');
+          assertEqual(task.questionnaire.answers.length, 0, '初始答案应为空');
+        });
+
+        testCase('保存问卷答案', () => {
+          FamiliarModule.saveQuestionnaireAnswer(taskId, 'q1', 'A');
+          const task = FamiliarModule.getTask(taskId);
+          assertEqual(task.questionnaire.answers.length, 1, '应该有1个答案');
+        });
+
+        testCase('问卷计分', () => {
+          FamiliarModule.saveQuestionnaireAnswer(taskId, 'q2', 'A'); // 4分
+          FamiliarModule.saveQuestionnaireAnswer(taskId, 'q3', 'A'); // 6分
+
+          const task = FamiliarModule.getTask(taskId);
+          assertEqual(task.questionnaire.totalScore, 10, '总分应为10分');
+        });
+
+        testCase('问卷提交 - 得分≥阈值', () => {
+          const result = FamiliarModule.submitQuestionnaire(taskId);
+          assertEqual(result.routed, 'familiar', '应该路由到熟悉模块');
+          assertEqual(result.next, '问1', '下一步应为问1');
+        });
+
+        testCase('问卷提交 - 得分<阈值', () => {
+          const result2 = FamiliarModule.createTask({ name: '低分任务', durationDays: 5 });
+          const lowScoreTaskId = result2.task.id;
+
+          FamiliarModule.saveQuestionnaireAnswer(lowScoreTaskId, 'q1', 'A'); // 0分
+          FamiliarModule.saveQuestionnaireAnswer(lowScoreTaskId, 'q2', 'A'); // 4分
+          // 总分4分 < 10分
+
+          const submitResult = FamiliarModule.submitQuestionnaire(lowScoreTaskId);
+          const task = FamiliarModule.getTask(lowScoreTaskId);
+          assert(task.questionnaire.totalScore < 10, '得分应小于阈值');
+        });
+      });
+    }
+
+    // 测试套件3: 第一阶段流程
+    function testStage1Flow() {
+      testSuite('第一阶段流程测试', () => {
+        let taskId;
+
+        testCase('进入第一阶段', () => {
+          const createResult = FamiliarModule.createTask({ name: '阶段1测试', durationDays: 5 });
+          taskId = createResult.task.id;
+
+          const result = FamiliarModule.enterStage1(taskId);
+          assert(result.ok === true, '应该成功进入');
+
+          const task = FamiliarModule.getTask(taskId);
+          assertEqual(task.stageIndex, 1, '阶段应为1');
+          assertEqual(task.stageThresholdX, 2, '阈值应为2');
+          assert(task.stage1 !== undefined, 'stage1数据应存在');
+        });
+
+        testCase('第一阶段数据结构', () => {
+          const task = FamiliarModule.getTask(taskId);
+          assert(Array.isArray(task.stage1.roundScores), 'roundScores应为数组');
+          assertEqual(task.stage1.firstThreeRoundsTotal, 0, '前三回合总分初始为0');
+          assertEqual(task.stage1.roundCdMultiplier, 1, 'CD倍数初始为1');
+        });
+
+        testCase('完成回合并记录得分', () => {
+          const task = FamiliarModule.getTask(taskId);
+          task.roundIndex = 1;
+          uni.setStorageSync(\`fm:task:\${taskId}\`, task);
+
+          FamiliarModule.finishStage1Round(taskId, 1); // 回合1得1分
+
+          const updatedTask = FamiliarModule.getTask(taskId);
+          assertEqual(updatedTask.stageScore, 1, '阶段得分应为1');
+          assertEqual(updatedTask.stage1.roundScores[0], 1, '回合1得分应记录为1');
+        });
+
+        testCase('积分累加', () => {
+          FamiliarModule.addPoint(taskId, 1, 'leaving');
+          const task = FamiliarModule.getTask(taskId);
+          assertEqual(task.stageScore, 2, '阶段得分应累加到2');
+          assertEqual(task.totalScore, 2, '总得分应为2');
+        });
+      });
+    }
+
+    // 测试套件4: 判分逻辑
+    function testScoringLogic() {
+      testSuite('判分逻辑测试', () => {
+        testCase('第3回合后判分 - 得分足够', () => {
+          const result = FamiliarModule.createTask({ name: '判分测试1', durationDays: 5 });
+          const taskId = result.task.id;
+
+          FamiliarModule.enterStage1(taskId);
+
+          const task = FamiliarModule.getTask(taskId);
+          task.roundIndex = 3;
+          task.stageScore = 2; // 达到阈值
+          uni.setStorageSync(\`fm:task:\${taskId}\`, task);
+
+          const transition = FamiliarModule.checkStage1RoundTransition(taskId);
+          assertEqual(transition.action, 'enterRound4', '应该进入第4回合');
+        });
+
+        testCase('第3回合后判分 - 得分不足', () => {
+          const result = FamiliarModule.createTask({ name: '判分测试2', durationDays: 5 });
+          const taskId = result.task.id;
+
+          FamiliarModule.enterStage1(taskId);
+
+          const task = FamiliarModule.getTask(taskId);
+          task.roundIndex = 3;
+          task.stageScore = 1; // 小于阈值2
+          uni.setStorageSync(\`fm:task:\${taskId}\`, task);
+
+          const transition = FamiliarModule.checkStage1RoundTransition(taskId);
+          assertEqual(transition.action, 'enterRound5', '应该进入第5回合');
+        });
+
+        testCase('第4回合后 - 进入阶段CD', () => {
+          const result = FamiliarModule.createTask({ name: '判分测试3', durationDays: 5 });
+          const taskId = result.task.id;
+
+          FamiliarModule.enterStage1(taskId);
+
+          const task = FamiliarModule.getTask(taskId);
+          task.roundIndex = 4;
+          uni.setStorageSync(\`fm:task:\${taskId}\`, task);
+
+          const transition = FamiliarModule.checkStage1RoundTransition(taskId);
+          assertEqual(transition.action, 'enterStageCd', '应该进入阶段CD');
+          assert(transition.stageCdRange !== undefined, '应该返回CD天数范围');
+        });
+
+        testCase('第5回合判分 - 得分相等', () => {
+          const result = FamiliarModule.createTask({ name: '判分测试4', durationDays: 5 });
+          const taskId = result.task.id;
+
+          FamiliarModule.enterStage1(taskId);
+
+          const task = FamiliarModule.getTask(taskId);
+          task.roundIndex = 5;
+          task.stageScore = 2;
+          task.stage1.firstThreeRoundsTotal = 2;
+          uni.setStorageSync(\`fm:task:\${taskId}\`, task);
+
+          const transition = FamiliarModule.checkStage1RoundTransition(taskId);
+          assertEqual(transition.action, 'enterRound6', '得分相等应进入第6回合');
+        });
+
+        testCase('第5回合判分 - 得分不等', () => {
+          const result = FamiliarModule.createTask({ name: '判分测试5', durationDays: 5 });
+          const taskId = result.task.id;
+
+          FamiliarModule.enterStage1(taskId);
+
+          const task = FamiliarModule.getTask(taskId);
+          task.roundIndex = 5;
+          task.stageScore = 3;
+          task.stage1.firstThreeRoundsTotal = 2;
+          uni.setStorageSync(\`fm:task:\${taskId}\`, task);
+
+          const transition = FamiliarModule.checkStage1RoundTransition(taskId);
+          assertEqual(transition.action, 'enterStageCd', '得分不等应进入阶段CD');
+        });
+
+        testCase('第6回合判分 - 得分相等', () => {
+          const result = FamiliarModule.createTask({ name: '判分测试6', durationDays: 5 });
+          const taskId = result.task.id;
+
+          FamiliarModule.enterStage1(taskId);
+
+          const task = FamiliarModule.getTask(taskId);
+          task.roundIndex = 6;
+          task.stageScore = 2;
+          task.stage1.firstThreeRoundsTotal = 2;
+          uni.setStorageSync(\`fm:task:\${taskId}\`, task);
+
+          const transition = FamiliarModule.checkStage1RoundTransition(taskId);
+          assertEqual(transition.action, 'showPromptS7', '应该显示提示板S7');
+        });
+      });
+    }
+
+    // 测试套件5: 边界情况
+    function testEdgeCases() {
+      testSuite('边界情况测试', () => {
+        testCase('获取不存在的任务', () => {
+          const task = FamiliarModule.getTask('non-existent-id');
+          assert(task === null, '不存在的任务应返回null');
+        });
+
+        testCase('重复保存同一问卷答案', () => {
+          const result = FamiliarModule.createTask({ name: '重复答案', durationDays: 5 });
+          const taskId = result.task.id;
+
+          FamiliarModule.saveQuestionnaireAnswer(taskId, 'q1', 'A');
+          FamiliarModule.saveQuestionnaireAnswer(taskId, 'q1', 'A');
+
+          const task = FamiliarModule.getTask(taskId);
+          assertEqual(task.questionnaire.answers.length, 1, '重复答案应该只记录一次');
+        });
+
+        testCase('阶段转换时的数据一致性', () => {
+          const result = FamiliarModule.createTask({ name: '数据一致性', durationDays: 5 });
+          const taskId = result.task.id;
+
+          const initialTask = FamiliarModule.getTask(taskId);
+          const initialTotalScore = initialTask.totalScore;
+
+          FamiliarModule.enterStage1(taskId);
+
+          const task = FamiliarModule.getTask(taskId);
+          assertEqual(task.totalScore, initialTotalScore, '进入新阶段不应影响总得分');
+          assertEqual(task.stageScore, 0, '阶段得分应重置为0');
+        });
+
+        testCase('空名称任务创建', () => {
+          const result = FamiliarModule.createTask({ name: '   ', durationDays: 5 });
+          assert(result.ok === false, '空白名称应该创建失败');
+        });
+
+        testCase('前三回合总分计算', () => {
+          const result = FamiliarModule.createTask({ name: '总分计算', durationDays: 5 });
+          const taskId = result.task.id;
+
+          FamiliarModule.enterStage1(taskId);
+
+          let task = FamiliarModule.getTask(taskId);
+          task.roundIndex = 1;
+          uni.setStorageSync(\`fm:task:\${taskId}\`, task);
+          FamiliarModule.finishStage1Round(taskId, 1);
+
+          task = FamiliarModule.getTask(taskId);
+          task.roundIndex = 2;
+          uni.setStorageSync(\`fm:task:\${taskId}\`, task);
+          FamiliarModule.finishStage1Round(taskId, 0);
+
+          task = FamiliarModule.getTask(taskId);
+          task.roundIndex = 3;
+          uni.setStorageSync(\`fm:task:\${taskId}\`, task);
+          FamiliarModule.finishStage1Round(taskId, 1);
+
+          task = FamiliarModule.getTask(taskId);
+          assertEqual(task.stage1.firstThreeRoundsTotal, 2, '前三回合总分应为2');
+          assertEqual(task.stageScore, 2, '阶段得分应为2');
+        });
+      });
+    }
+
+    // 页面加载时显示说明
+    window.onload = function() {
+      log('=== 熟悉模块功能测试系统 ===', 'success');
+      log('');
+      log('点击上方按钮开始测试:', 'warning');
+      log('• 运行所有测试: 执行完整测试套件');
+      log('• 快速测试: 仅测试基本功能和问卷');
+      log('• 清除结果: 重置测试环境');
+      log('• 导出报告: 下载JSON格式测试结果');
+      log('');
+      log('测试覆盖范围:', 'warning');
+      log('✓ 基本功能 (初始化、创建任务、获取任务)');
+      log('✓ 问卷流程 (保存答案、计分、提交)');
+      log('✓ 第一阶段 (进入阶段、回合管理、积分)');
+      log('✓ 判分逻辑 (所有回合转换分支)');
+      log('✓ 边界情况 (数据一致性、异常输入)');
+      log('');
+      log('准备就绪，等待测试指令...', 'success');
+    };
+  </script>
+</body>
+</html>

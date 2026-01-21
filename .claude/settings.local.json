@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir /s /b srcutils)",
+      "Bash(dir /s /b srcapi)",
+      "Bash(dir /b:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}
