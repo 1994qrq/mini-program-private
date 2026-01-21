@@ -4,7 +4,7 @@
  */
 
 import api from '@/api/index';
-import { parseContentLibraryData, ParsedContentLibrary, getLibraryByWarehouseId } from './content-library-parser';
+import { parseContentLibraryData, ParsedContentLibrary } from './content-library-parser';
 
 // 原始接口数据类型定义
 export interface ContentLibraryItem {
