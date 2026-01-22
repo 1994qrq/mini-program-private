@@ -49,11 +49,11 @@ export function initSmLocal() {
         idleWarnMs: getCountdownTimeMs(60 * 1000),
         idleForceCdMs: getCountdownTimeMs(5 * 60 * 1000),
         zDurationByStage: [
-          { minMs: getCountdownTimeMs(60 * 1000), maxMs: getCountdownTimeMs(120 * 1000) },
-          { minMs: getCountdownTimeMs(60 * 1000), maxMs: getCountdownTimeMs(120 * 1000) },
-          { minMs: getCountdownTimeMs(60 * 1000), maxMs: getCountdownTimeMs(120 * 1000) },
-          { minMs: getCountdownTimeMs(60 * 1000), maxMs: getCountdownTimeMs(120 * 1000) },
-          { minMs: getCountdownTimeMs(60 * 1000), maxMs: getCountdownTimeMs(120 * 1000) },
+          { minMs: getCountdownTimeMs(6 * 60 * 1000), maxMs: getCountdownTimeMs(12 * 60 * 1000) },  // 6-12分钟Z倒计时
+          { minMs: getCountdownTimeMs(6 * 60 * 1000), maxMs: getCountdownTimeMs(12 * 60 * 1000) },  // 6-12分钟Z倒计时
+          { minMs: getCountdownTimeMs(6 * 60 * 1000), maxMs: getCountdownTimeMs(12 * 60 * 1000) },  // 6-12分钟Z倒计时
+          { minMs: getCountdownTimeMs(6 * 60 * 1000), maxMs: getCountdownTimeMs(12 * 60 * 1000) },  // 6-12分钟Z倒计时
+          { minMs: getCountdownTimeMs(6 * 60 * 1000), maxMs: getCountdownTimeMs(12 * 60 * 1000) },  // 6-12分钟Z倒计时
         ],
       },
     };
