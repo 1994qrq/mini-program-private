@@ -11,7 +11,7 @@ export const TEST_CONFIG = {
   FAST_TEST_COUNTDOWN: 15 * 1000, // 15秒
   
   // 是否启用回合允许时间限制
-  ENABLE_ROUND_TIME_LIMIT: false, // false=不限制，true=限制
+  ENABLE_ROUND_TIME_LIMIT: true, // false=不限制，true=限制
 };
 
 // 获取倒计时时间（根据测试模式返回不同值）

@@ -172,10 +172,11 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, computed } from 'vue';
+import { reactive, ref, computed, onUnmounted } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import * as um from '@/utils/unfamiliar-local';
 import * as sm from '@/utils/stranger-local';
+import * as fm from '@/utils/familiar-local';
 
 // 数据
 const taskId = ref('');
