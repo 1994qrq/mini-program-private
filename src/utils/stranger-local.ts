@@ -27,6 +27,7 @@ export interface Task {
 export interface Libs { opening: Record<string, Chain[]>; content: Record<string, Chain[]>; leaving: Record<string, Chain[]>; opponent: Record<string, Chain[]>; qa?: Record<string, any[]> }
 
 export interface Settings {
+  version: number; // 配置版本号，用于配置迁移
   stageThresholdX: Record<number, number>;
   cd: {
     smallCopyCdMs: number; bigRoundMinMs: number; opponentFindWaitMs: number; opponentFindCopyEnableMs: number; idleWarnMs: number; idleForceCdMs: number;
@@ -40,9 +41,16 @@ const DAY_MS = 24 * HOUR_MS;
 function get<T = any>(k: string): T { return uni.getStorageSync(k) as T }
 function set(k: string, v: any) { uni.setStorageSync(k, v) }
 
+// 当前配置版本号
+const SETTINGS_VERSION = 2;
+
 export function initSmLocal() {
-  if (!get('sm:settings')) {
+  const existingSettings: Settings | null = get('sm:settings');
+
+  // 如果没有配置或配置版本过旧，则更新配置
+  if (!existingSettings || !existingSettings.version || existingSettings.version < SETTINGS_VERSION) {
     const settings: Settings = {
+      version: SETTINGS_VERSION,
       stageThresholdX: { 0: 10, 1: 2, 2: 2, 3: 2, 4: 0 },
       cd: {
         smallCopyCdMs: getCountdownTimeMs(3000),
@@ -61,6 +69,7 @@ export function initSmLocal() {
       },
     };
     set('sm:settings', settings);
+    console.log('[initSmLocal] 配置已更新到版本', SETTINGS_VERSION);
   }
   if (!get('sm:libs')) {
     const libs: Libs = {

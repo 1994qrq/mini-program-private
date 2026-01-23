@@ -71,6 +71,7 @@ export interface Libs {
 }
 
 export interface Settings {
+  version: number; // 配置版本号，用于配置迁移
   stageThresholdX: Record<number, number>;
   cd: {
     smallCopyCdMs: number;
@@ -87,10 +88,17 @@ export interface Settings {
 function get<T = any>(k: string): T { return uni.getStorageSync(k) as T; }
 function set(k: string, v: any) { uni.setStorageSync(k, v); }
 
+// 当前配置版本号
+const SETTINGS_VERSION = 2;
+
 // Init defaults (idempotent)
 export function initUmLocal() {
-  if (!get('um:settings')) {
+  const existingSettings: Settings | null = get('um:settings');
+
+  // 如果没有配置或配置版本过旧，则更新配置
+  if (!existingSettings || !existingSettings.version || existingSettings.version < SETTINGS_VERSION) {
     const settings: Settings = {
+      version: SETTINGS_VERSION,
       stageThresholdX: { 0: 10, 1: 2, 2: 2, 3: 2, 4: 0 },
       cd: {
         smallCopyCdMs: getCountdownTimeMs(3000),
@@ -109,6 +117,7 @@ export function initUmLocal() {
       },
     };
     set('um:settings', settings);
+    console.log('[initUmLocal] 配置已更新到版本', SETTINGS_VERSION);
   }
   if (!get('um:libs')) {
     const libs: Libs = {
