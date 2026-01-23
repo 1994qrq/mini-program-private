@@ -89,7 +89,7 @@ function get<T = any>(k: string): T { return uni.getStorageSync(k) as T; }
 function set(k: string, v: any) { uni.setStorageSync(k, v); }
 
 // 当前配置版本号
-const SETTINGS_VERSION = 2;
+const SETTINGS_VERSION = 3;
 
 // Init defaults (idempotent)
 export function initUmLocal() {
@@ -101,7 +101,7 @@ export function initUmLocal() {
       version: SETTINGS_VERSION,
       stageThresholdX: { 0: 10, 1: 2, 2: 2, 3: 2, 4: 0 },
       cd: {
-        smallCopyCdMs: getCountdownTimeMs(3000),
+        smallCopyCdMs: 3000,  // 3秒CD，不受快速测试模式影响
         bigRoundMinMs: getCountdownTimeMs(15 * 60 * 1000),
         opponentFindWaitMs: getCountdownTimeMs(20 * 1000),
         opponentFindCopyEnableMs: getCountdownTimeMs(20 * 1000),
