@@ -6,13 +6,16 @@
           <!-- 金额 -->
           <view>金币余额</view>
           <view class="flex-l">
-            <md-icon name="bag" height="50" width="50" />
+            <image class="bag-icon" src="/static/icons/bag.png" mode="aspectFit" />
             <view class="m-left-8">{{ data.info?.remainingVirtual || 0 }}</view>
           </view>
         </view>
         <!-- 会员等级 -->
         <view class="info-right" v-if="data.info?.userLevel >= 0">
           <bc-vip :level="data.info?.userLevel" />
+          <view class="upgrade-tip">
+            距离下一等级会员还差{{ data.info?.nextLevelGold || 0 }}个金币
+          </view>
         </view>
       </view>
       <view class="list">
@@ -69,7 +72,8 @@
     </view>
   </md-page>
   <!-- 底部背景图 -->
-  <div class="bottom_bg" :style="`background: url(${data.bottom_bg})`"></div>
+<!-- 使用直接 URL 而非 base64 -->
+<div class="bottom_bg" :style="{ backgroundImage: 'url(/static/images/page_bottom_bg.png)' }"></div>
 </template>
 
 <script setup lang="ts">
@@ -81,15 +85,13 @@ import api from '@/api';
 const data = reactive<any>({
   bottom_bg: '',
   list: [
-    // { gold: 1, price: 0.01 },
-    { gold: 850, price: 50 },
-    { gold: 2176, price: 128 },
-    { gold: 4556, price: 268 },
-    { gold: 7106, price: 418 },
-    { gold: 11356, price: 668 },
-    { gold: 18360, price: 1080 },
-    { gold: 28560, price: 1680 },
-    { gold: 32266, price: 1898 },
+    { gold: 1156, price: 68 },
+    { gold: 1632, price: 96 },
+    { gold: 2856, price: 168 },
+    { gold: 5542, price: 326 },
+    { gold: 9996, price: 588 },
+    { gold: 15572, price: 916 },
+    { gold: 18666, price: 1098 },
   ],
   current: null,
   currentPrice: null,
@@ -179,6 +181,8 @@ const handlePay = async () => {
     console.log('检查自定义金额', data.customPrice);
     const amount = parseFloat(data.customPrice);
     console.log('金额 = ' + amount);
+
+    // 检查金额是否有效
     if (!amount || amount <= 0) {
       uni.showToast({
         title: '请输入正确的充值金额',
@@ -186,6 +190,17 @@ const handlePay = async () => {
       });
       return;
     }
+
+    // 检查最大金额限制
+    const maxAmount = 999999;
+    if (amount > maxAmount) {
+      uni.showToast({
+        title: `充值金额不能超过${maxAmount}元`,
+        icon: 'none',
+      });
+      return;
+    }
+
     data.customPrice = String(amount); // 格式化输入
     data.currentPrice = amount;
   }
@@ -234,6 +249,16 @@ const fetchGetPrePayData = async () => {
       if (isNaN(amount) || amount <= 0) {
         uni.showToast({
           title: '请输入有效的充值金额',
+          icon: 'none',
+        });
+        return;
+      }
+
+      // 再次检查最大金额限制
+      const maxAmount = 999999;
+      if (amount > maxAmount) {
+        uni.showToast({
+          title: `充值金额不能超过${maxAmount}元`,
           icon: 'none',
         });
         return;
@@ -290,9 +315,9 @@ onShow(() => {
   padding-bottom: calc(200rpx + $safe-bottom);
   min-height: 100vh;
   box-sizing: border-box;
+}
   .info {
     background-color: #f5ee9e;
-    height: 144rpx;
     padding: 26rpx;
     border-radius: 16rpx;
     display: flex;
@@ -303,7 +328,29 @@ onShow(() => {
       flex-direction: column;
       justify-content: space-between;
       flex: 1;
+      gap: 12rpx;
+
+      .upgrade-tip {
+        font-size: 26rpx;
+        color: #8B4513;
+        font-weight: 500;
+        margin-left: 58rpx;
+        line-height: 1.4;
+      }
     }
+    &-right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      justify-content: center;
+    }
+  }
+
+  // bag 图标样式
+  .bag-icon {
+    width: 50rpx;
+    height: 50rpx;
+    display: block;
   }
   .list {
     display: flex;
@@ -458,7 +505,7 @@ onShow(() => {
     box-sizing: border-box;
     z-index: 10;
   }
-}
+
 .bottom_bg {
   background-repeat: no-repeat;
   background-size: cover;

@@ -234,14 +234,14 @@ const runAskFlow = async (taskId: string, scoreGreaterThanX: boolean): Promise<v
   console.log('[runAskFlow] S2倒计时设置:', days1, '天，结束时间:', new Date(unlockAt1).toLocaleString());
   
   // 提示用户倒计时已设置，并返回列表
-  uni.showToast({ 
-    title: `已设置${days1}天倒计时，请等待倒计时结束后继续`, 
-    icon: 'none', 
-    duration: 3000 
+  uni.showToast({
+    title: `已设置${days1}天倒计时，请等待倒计时结束后继续`,
+    icon: 'none',
+    duration: 3000
   });
-  
+
   setTimeout(() => {
-    uni.navigateTo({ url: '/pages/sub-page/stepTask/list?module=熟悉模块' });
+    uni.redirectTo({ url: '/pages/sub-page/stepTask/list?module=熟悉模块' });
   }, 3000);
   
   // 注意：问3需要在倒计时结束后在列表页触发

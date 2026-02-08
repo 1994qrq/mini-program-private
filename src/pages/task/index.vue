@@ -13,8 +13,8 @@
 						<text class="date font-bold">{{ item.endTime }}</text>
 					</view>
 					<view class="bottom">
-						<view class="btn" @click.stop="handleDelete(item.taskId)">删除</view>
-						<view class="btn active" @click.stop="handleRenew(item.taskId)">充值</view>
+						<view class="btn" @click.stop.prevent="handleDelete(item.taskId)">删除</view>
+						<view class="btn active" @click.stop.prevent="handleRenew(item.taskId)">充值</view>
 					</view>
 				</view>
 			</view>
@@ -43,6 +43,7 @@ interface TaskData {
 
 const data = reactive<any>({
 	list: [] as TaskData[],
+	isDeleting: false, // 添加删除标志位
 });
 
 // 获取模块标签
@@ -71,6 +72,11 @@ const getModuleIcon = (type: string) => {
 
 // 处理任务跳转
 const handleJump = async (item: TaskData) => {
+	// 如果正在删除，不执行跳转
+	if (data.isDeleting) {
+		return;
+	}
+
 	const { moduleType, taskId, taskName } = item;
 
 	// 熟悉/超熟/免费模块
@@ -245,6 +251,7 @@ const fetchTaskList = async () => {
 
 // 删除任务
 const handleDelete = (taskId: string) => {
+	data.isDeleting = true; // 设置删除标志
 	uni.showModal({
 		title: '提示',
 		content: '确认删除该任务吗？',
@@ -262,6 +269,10 @@ const handleDelete = (taskId: string) => {
 					uni.showToast({ title: '删除失败', icon: 'none' });
 				}
 			}
+			// 延迟重置删除标志，确保不会触发跳转
+			setTimeout(() => {
+				data.isDeleting = false;
+			}, 300);
 		},
 	});
 };

@@ -13,7 +13,7 @@
         <bc-task-item
           :item="item"
           desc="详细方案回复3内容显示倒计时:"
-          bgType="yellow"
+          bgType="wenzhen"
           tag="问"
           @click="() => handleJump(item)"
           @swipeClick="onSwipeClick"></bc-task-item>
@@ -38,6 +38,7 @@
         <view class="mf-btn" @click="openCreateDialog">
           <image class="mf-bg" src="@/static/images/xianxia.png" mode="widthFix" />
           <view class="mf-text">
+            <image class="mf-logo" src="/static/images/wenzhenicon.png" mode="aspectFit" />
             <text class="mf-plus">＋</text>
             <text class="mf-label">创建问诊分析</text>
           </view>
@@ -62,17 +63,29 @@ import { taskModule } from '@/utils/data';
 const data = reactive<any>({
   list: [],
   value: '',
+  loading: false, // 添加加载状态标志
+  isDeleting: false, // 添加删除标志位，防止删除时触发跳转
 });
 const popup = ref<any>(null);
 
 const onSwipeClick = () => {
+  // 设置删除标志，防止触发跳转
+  data.isDeleting = true;
   getTaskList();
+  // 延迟重置删除标志
+  setTimeout(() => {
+    data.isDeleting = false;
+  }, 500);
 };
 
 const handleOk = () => {
   console.log('ok', data.value);
   if (!data.value) {
     Toast('请输入任务名称');
+    return;
+  }
+  // 防止重复提交
+  if (data.loading) {
     return;
   }
   fetchCreateTask({ taskName: data.value });
@@ -94,6 +107,11 @@ const bottomBtnClick = (info: { item: BtnTextItem }) => {
 };
 
 const handleJump = (item: Task.List.Data) => {
+  // 如果正在删除，不执行跳转
+  if (data.isDeleting) {
+    return;
+  }
+
   let url = '';
   let params = `taskId=${item.taskId}&taskName=${item.taskName}`;
   if (item.taskStatus === 20) {
@@ -128,13 +146,32 @@ const getTaskList = async () => {
 
 // 创建任务
 const fetchCreateTask = async (params: Pick<Task.Create.Body, 'taskName'>) => {
+  // 设置加载状态
+  data.loading = true;
+  uni.showLoading({
+    title: '创建中...',
+    mask: true, // 显示透明蒙层，防止触摸穿透
+  });
+
   try {
     const res = await api.task.createTask({ ...params, moduleCode: taskModule['问诊模块'] });
+
+    // 关闭弹窗
+    popup.value?.close();
+    handleCancel();
+
+    // 跳转到问卷页面
     uni.navigateTo({
       url: `/pages/sub-page/wenzhen/questionnaire?taskId=${res.data?.taskId}&taskName=${params?.taskName}`,
     });
-    handleCancel();
-  } catch (error) {}
+  } catch (error) {
+    console.error('创建问诊任务失败:', error);
+    Toast('创建失败，请重试');
+  } finally {
+    // 无论成功还是失败，都要关闭加载状态
+    data.loading = false;
+    uni.hideLoading();
+  }
 };
 
 onShow(() => {
@@ -171,6 +208,13 @@ onShow(() => {
   display: flex; align-items: center; justify-content: center;
   // transform: translateY(20rpx);
   text-align: center;
+}
+.mf-logo {
+  width: 88rpx;
+  height: 88rpx;
+  margin-right: 16rpx;
+  display: block;
+  background-color: transparent !important;
 }
 .mf-plus { color: #fff; font-size: 40rpx; font-weight: 700; margin-right: 12rpx; line-height: 1; }
 .mf-label { color: #fff; font-size: 32rpx; font-weight: 600; line-height: 1; white-space: nowrap; }

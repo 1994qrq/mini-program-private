@@ -16,16 +16,15 @@
     </template>
     <view class="container">
       <block v-for="item in data.list" :key="item.id">
-        <view @click="() => handleJump(item)">
-          <bc-task-item
-            :item="item"
-            :desc="roundDesc(item)"
-            :taskType="data.title.includes('熟悉') ? '熟悉' :
-                      data.title.includes('不熟') ? '不熟' :
-                      data.title.includes('超熟') ? '超熟' :
-                      data.title.includes('陌生') ? '陌生' : ''"
-            @swipeClick="onSwipeClick"></bc-task-item>
-        </view>
+        <bc-task-item
+          :item="item"
+          :desc="roundDesc(item)"
+          :taskType="data.title.includes('熟悉') ? '熟悉' :
+                    data.title.includes('不熟') ? '不熟' :
+                    data.title.includes('超熟') ? '超熟' :
+                    data.title.includes('陌生') ? '陌生' : ''"
+          @click="() => handleJump(item)"
+          @swipeClick="onSwipeClick"></bc-task-item>
       </block>
       <mescroll-empty v-if="data.list.length == 0"></mescroll-empty>
     </view>
@@ -94,12 +93,13 @@ const data = reactive<any>({
   bottom_bg: '',
   loading: false, // 加载状态
   isFirstLoad: true, // 是否首次加载
+  isDeleting: false, // 添加删除标志位，防止删除时触发跳转
   // 周期价格选择相关
   selectedPeriod: '', // 选中的周期
   periodOptions: [
-    { value: '5', text: '782心币/5天', days: 5, price: 782 },
-    { value: '8', text: '1394心币/8天', days: 8, price: 1394 },
-    { value: '15', text: '1666心币/15天', days: 15, price: 1666 },
+    { value: '5', text: '782金币/5天', days: 5, price: 782 },
+    { value: '8', text: '1394金币/8天', days: 8, price: 1394 },
+    { value: '15', text: '1666金币/15天', days: 15, price: 1666 },
   ],
 });
 const popup = ref<any>(null);
@@ -201,6 +201,11 @@ const openCreateDialog = () => {
 
 
 const handleJump = async (item: Task.List.Data) => {
+  // 如果正在删除，不执行跳转
+  if (data.isDeleting) {
+    return;
+  }
+
   // 非熟悉模块：不熟 / 陌生 分别进入各自的回合页
   if (data.title.includes('不熟') || data.title.includes('陌生')) {
     // “对方找倒计时”未结束时禁止点击（taskStatus=65）
@@ -294,7 +299,13 @@ const handleJump = async (item: Task.List.Data) => {
 };
 
 const onSwipeClick = () => {
+  // 设置删除标志，防止触发跳转
+  data.isDeleting = true;
   getTaskList();
+  // 延迟重置删除标志
+  setTimeout(() => {
+    data.isDeleting = false;
+  }, 500);
 };
 
 // 处理问3逻辑
@@ -565,6 +576,8 @@ const fetchCreateTask = async (params: { taskName: string; durationDays: number;
       if (res.ok && res.task) {
         // 免费模块直接进入对话页，跳过问卷
         if (title.includes('免费')) {
+          // 免费模块需要进入第一阶段，因为round页面不支持阶段0
+          fm.enterStage1(res.task.id);
           uni.navigateTo({ url: `/pages/sub-page/stepTask/round?module=免费模块&taskId=${res.task.id}` });
         } else {
           // 熟悉/超熟模块需要问卷

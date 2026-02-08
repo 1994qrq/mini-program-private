@@ -14,7 +14,7 @@
         <bc-task-item
           :item="item"
           desc="咨询方案保留时间倒计时:"
-          bgType="yellow"
+          bgType="xianxia"
           tag="线"
           @click="() => handleJump(item)"
           @swipeClick="onSwipeClick"></bc-task-item>

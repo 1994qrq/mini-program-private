@@ -1238,6 +1238,10 @@ export function enterStage1(taskId: string) {
   
   // 清除阶段0的倒计时
   t.stageCdUnlockAt = null;
+  t.roundCdUnlockAt = null;
+  t.zUnlockAt = null;
+  t.opponentFindUnlockAt = null;
+  t.opponentFindCopyUnlockAt = null;
   t.listCountdownEndAt = null;
   t.listBadge = "聊天任务进行中";
   

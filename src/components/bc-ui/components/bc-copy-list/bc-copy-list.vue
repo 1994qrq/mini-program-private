@@ -171,32 +171,33 @@ const handleCopy = (item: any) => {
       }
 
       // VIP模糊遮罩
-      .vip-mask {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(255, 255, 255, 0.85);
-        backdrop-filter: blur(8rpx);
-        border-radius: 20rpx;
-        z-index: 2;
+.vip-mask {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(1rpx);
+  border-radius: 20rpx; /* 圆角 */
+  border: 1rpx solid #0000001a; /* 边框 */
+  z-index: 2;
 
-        .vip-mask-text {
-          text-align: center;
+  .vip-mask-text {
+    text-align: center;
 
-          .vip-icon {
-            font-size: 48rpx;
-            margin-bottom: 8rpx;
-          }
+    .vip-icon {
+      font-size: 48rpx;
+      margin-bottom: 8rpx;
+    }
 
-          .vip-tip {
-            font-size: 24rpx;
-            color: #666;
-            font-weight: 500;
-          }
-        }
-      }
+    .vip-tip {
+      font-size: 24rpx;
+      color: #666;
+      font-weight: 500;
+    }
+  }
+}
     }
 
     .copy-btn {

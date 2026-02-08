@@ -9,7 +9,7 @@
         <md-icon name="search_btn" width="76" height="76"></md-icon>
       </view>
       <!-- 状态条：模块/阶段/回合/步骤/积分 -->
-      <view class="m-bottom-20" style="font-size: 24rpx; color: #666; line-height: 1.6;">
+      <view class="m-bottom-20" style="font-size: 24rpx; color: #666; line-height: 1.6;" v-show="false" >
         <text>模块：{{ data.moduleCodeName || data.moduleCode || '熟悉模块' }}</text>
         <text class="m-left-12">｜</text>
         <text>阶段：{{ data.detail?.stageNum || (data.stage1 ? '1' : '-') }}</text>

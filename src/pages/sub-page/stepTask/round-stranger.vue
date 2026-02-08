@@ -95,7 +95,7 @@
     <md-dialog
       ref="promptDialog"
       :title="promptTitle"
-      :width="730"
+      :width="550"
       hideOk
       hideCancel
     >
