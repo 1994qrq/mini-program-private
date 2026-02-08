@@ -176,34 +176,6 @@ const handlePay = async () => {
     });
     return;
   }
-  // 检查自定义金额
-  if (data.isCustom) {
-    console.log('检查自定义金额', data.customPrice);
-    const amount = parseFloat(data.customPrice);
-    console.log('金额 = ' + amount);
-
-    // 检查金额是否有效
-    if (!amount || amount <= 0) {
-      uni.showToast({
-        title: '请输入正确的充值金额',
-        icon: 'none',
-      });
-      return;
-    }
-
-    // 检查最大金额限制
-    const maxAmount = 999999;
-    if (amount > maxAmount) {
-      uni.showToast({
-        title: `充值金额不能超过${maxAmount}元`,
-        icon: 'none',
-      });
-      return;
-    }
-
-    data.customPrice = String(amount); // 格式化输入
-    data.currentPrice = amount;
-  }
   if (!data.agree) {
     uni.showToast({
       title: '请先同意协议',
@@ -230,44 +202,6 @@ const getVipInfo = async () => {
 // 支付
 const fetchGetPrePayData = async () => {
   try {
-    // 确保金额有效
-    let amount = data.currentPrice;
-    if (!amount || amount <= 0) {
-      uni.showToast({
-        title: '请输入有效的充值金额',
-        icon: 'none',
-      });
-      return;
-    }
-
-    // 处理自定义金额，如果是0开头或者只有整数，去掉0
-    if (data.isCustom) {
-      // 将金额转换为数字再传给接口
-      console.log('处理自定义金额', data.customPrice);
-      amount = parseFloat(amount.toString());
-      console.log('处理自定义金额', amount);
-      if (isNaN(amount) || amount <= 0) {
-        uni.showToast({
-          title: '请输入有效的充值金额',
-          icon: 'none',
-        });
-        return;
-      }
-
-      // 再次检查最大金额限制
-      const maxAmount = 999999;
-      if (amount > maxAmount) {
-        uni.showToast({
-          title: `充值金额不能超过${maxAmount}元`,
-          icon: 'none',
-        });
-        return;
-      }
-    }
-
-    // 添加调试日志
-    console.log('发起支付，金额:', amount, '自定义:', data.isCustom, '原始输入:', data.customPrice);
-
     const res = await api.common.getPrePayData({
       amount: amount,
     });
