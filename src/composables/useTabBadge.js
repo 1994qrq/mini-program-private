@@ -3,7 +3,7 @@ import { ref } from 'vue';
 // 全局的tab badge状态 - 默认每个tab显示2个红点
 const tabBadges = ref({
   task: 2,      // 对话列表
-  describe: 2,  // AO
+  describe: 2,  // A0
   index: 2,     // 首页
   message: 2,   // 消息列表
   my: 2,        // 我的

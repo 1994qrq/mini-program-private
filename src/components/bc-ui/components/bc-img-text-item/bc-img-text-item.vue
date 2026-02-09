@@ -1,5 +1,5 @@
 <template>
-  <view class="list m-bottom-60">
+  <view class="list m-bottom-60" @click="handleItemClick">
     <view class="title">{{ item.title }}</view>
     <view class="content" v-if="item.type === 'text'">{{ item.content }}</view>
     <view class="content" v-else>
@@ -7,8 +7,7 @@
         <!-- 复制图标 -->
         <view
           class="copy_icon"
-          @click="() => handleCopy(item.content)"
-          v-if="!selectedNum || item.replayId == selectedNum">
+          @click.stop="() => handleCopy(item.content)">
           <md-icon name="copy_icon" width="45" height="45"></md-icon>
         </view>
         {{ item.content }}
@@ -20,7 +19,7 @@
           :src="im"
           v-for="im in item.imgs"
           :key="im"
-          @click="() => handlePreview(item.imgs, im)"></image>
+          @click.stop="() => handlePreview(item.imgs, im)"></image>
       </view>
     </view>
   </view>
@@ -29,7 +28,7 @@
 <script setup lang="ts">
 import api from '@/api';
 import { Toast } from '@/utils/util';
-const emit = defineEmits(['select']);
+const emit = defineEmits(['select', 'itemClick']);
 
 const props = defineProps({
   item: {
@@ -39,6 +38,12 @@ const props = defineProps({
   disabled: Boolean,
   selectedNum: Number,
 });
+
+// 处理卡片点击
+const handleItemClick = () => {
+  if (props.disabled) return;
+  emit('itemClick', props.item);
+};
 
 /**
  * 接口处理
@@ -56,39 +61,30 @@ const fetchUpdateReplyIsUsed = async (replyId: number) => {
 const handlePreview = (imgList: string[], currImg: string) => {
   if (!!props?.disabled) return;
   if (imgList?.length <= 0) return;
-  // 如果不存在被选中的项
-  if (!props?.selectedNum) {
-    uni.showModal({
-      title: '温馨提示',
-      content: `您当前选择了内容${props.item.replayId}，确定后其他的内容不可以查看，是否确定？`,
-      success: async res => {
-        if (res.confirm) {
-          const bool = await fetchUpdateReplyIsUsed(props.item.replayId);
-          // 接口处理，通过则返回当前的num
-          if (bool) {
-            emit('select', props.item.replayId);
-            uni.previewImage({
-              current: currImg,
-              urls: imgList,
-            });
-          }
-        }
-      },
-    });
-    return;
-  }
-  // 存在被选中的项，且点击的不是当前项则提示
-  if (props?.selectedNum && props.item?.replayId != props?.selectedNum) {
-    uni.showModal({
-      title: '温馨提示',
-      content: `您已经选择了图文内容${props.item.replayId}，其他图文的大图不可查看`,
-      showCancel: false,
-    });
-    return;
-  }
+
+  // 图片预览
   uni.previewImage({
     current: currImg,
     urls: imgList,
+    longPressActions: {
+      itemList: ['保存图片'],
+      success: (data) => {
+        if (data.tapIndex === 0) {
+          uni.saveImageToPhotosAlbum({
+            filePath: imgList[data.index],
+            success: () => {
+              Toast('保存成功');
+            },
+            fail: () => {
+              Toast('保存失败');
+            }
+          });
+        }
+      },
+      fail: (err) => {
+        console.log(err.errMsg);
+      }
+    }
   });
 };
 

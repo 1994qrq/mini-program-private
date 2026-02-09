@@ -13,9 +13,10 @@
         <!-- 会员等级 -->
         <view class="info-right" v-if="data.info?.userLevel >= 0">
           <bc-vip :level="data.info?.userLevel" />
-          <view class="upgrade-tip">
-            距离下一等级会员还差{{ data.info?.nextLevelGold || 0 }}个金币
-          </view>
+           <view class="upgrade-tip">
+            <!-- 距离下一等级会员还差{{ data.info?.nextLevelGold || 0 }}个金币 -->
+                           
+          </view> 
         </view>
       </view>
       <view class="list">
@@ -113,7 +114,14 @@ const customInputRef = ref();
 const protocolClick = (tag: string) => {
   console.log('点击协议序列 = ' + tag);
 };
-
+// 格式化金额
+const formatMoney = (money: number): string => {
+  if (!money) return '0';
+  return money.toLocaleString('zh-CN', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  });
+};
 // 自定义金额输入处理
 const handleCustomInput = (e: any) => {
   const value = e.detail?.value || '';
@@ -203,7 +211,7 @@ const getVipInfo = async () => {
 const fetchGetPrePayData = async () => {
   try {
     const res = await api.common.getPrePayData({
-      amount: amount,
+      amount: data.currentPrice, // 使用当前选中的金额
     });
     // 调起微信支付
     uni.requestPayment({
@@ -265,11 +273,13 @@ onShow(() => {
       gap: 12rpx;
 
       .upgrade-tip {
-        font-size: 26rpx;
+        font-size: 24rpx;           /* 原来是 10rpx，太小了，改为 24rpx 更清晰 */
         color: #8B4513;
-        font-weight: 500;
+        font-weight: 300;
         margin-left: 58rpx;
         line-height: 1.4;
+        letter-spacing: 1rpx;       /* 增加字间距，提升可读性 */
+        opacity: 0.9;              /* 稍微降低透明度，避免过于突兀 */
       }
     }
     &-right {

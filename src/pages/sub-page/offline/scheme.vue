@@ -1,9 +1,20 @@
 <template>
   <md-page :title="data.prevPageQuery?.taskName">
     <view class="container">
-      <block v-for="item in displayList" :key="item.id">
-        <bc-title-card :item="item" @click="handleClick" :showLevel="data.showLevel"></bc-title-card>
-      </block>
+      <!-- 36小时方案倒计时 -->
+      <view class="scheme-countdown" v-if="data.schemeExpireTime && !data.schemeExpired">
+        <bc-countdown size="small" :time="data.schemeExpireTime" desc="当前方案将在倒计时结束后消失，届时将随机展示新方案" @timeup="onSchemeExpired" />
+      </view>
+      <!-- 方案已过期提示 -->
+      <view class="expired-tip" v-if="data.schemeExpired">
+        <text class="expired-text">当前方案已过期，请重新进入查看新方案</text>
+      </view>
+      <!-- 方案卡片（未过期时显示） -->
+      <template v-if="!data.schemeExpired">
+        <block v-for="item in displayList" :key="item.replayId || item.id">
+          <bc-title-card :item="item" @click="handleClick" :showLevel="data.showLevel"></bc-title-card>
+        </block>
+      </template>
       <bc-bottom-bar
         countdown-desc="倒计时结束后，此任务将结束，回复将消失"
         :countdownTime="data.time"
@@ -32,6 +43,8 @@ const data = reactive<any>({
   allSets: [], // 所有套餐数据
   time: '',
   showLevel: -1,
+  schemeExpired: false, // 当前方案是否已过期（36小时）
+  schemeExpireTime: '', // 当前方案过期时间（用于倒计时显示）
 });
 const popup = ref(null);
 
@@ -41,6 +54,18 @@ const STORAGE_KEY_PREFIX = 'offline_scheme_';
 // 获取当前任务的存储key
 const getStorageKey = (taskId: number) => {
   return `${STORAGE_KEY_PREFIX}${taskId}`;
+};
+
+// 格式化时间戳为 YYYY-MM-DD HH:mm:ss 格式（倒计时组件需要）
+const formatTimestamp = (timestamp: number): string => {
+  const date = new Date(timestamp);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 };
 
 // 获取或创建随机套餐选择
@@ -54,10 +79,15 @@ const getOrCreateRandomSet = (taskId: number, totalSets: number) => {
   // 如果存在存储数据且未过期，返回存储的索引
   if (stored && stored.selectedIndex !== undefined && stored.expireAt) {
     if (now < stored.expireAt) {
+      // 设置过期时间用于倒计时显示
+      data.schemeExpireTime = formatTimestamp(stored.expireAt);
+      data.schemeExpired = false;
       console.log('[Offline] 使用已存储的套餐:', stored.selectedIndex);
       return stored.selectedIndex;
     } else {
+      // 已过期，清除存储，重新随机
       console.log('[Offline] 套餐已过期，重新随机选择');
+      uni.removeStorageSync(storageKey);
     }
   }
 
@@ -71,6 +101,10 @@ const getOrCreateRandomSet = (taskId: number, totalSets: number) => {
     expireAt: expireAt,
     createdAt: now
   });
+
+  // 设置过期时间用于倒计时显示
+  data.schemeExpireTime = formatTimestamp(expireAt);
+  data.schemeExpired = false;
 
   console.log('[Offline] 新随机选择套餐:', randomIndex, '过期时间:', new Date(expireAt).toLocaleString());
   return randomIndex;
@@ -95,6 +129,16 @@ const handleClick = () => {
   uni.navigateTo({
     url: '/pages/sub-page/offline/analysis',
   });
+};
+
+// 36小时倒计时结束，方案过期
+const onSchemeExpired = () => {
+  data.schemeExpired = true;
+  // 清除本地存储，下次进入时重新随机
+  const taskId = data.prevPageQuery?.taskId;
+  if (taskId) {
+    uni.removeStorageSync(getStorageKey(taskId));
+  }
 };
 
 /**
@@ -129,13 +173,9 @@ const getQuestionAnswerList = async (taskId: number) => {
     })) || [];
 
     // 将内容按 replayId 分组成不同的套餐
-    // 假设 replayId 的值可以用来区分不同的套餐
-    // 如果后端没有明确的套餐标识，可以按顺序分组
     const setMap: Record<string, any[]> = {};
     mappedList.forEach(item => {
-      // 使用 replayId 的某种规则来分组，这里假设每3个为一套
-      // 或者如果有明确的套餐标识字段，使用该字段
-      const setKey = String(Math.floor((item.replayId || 0) / 3)); // 示例：每3个replayId为一套
+      const setKey = String(item.replayId || 0);
       if (!setMap[setKey]) {
         setMap[setKey] = [];
       }
@@ -180,9 +220,9 @@ const fetchGetInfo = async () => {
 // 任务结束时间
 const fetchTaskEndTime = async () => {
   try {
-    const res = await api.task.taskEndTime({ moduleCode: taskModule['线下模块'], taskId: data.prevPageQuery?.taskId });
-    if (!!res?.data) {
-    }
+    await api.task.taskEndTime({ moduleCode: taskModule['线下模块'], taskId: data.prevPageQuery?.taskId });
+    // 设置结束时间后，重新加载数据以获取最新的 endTime
+    getQuestionAnswerList(data.prevPageQuery?.taskId);
   } catch (error) {}
 };
 
@@ -200,6 +240,25 @@ onShow(() => {
 .container {
   padding: 30rpx;
   padding-bottom: calc($safe-bottom + 120rpx);
+
+  .scheme-countdown {
+    margin-bottom: 30rpx;
+  }
+
+  .expired-tip {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40rpx 30rpx;
+    margin: 30rpx 0;
+    border-radius: 16rpx;
+    background: #f5f5f5;
+    .expired-text {
+      color: #999;
+      font-size: 28rpx;
+    }
+  }
+
   .list {
     width: 100%;
     padding: 16rpx 36rpx;

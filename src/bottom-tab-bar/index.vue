@@ -49,7 +49,7 @@ const data = reactive({
       pagePath: '/pages/image-text/index',
       iconPath: '/static/images/tabbar/shuoming.png',
       selectedIconPath: '/static/images/tabbar/shuoming_a.png',
-      text: 'AO',
+      text: 'A0',
       badge: 0,
     },
     {
