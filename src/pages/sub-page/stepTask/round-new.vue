@@ -209,7 +209,7 @@ import { onLoad } from '@dcloudio/uni-app';
 import * as um from '@/utils/unfamiliar-local';
 import * as sm from '@/utils/stranger-local';
 import { getPlaceholder } from '@/utils/placeholder-manager';
-import api from '@/api';
+import { getAllContentLibraryData } from '@/utils/content-library-sync';
 
 // 数据
 const taskId = ref('');
@@ -224,6 +224,7 @@ const contentList = ref<any[]>([]);
 const selectedContentIndex = ref<number | null>(null);
 const copyDisabled = ref(false);
 const isInLeaving = ref(false); // 是否处于离库阶段
+const currentSign = ref<'' | 'Z' | 'D'>(''); // 当前内容的 sign 标记
 
 // 标签选择相关
 const tagOptions = ref<Array<{ id: string; label: string; type: 'opening' | 'content' | 'leaving' }>>([]);
@@ -589,6 +590,7 @@ const loadCurrentContent = async () => {
   const isUm = moduleTitle.value.includes('不熟');
   const res = isUm ? await um.getCurrentChainContent(taskId.value) : await sm.getCurrentChainContent(taskId.value);
   const sign = res.statusVo?.sign || '';
+  currentSign.value = sign; // 保存当前 sign，供 handleCopy 判断是否跳过 finishCurrentLibNode
   console.log('[loadCurrentContent] sign:', sign, 'contentList:', res.contentList);
 
   // 注意：不要在这里立即处理 Z/D，而是先处理内容，然后再根据 sign 决定是否切换视图
@@ -895,7 +897,8 @@ const handleCopy = async (item: any, index: number) => {
   });
 
   // 9. 如果所有段落都复制完了，推进到下一个节点（仅适用于第1~3阶段）
-  if (segmentsCopied >= totalSegments) {
+  // 注意：如果当前内容带 Z 标记，不要在这里推进节点，应该等用户点击 Z 按钮后再推进
+  if (segmentsCopied >= totalSegments && currentSign.value !== 'Z') {
     console.log('[handleCopy] ✅ 所有段落已复制完，推进到下一个节点');
     isUm ? um.finishCurrentLibNode(taskId.value) : sm.finishCurrentLibNode(taskId.value);
 
@@ -969,13 +972,43 @@ const handleOpponentFind = async () => {
 
 // 处理搜索
 const handleSearch = () => {
-  if (!searchKeyword.value.trim()) {
+  const keyword = searchKeyword.value.trim();
+  if (!keyword) {
     uni.showToast({ title: '请输入搜索内容', icon: 'none' });
     return;
   }
 
-  console.log('[handleSearch] 搜索:', searchKeyword.value);
-  // TODO: 实现搜索逻辑
+  // 从本地库搜索
+  const local = getAllContentLibraryData();
+  const data = local?.data as any;
+  const results: Array<{ title: string; content: string }> = [];
+
+  const pushMatch = (title: string, text: string) => {
+    if (!text) return;
+    if (text.includes(keyword)) {
+      results.push({ title, content: text });
+    }
+  };
+
+  if (data) {
+    const walkLibraries = (libs: Record<string, any>) => {
+      Object.values(libs || {}).forEach((lib: any) => {
+        const title = lib?.libraryName || lib?.libraryId || '内容库';
+        const contents = lib?.contents || [];
+        contents.forEach((node: any) => {
+          pushMatch(title, node?.text || '');
+        });
+      });
+    };
+
+    walkLibraries(data.contentLibraries);
+    walkLibraries(data.leaveLibraries);
+    walkLibraries(data.proactiveLibraries);
+    // qaLibraries 的 items 结构暂未解析，先跳过
+  }
+
+  searchResults.value = results;
+  searchDialog.value?.open();
 };
 
 // 问号说明
@@ -1180,8 +1213,18 @@ const handleCopyOpponentFromBc = (payload: any) => {
 
 const handleCopySearch = (item: any, index: number) => {
   if (searchCopyDisabled.value) return;
-  console.log('[handleCopySearch] 复制搜索结果:', item);
-  // TODO: 实现复制逻辑
+
+  // 复制到剪贴板
+  uni.setClipboardData({
+    data: item?.content || '',
+    success: () => {
+      uni.showToast({ title: '已复制', icon: 'success' });
+      searchCopyDisabled.value = true;
+      setTimeout(() => {
+        searchCopyDisabled.value = false;
+      }, 3000);
+    }
+  });
 };
 
 // 显示"对方是否已添加好友"提示板
@@ -1228,6 +1271,13 @@ const showGenericPrompt = () => {
   } else if (type === 'persist_stage3_b10' || type === 'persist_stage3_m6') {
     promptTitle.value = '是否坚持';
     promptText.value = '第三阶段：是否继续坚持？';
+  } else if (type === 'halfprice_restart' || type === 'stage3_b11') {
+    promptTitle.value = '是否半价重启任务';
+    promptText.value = '可以选择半价重启一个新任务，或直接结束当前任务。';
+    promptButtons.value = [
+      { label: '半价重启', key: 'half_restart' },
+      { label: '结束任务', key: 'close_task' },
+    ];
   } else if (type === 'stage4_invitation_b12') {
     // 第四阶段：邀约选择（不熟/陌生共用）
     promptTitle.value = '邀约选择';

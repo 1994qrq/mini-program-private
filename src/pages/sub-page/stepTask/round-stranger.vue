@@ -152,7 +152,7 @@ import { ref, computed, nextTick, onMounted } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import * as sm from '@/utils/stranger-local';
 import { getPlaceholder } from '@/utils/placeholder-manager';
-import api from '@/api';
+import { getAllContentLibraryData } from '@/utils/content-library-sync';
 
 const taskId = ref('');
 const taskName = ref('');
@@ -771,19 +771,42 @@ const handleWenhao = () => {
 };
 
 const handleSearch = () => {
-  if (!searchKeyword.value.trim()) {
+  const keyword = searchKeyword.value.trim();
+  if (!keyword) {
     uni.showToast({ title: '请输入搜索内容', icon: 'none' });
     return;
   }
 
-  // 模拟搜索结果，实际应该调用搜索API
-  searchResults.value = [
-    {
-      title: '搜索结果示例',
-      content: '这是搜索结果的示例内容，实际应该调用搜索API获取真实数据。'
-    }
-  ];
+  // 从本地库搜索
+  const local = getAllContentLibraryData();
+  const data = local?.data as any;
+  const results: Array<{ title: string; content: string }> = [];
 
+  const pushMatch = (title: string, text: string) => {
+    if (!text) return;
+    if (text.includes(keyword)) {
+      results.push({ title, content: text });
+    }
+  };
+
+  if (data) {
+    const walkLibraries = (libs: Record<string, any>) => {
+      Object.values(libs || {}).forEach((lib: any) => {
+        const title = lib?.libraryName || lib?.libraryId || '内容库';
+        const contents = lib?.contents || [];
+        contents.forEach((node: any) => {
+          pushMatch(title, node?.text || '');
+        });
+      });
+    };
+
+    walkLibraries(data.contentLibraries);
+    walkLibraries(data.leaveLibraries);
+    walkLibraries(data.proactiveLibraries);
+    // qaLibraries 的 items 结构暂未解析，先跳过
+  }
+
+  searchResults.value = results;
   searchDialog.value?.open();
 };
 

@@ -119,6 +119,18 @@ export function initUmLocal() {
     set('um:settings', settings);
     console.log('[initUmLocal] 配置已更新到版本', SETTINGS_VERSION);
   }
+}
+
+// 从后台更新大CD时间
+export function updateBigCdTime(ms: number) {
+  initUmLocal();
+  const settings: Settings = get('um:settings');
+  settings.cd.bigRoundMinMs = ms;
+  set('um:settings', settings);
+  console.log('[um] 大CD时间已更新:', ms, 'ms');
+}
+
+export function _initUmLibs() {
   if (!get('um:libs')) {
     const libs: Libs = {
       opening: {
@@ -1323,6 +1335,41 @@ export function handlePromptAction(taskId: string, promptType: string, action: s
         t.listCountdownEndAt = null;
       }
 
+      t.lastActionAt = Date.now();
+      set(`um:task:${taskId}`, t);
+      break;
+    }
+    case 'halfprice_restart': {
+      if (action === 'half_restart') {
+        // 半价重启：结束当前任务（后续可接入支付逻辑创建新任务）
+        clearPrompt();
+        t.status = 'deleted';
+        t.listBadge = '任务已结束';
+        t.listCountdownEndAt = null;
+      } else if (action === 'close_task') {
+        // 直接结束任务
+        clearPrompt();
+        t.status = 'deleted';
+        t.listBadge = '任务已结束';
+        t.listCountdownEndAt = null;
+      }
+      t.lastActionAt = Date.now();
+      set(`um:task:${taskId}`, t);
+      break;
+    }
+    case 'stage3_b11': {
+      // 第三阶段B11引导后：半价重启 或 结束任务
+      if (action === 'half_restart') {
+        clearPrompt();
+        t.status = 'deleted';
+        t.listBadge = '任务已结束';
+        t.listCountdownEndAt = null;
+      } else if (action === 'close_task') {
+        clearPrompt();
+        t.status = 'deleted';
+        t.listBadge = '任务已结束';
+        t.listCountdownEndAt = null;
+      }
       t.lastActionAt = Date.now();
       set(`um:task:${taskId}`, t);
       break;
