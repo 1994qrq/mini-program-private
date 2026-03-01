@@ -3,6 +3,8 @@
  * 用于管理熟悉任务的所有本地数据
  */
 
+import { triggerSync } from './data-sync';
+
 // ==================== 常量定义 ====================
 
 // LocalStorage 键名
@@ -232,6 +234,7 @@ export function getAllTasks() {
 export function saveAllTasks(tasks) {
   try {
     localStorage.setItem(STORAGE_KEYS.TASK_LIST, JSON.stringify(tasks));
+    triggerSync();
     return true;
   } catch (error) {
     console.error('保存任务列表失败:', error);
@@ -296,6 +299,7 @@ export function getCurrentTaskId() {
  */
 export function setCurrentTaskId(taskId) {
   localStorage.setItem(STORAGE_KEYS.CURRENT_TASK_ID, taskId);
+  triggerSync();
 }
 
 // ==================== 任务操作方法 ====================
@@ -526,6 +530,7 @@ export function getUserBalance() {
  */
 export function setUserBalance(balance) {
   localStorage.setItem(STORAGE_KEYS.USER_BALANCE, balance.toString());
+  triggerSync();
 }
 
 /**

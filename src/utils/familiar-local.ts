@@ -7,6 +7,7 @@
 import { getCountdownTimeMs, getCountdownDays, getCountdownHours, getCountdownMinutes } from '@/config';
 import { getLocalContentLibrary, type ParsedContentLibrary, type ContentNode, type Library } from './content-library-sync';
 import { WAREHOUSE_TYPE_MAP } from './content-library-parser';
+import { triggerSync } from './data-sync';
 
 type StageIndex = 0 | 1 | 2 | 3 | 4;
 type DurationDays = 5 | 9 | 16;
@@ -173,6 +174,7 @@ const set = (k: string, v: any) => {
     // Replace 'fm:' prefix with current module prefix
     const key = k.replace(/^fm:/, `${modulePrefix}:`);
     uni.setStorageSync(key, v);
+    triggerSync();
   } catch {}
 };
 const remove = (k: string) => {

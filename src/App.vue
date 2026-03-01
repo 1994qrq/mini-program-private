@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onLaunch, onShow, onHide } from '@dcloudio/uni-app';
 import { syncContentLibrary } from '@/utils/content-library-sync';
+import { syncOnLaunch } from '@/utils/data-sync';
 
 onLaunch(async () => {
 	console.log("App Launch");
@@ -8,9 +9,18 @@ onLaunch(async () => {
 	// 检查是否已登录（是否有 token）
 	const token = uni.getStorageSync('token');
 	if (token) {
-		// 已登录：启动时同步内容库数据
+		// 已登录：启动时从服务器下载恢复本地数据
 		try {
-			console.log('[App] 用户已登录，开始同步内容库数据...');
+			console.log('[App] 用户已登录，开始从服务器同步本地数据...');
+			await syncOnLaunch();
+			console.log('[App] 本地数据同步完成');
+		} catch (error) {
+			console.error('[App] 本地数据同步失败:', error);
+		}
+
+		// 同步内容库数据
+		try {
+			console.log('[App] 开始同步内容库数据...');
 			await syncContentLibrary(false); // false 表示替换模式，获取最新数据
 			console.log('[App] 内容库数据同步成功');
 		} catch (error) {
