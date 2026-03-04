@@ -5,6 +5,7 @@
 
 import api from '@/api/index';
 import { parseContentLibraryData, ParsedContentLibrary } from './content-library-parser';
+import { triggerSync } from './data-sync';
 
 // 原始接口数据类型定义
 export interface ContentLibraryItem {
@@ -82,6 +83,7 @@ export function saveLocalContentLibrary(data: ContentLibraryItem[]): void {
     };
 
     uni.setStorageSync(STORAGE_KEY, localData);
+    triggerSync();
     console.log('[ContentLibrarySync] 成功保存到本地存储，共', data.length, '条数据');
   } catch (error) {
     console.error('[ContentLibrarySync] 保存本地存储失败:', error);

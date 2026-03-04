@@ -18,10 +18,11 @@
           }"></bc-img-text-item>
       </block>
       <!-- 正常图文内容 -->
-      <block v-for="item in data.list" :key="item">
+      <block v-for="item in sortedList" :key="item">
         <bc-img-text-item
           disabled
-          :item="{ ...item, title: item.title }"></bc-img-text-item>
+          :item="{ ...item, title: item.title }"
+          @itemClick="handleItemClick"></bc-img-text-item>
       </block>
     <template #footer>
       <view class="mf-footer">
@@ -44,12 +45,30 @@
       :cancelText="popupInfo?.cancelText">
       <view class="pupup-content">{{ popupInfo.text }}</view>
     </md-dialog>
+
+    <!-- 特殊图文激活提示板 -->
+    <md-dialog
+      ref="specialActivatedDialog"
+      title="特殊图文已激活"
+      :showCancel="false"
+      okText="我知道了">
+      <view class="pupup-content">特殊图文已成功激活，您现在可以查看特殊内容了！</view>
+    </md-dialog>
+
+    <!-- 首次点击普通图文提示板 -->
+    <md-dialog
+      ref="normalFirstClickDialog"
+      title="温馨提示"
+      :showCancel="false"
+      okText="我知道了">
+      <view class="pupup-content">您已激活特殊图文，现在点击普通图文查看内容。</view>
+    </md-dialog>
   </md-page>
   <bottom-tab-bar :current="1" />
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue';
+import { reactive, ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 // 接口
 import api from '@/api';
@@ -61,11 +80,29 @@ const data = reactive<any>({
   describe: '', // 图文说明
   list: [],
   value: '',
+  specialActivated: false, // 特殊图文是否已激活
+  normalFirstClicked: false, // 激活后是否已首次点击普通图文
+});
+
+// 排序后的列表：普通图文在前，特殊图文在后
+const sortedList = computed(() => {
+  return [...data.list].sort((a, b) => {
+    // dataType === 1 表示特殊图文，其他为普通图文
+    const aIsSpecial = a.dataType === 1;
+    const bIsSpecial = b.dataType === 1;
+
+    // 普通图文排在前面（返回负数），特殊图文排在后面（返回正数）
+    if (aIsSpecial && !bIsSpecial) return 1;
+    if (!aIsSpecial && bIsSpecial) return -1;
+    return 0; // 相同类型保持原顺序
+  });
 });
 
 // 添加用户信息
 const userInfo = ref<Common.Info.Data>();
 const popup = ref<any>(null);
+const specialActivatedDialog = ref<any>(null);
+const normalFirstClickDialog = ref<any>(null);
 const popupInfo = ref<{ type: 'create' | 'recharge'; okText?: string; text?: string; cancelText?: string }>({
   type: 'create',
 });
@@ -121,6 +158,32 @@ const handleClick = async () => {
 // 添加取消按钮处理
 const handleCancel = () => {
   popup.value!.close();
+};
+
+// 处理图文卡片点击
+const handleItemClick = (item: any) => {
+  console.log('[图文] 点击卡片:', item);
+
+  // 判断是否为特殊图文（dataType === 1 表示特殊图文，根据实际情况调整）
+  const isSpecial = item.dataType === 1;
+
+  if (isSpecial) {
+    // 点击特殊图文
+    if (!data.specialActivated) {
+      // 首次激活特殊图文，显示提示板
+      data.specialActivated = true;
+      specialActivatedDialog.value?.open();
+      console.log('[图文] 特殊图文已激活');
+    }
+  } else {
+    // 点击普通图文
+    if (data.specialActivated && !data.normalFirstClicked) {
+      // 特殊图文已激活，且首次点击普通图文，显示提示板
+      data.normalFirstClicked = true;
+      normalFirstClickDialog.value?.open();
+      console.log('[图文] 首次点击普通图文');
+    }
+  }
 };
 
 /**

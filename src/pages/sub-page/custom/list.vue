@@ -27,7 +27,7 @@
           desc="方法建议保留时间倒计时:"
           @click="() => handleJump(item)"
           @swipeClick="onSwipeClick"
-          bgType="dark"
+          bgType="metal"
           tag="定"></bc-task-item>
       </block>
       <mescroll-empty v-if="data.list.length == 0"></mescroll-empty>
@@ -63,11 +63,18 @@ const data = reactive<any>({
   list: [],
   value: '',
   loading: false, // 创建任务的加载状态
+  isDeleting: false, // 添加删除标志位，防止删除时触发跳转
 });
 const popup = ref(null);
 
 const onSwipeClick = () => {
+  // 设置删除标志，防止触发跳转
+  data.isDeleting = true;
   getTaskList();
+  // 延迟重置删除标志
+  setTimeout(() => {
+    data.isDeleting = false;
+  }, 500);
 };
 
 const handleOk = () => {
@@ -95,6 +102,11 @@ const bottomBtnClick = (info: { item: BtnTextItem }) => {
 };
 
 const handleJump = (item: Task.List.Data) => {
+  // 如果正在删除，不执行跳转
+  if (data.isDeleting) {
+    return;
+  }
+
   let url = '';
   let params = `taskId=${item.taskId}&taskName=${item.taskName}`;
   if (item.taskStatus === 20) {

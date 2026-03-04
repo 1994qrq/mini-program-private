@@ -94,8 +94,8 @@ const getQuestionList = async () => {
 const submitQuestion = async (params: Task.SubmitQuestion.Body) => {
   try {
     await api.task.submitQuestion(params);
-    // 跳转无答案页面
-    uni.navigateTo({
+    // 跳转无答案页面（使用redirectTo替换当前页面，避免返回到问卷页）
+    uni.redirectTo({
       url: `/pages/sub-page/offline/analysis?taskId=${data.prevPageQuery.taskId}&taskName=${data.prevPageQuery?.taskName}`,
     });
   } catch (error) {}

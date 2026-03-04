@@ -12,9 +12,8 @@
         <view :style="{ color: data.selected === index ? data.selectedColor : data.color }">{{ item.text }}</view>
       </view>
       <view v-else class="tab-bar-home flex-c" @click="() => switchTab(index)">
-        <view :class="['tab-bar-home-inner', 'flex-c', data.selected === index ? 'active' : '']">
-          <image v-if="data.selected === index" src="/static/images/home/qrcode.png" class="qrcode-img" />
-          <md-icon v-else :url="item.iconPath" width="52" height="52"></md-icon>
+        <view :class="['tab-bar-home-inner', 'flex-c', 'active']">
+          <image src="/static/images/home/qrcode.png" class="qrcode-img" />
         </view>
       </view>
     </block>
@@ -50,7 +49,7 @@ const data = reactive({
       pagePath: '/pages/image-text/index',
       iconPath: '/static/images/tabbar/shuoming.png',
       selectedIconPath: '/static/images/tabbar/shuoming_a.png',
-      text: 'AO',
+      text: 'A0',
       badge: 0,
     },
     {

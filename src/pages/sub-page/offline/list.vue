@@ -14,7 +14,7 @@
         <bc-task-item
           :item="item"
           desc="咨询方案保留时间倒计时:"
-          bgType="yellow"
+          bgType="xianxia"
           tag="线"
           @click="() => handleJump(item)"
           @swipeClick="onSwipeClick"></bc-task-item>
@@ -38,7 +38,7 @@
           <image class="mf-bg" src="@/static/images/xianxia.png" mode="widthFix" />
           <view class="mf-text">
             <text class="mf-plus">＋</text>
-            <text class="mf-label">创建线下任务</text>
+            <text class="mf-label">创建线下计划</text>
           </view>
         </view>
       </view>

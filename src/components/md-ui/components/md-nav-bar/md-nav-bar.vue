@@ -44,8 +44,10 @@ let props = withDefaults(defineProps<PropsType>(), {
 const popup = ref(null);
 
 const handleJump = () => {
+  // 获取当前页面标题，传递给说明页面
+  const title = props.title || '';
   uni.navigateTo({
-    url: '/pages/sub-page/describe/wenhao',
+    url: `/pages/sub-page/describe/wenhao?pageTitle=${encodeURIComponent(title)}`,
   });
 };
 

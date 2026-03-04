@@ -116,13 +116,12 @@ const getQuestionList = async () => {
 
 // 提交问卷
 const submitQuestion = async (params: Task.SubmitQuestion.Body) => {
-  console.log(params);
   try {
-    // await api.task.submitQuestion(params);
-    // 跳转无答案页面
-    // uni.navigateTo({
-    //   url: `/pages/sub-page/image-text/analysis?taskId=${data.prevPageQuery.taskId}&taskName=${data.prevPageQuery?.taskName}`,
-    // });
+    await api.task.submitQuestion(params);
+    // 跳转无答案页面（使用redirectTo替换当前页面，避免返回到问卷页）
+    uni.redirectTo({
+      url: `/pages/sub-page/image-text/analysis?taskId=${data.prevPageQuery.taskId}&taskName=${data.prevPageQuery?.taskName}`,
+    });
   } catch (error) {}
 };
 

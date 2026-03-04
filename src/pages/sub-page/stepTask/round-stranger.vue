@@ -18,7 +18,7 @@
         <view class="search flex-c m-right-12">
           <input
             v-model="searchKeyword"
-            placeholder="请输入对方的问题"
+            :placeholder="searchPlaceholder"
             class="m-left-20 input"
             placeholder-style="color: #7A59ED;"
           />
@@ -71,7 +71,7 @@
       <!-- 正常内容 -->
       <view v-else-if="currentView === 'content'" class="content-view">
         <block v-if="contentList.length > 0">
-          <bc-copy-list :info="pageInfoLike" :disabled="copyDisabled" @copy="handleCopyFromBc" />
+          <bc-copy-list :info="pageInfoLike" :disabled="copyDisabled" :userVipLevel="userVipLevel" @copy="handleCopyFromBc" />
         </block>
         <view v-else class="empty-state">
           <text>暂无内容</text>
@@ -95,7 +95,7 @@
     <md-dialog
       ref="promptDialog"
       :title="promptTitle"
-      :width="730"
+      :width="550"
       hideOk
       hideCancel
     >
@@ -148,13 +148,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick } from 'vue';
+import { ref, computed, nextTick, onMounted } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import * as sm from '@/utils/stranger-local';
+import { getPlaceholder } from '@/utils/placeholder-manager';
+import { getAllContentLibraryData } from '@/utils/content-library-sync';
 
 const taskId = ref('');
 const taskName = ref('');
 const task = ref<any>(null);
+const userVipLevel = ref(1); // 用户VIP等级，默认VIP1
 
 const currentView = ref<'content' | 'z' | 'd' | 'big_cd' | 'stage_cd'>('content');
 const contentList = ref<any[]>([]);
@@ -197,6 +200,16 @@ const stepLabel = computed(() => {
 const showSearch = ref(true);
 const searchKeyword = ref('');
 const searchResults = ref<any[]>([]);
+const searchPlaceholder = ref('请输入对方的问题'); // 动态placeholder
+
+// 加载动态placeholder
+onMounted(async () => {
+  try {
+    searchPlaceholder.value = await getPlaceholder('陌生模块');
+  } catch (error) {
+    console.error('[round-stranger] 加载placeholder失败:', error);
+  }
+});
 const searchDialog = ref<any>(null);
 const searchCopyDisabled = ref(false);
 
@@ -283,6 +296,9 @@ onLoad((options: any) => {
   const rawName = options.taskName || '对话页面';
   try { taskName.value = decodeURIComponent(rawName); } catch { taskName.value = rawName; }
 
+  // 获取用户VIP等级
+  getUserVipLevel();
+
   if (taskId.value) {
     loadTaskData();
   } else {
@@ -290,6 +306,18 @@ onLoad((options: any) => {
     setTimeout(() => uni.navigateBack(), 2000);
   }
 });
+
+// 获取用户VIP等级
+const getUserVipLevel = async () => {
+  try {
+    const res = await api.common.info();
+    userVipLevel.value = res.data?.userLevel || 1;
+    console.log('[round-stranger] 用户VIP等级:', userVipLevel.value);
+  } catch (error) {
+    console.error('[round-stranger] 获取VIP等级失败:', error);
+    userVipLevel.value = 1; // 失败时默认VIP1
+  }
+};
 
 const loadTaskData = () => {
   console.log('[stranger] loadTaskData start');
@@ -743,19 +771,42 @@ const handleWenhao = () => {
 };
 
 const handleSearch = () => {
-  if (!searchKeyword.value.trim()) {
+  const keyword = searchKeyword.value.trim();
+  if (!keyword) {
     uni.showToast({ title: '请输入搜索内容', icon: 'none' });
     return;
   }
 
-  // 模拟搜索结果，实际应该调用搜索API
-  searchResults.value = [
-    {
-      title: '搜索结果示例',
-      content: '这是搜索结果的示例内容，实际应该调用搜索API获取真实数据。'
-    }
-  ];
+  // 从本地库搜索
+  const local = getAllContentLibraryData();
+  const data = local?.data as any;
+  const results: Array<{ title: string; content: string }> = [];
 
+  const pushMatch = (title: string, text: string) => {
+    if (!text) return;
+    if (text.includes(keyword)) {
+      results.push({ title, content: text });
+    }
+  };
+
+  if (data) {
+    const walkLibraries = (libs: Record<string, any>) => {
+      Object.values(libs || {}).forEach((lib: any) => {
+        const title = lib?.libraryName || lib?.libraryId || '内容库';
+        const contents = lib?.contents || [];
+        contents.forEach((node: any) => {
+          pushMatch(title, node?.text || '');
+        });
+      });
+    };
+
+    walkLibraries(data.contentLibraries);
+    walkLibraries(data.leaveLibraries);
+    walkLibraries(data.proactiveLibraries);
+    // qaLibraries 的 items 结构暂未解析，先跳过
+  }
+
+  searchResults.value = results;
   searchDialog.value?.open();
 };
 

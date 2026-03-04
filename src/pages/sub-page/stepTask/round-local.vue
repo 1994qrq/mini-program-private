@@ -98,7 +98,7 @@
       <view v-else-if="currentView === 'content'" class="content-view">
         <!-- 内容列表 -->
         <block v-if="contentList.length > 0">
-          <bc-copy-list :info="pageInfoLike" :disabled="copyDisabled" @copy="handleCopyFromBc" />
+          <bc-copy-list :info="pageInfoLike" :disabled="copyDisabled" :userVipLevel="userVipLevel" @copy="handleCopyFromBc" />
         </block>
 
         <!-- 空状态 -->
@@ -135,7 +135,7 @@
       </view>
 
       <!-- 对方找内容列表（与熟悉模块一致样式） -->
-      <bc-copy-list :info="opponentPageInfoLike" :disabled="opponentCopyCountdown > 0" @copy="handleCopyOpponentFromBc" />
+      <bc-copy-list :info="opponentPageInfoLike" :disabled="opponentCopyCountdown > 0" :userVipLevel="userVipLevel" @copy="handleCopyOpponentFromBc" />
     </md-dialog>
 
     <!-- 搜索结果弹窗 -->
@@ -177,12 +177,14 @@ import { onLoad } from '@dcloudio/uni-app';
 import * as um from '@/utils/unfamiliar-local';
 import * as sm from '@/utils/stranger-local';
 import * as fm from '@/utils/familiar-local';
+import { getAllContentLibraryData } from '@/utils/content-library-sync';
 
 // 数据
 const taskId = ref('');
 const taskName = ref('');
 const moduleTitle = ref('');
 const task = ref<any>(null);
+const userVipLevel = ref(1); // 用户VIP等级，默认VIP1
 
 // 视图状态
 const currentView = ref<'content' | 'z' | 'd' | 'big_cd' | 'stage_cd'>('content');
@@ -266,6 +268,9 @@ onLoad((options: any) => {
   try { taskName.value = decodeURIComponent(rawName); } catch (e) { taskName.value = rawName; }
   moduleTitle.value = options.module || '';
 
+  // 获取用户VIP等级
+  getUserVipLevel();
+
   if (taskId.value) {
     loadTaskData();
   } else {
@@ -273,6 +278,18 @@ onLoad((options: any) => {
     setTimeout(() => uni.navigateBack(), 2000);
   }
 });
+
+// 获取用户VIP等级
+const getUserVipLevel = async () => {
+  try {
+    const res = await api.common.info();
+    userVipLevel.value = res.data?.userLevel || 1;
+    console.log('[round-local] 用户VIP等级:', userVipLevel.value);
+  } catch (error) {
+    console.error('[round-local] 获取VIP等级失败:', error);
+    userVipLevel.value = 1; // 失败时默认VIP1
+  }
+};
 
 // 加载任务数据
 const loadTaskData = () => {
@@ -546,13 +563,43 @@ const handleOpponentFind = async () => {
 
 // 处理搜索
 const handleSearch = () => {
-  if (!searchKeyword.value.trim()) {
+  const keyword = searchKeyword.value.trim();
+  if (!keyword) {
     uni.showToast({ title: '请输入搜索内容', icon: 'none' });
     return;
   }
 
-  console.log('[handleSearch] 搜索:', searchKeyword.value);
-  // TODO: 实现搜索逻辑
+  // 从本地库搜索
+  const local = getAllContentLibraryData();
+  const data = local?.data as any;
+  const results: Array<{ title: string; content: string }> = [];
+
+  const pushMatch = (title: string, text: string) => {
+    if (!text) return;
+    if (text.includes(keyword)) {
+      results.push({ title, content: text });
+    }
+  };
+
+  if (data) {
+    const walkLibraries = (libs: Record<string, any>) => {
+      Object.values(libs || {}).forEach((lib: any) => {
+        const title = lib?.libraryName || lib?.libraryId || '内容库';
+        const contents = lib?.contents || [];
+        contents.forEach((node: any) => {
+          pushMatch(title, node?.text || '');
+        });
+      });
+    };
+
+    walkLibraries(data.contentLibraries);
+    walkLibraries(data.leaveLibraries);
+    walkLibraries(data.proactiveLibraries);
+    // qaLibraries 的 items 结构暂未解析，先跳过
+  }
+
+  searchResults.value = results;
+  searchDialog.value?.open();
 };
 
 // 问号说明
@@ -670,8 +717,18 @@ const handleCopyOpponentFromBc = (payload: any) => {
 // 复制搜索结果
 const handleCopySearch = (item: any, index: number) => {
   if (searchCopyDisabled.value) return;
-  console.log('[handleCopySearch] 复制搜索结果:', item);
-  // TODO: 实现复制逻辑
+
+  // 复制到剪贴板
+  uni.setClipboardData({
+    data: item?.content || '',
+    success: () => {
+      uni.showToast({ title: '已复制', icon: 'success' });
+      searchCopyDisabled.value = true;
+      setTimeout(() => {
+        searchCopyDisabled.value = false;
+      }, 3000);
+    }
+  });
 };
 </script>
 

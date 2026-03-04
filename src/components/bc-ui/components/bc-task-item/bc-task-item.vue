@@ -60,10 +60,15 @@ import { onMounted, reactive, ref, computed } from 'vue';
 import api from '@/api';
 // 工具
 import { getCountdown, hasItTimeOut } from '@/utils/util';
+// 本地存储
+import * as fm from '@/utils/familiar-local';
+import * as um from '@/utils/unfamiliar-local';
+import * as sm from '@/utils/stranger-local';
 
 const data = reactive<any>({
   continuedTimeValue: null, // 选中的续时项
   continuedTimeList: [],
+  isDeleting: false, // 添加删除标志位，防止删除时触发点击事件
 });
 
 const props = defineProps({
@@ -173,7 +178,14 @@ const getLeftArrowIcon = computed(() => {
     return 'yellow_left_arrow';
   } else if (props.bgType === 'dark') {
     return 'left_arrow_grey';
-  } else if (props.useAltArrow) {
+  }else if (props.bgType === 'metal') {
+    return 'left_arrow_metal';
+  }else if (props.bgType === 'wenzhen') {
+    return 'left_arrow_wenzhen';
+  }else if (props.bgType === 'xianxia') {
+    return 'left_arrow_xianxia';
+  }
+   else if (props.useAltArrow) {
     return 'left_arrow1';
   }
 
@@ -197,10 +209,20 @@ const handleOk = () => {
 
 const handleCancel = () => {
   data.continuedTimeValue = null;
+  // 取消时重置删除标志
+  if (currDialogType.value === '删除') {
+    setTimeout(() => {
+      data.isDeleting = false;
+    }, 300);
+  }
 };
 
 const emit = defineEmits(['click', 'swipeClick']);
 const onClick = () => {
+  // 如果正在删除，不触发点击事件
+  if (data.isDeleting) {
+    return;
+  }
   emit('click');
 };
 
@@ -209,6 +231,12 @@ const onSwipeClick = (e: { position: string; content: { text: any } }) => {
   // console.log(e);
   let text = e.content.text;
   currDialogType.value = text;
+
+  // 如果是删除操作，设置删除标志
+  if (text === '删除') {
+    data.isDeleting = true;
+  }
+
   // 打开弹窗
   popup.value!.open();
 };
@@ -248,12 +276,73 @@ const fetchRenewTime = async () => {
 // 任务删除
 const fetchDelTask = async () => {
   try {
-    await api.task.delTask({
-      taskId: props.item.taskId,
-    });
-    emit('swipeClick');
-  } catch (error) {}
+    // 判断任务类型，使用不同的删除方法
+    const taskType = props.taskType; // '熟悉'、'不熟'、'超熟'、'陌生'、''(免费)
+
+    if (taskType === '熟悉') {
+      // 熟悉模块：使用本地删除
+      fm.initFamiliarLocal('familiar');
+      const deleted = fm.deleteTask(props.item.id || props.item.taskId);
+      if (deleted) {
+        uni.showToast({ title: '已删除', icon: 'none' });
+        emit('swipeClick');
+      } else {
+        uni.showToast({ title: '删除失败', icon: 'none' });
+      }
+    } else if (taskType === '超熟') {
+      // 超熟模块：使用本地删除
+      fm.initFamiliarLocal('super');
+      const deleted = fm.deleteTask(props.item.id || props.item.taskId);
+      if (deleted) {
+        uni.showToast({ title: '已删除', icon: 'none' });
+        emit('swipeClick');
+      } else {
+        uni.showToast({ title: '删除失败', icon: 'none' });
+      }
+    } else if (taskType === '不熟') {
+      // 不熟模块：使用本地删除
+      um.initUmLocal();
+      const deleted = um.deleteTask(props.item.id || props.item.taskId);
+      if (deleted) {
+        uni.showToast({ title: '已删除', icon: 'none' });
+        emit('swipeClick');
+      } else {
+        uni.showToast({ title: '删除失败', icon: 'none' });
+      }
+    } else if (taskType === '陌生') {
+      // 陌生模块：使用本地删除
+      sm.initSmLocal();
+      const deleted = sm.deleteTask(props.item.id || props.item.taskId);
+      if (deleted) {
+        uni.showToast({ title: '已删除', icon: 'none' });
+        emit('swipeClick');
+      } else {
+        uni.showToast({ title: '删除失败', icon: 'none' });
+      }
+    } else {
+      // 免费模块或其他：使用本地删除（免费模块）
+      fm.initFamiliarLocal('free');
+      const deleted = fm.deleteTask(props.item.id || props.item.taskId);
+      if (deleted) {
+        uni.showToast({ title: '已删除', icon: 'none' });
+        emit('swipeClick');
+      } else {
+        // 如果本地删除失败，尝试调用后端 API（兼容其他模块）
+        await api.task.delTask({
+          taskId: props.item.taskId,
+        });
+        emit('swipeClick');
+      }
+    }
+  } catch (error) {
+    console.error('删除任务失败:', error);
+    uni.showToast({ title: '删除失败', icon: 'none' });
+  }
   popup.value!.close();
+  // 延迟重置删除标志，确保不会触发点击事件
+  setTimeout(() => {
+    data.isDeleting = false;
+  }, 500);
 };
 
 onMounted(() => {
@@ -287,7 +376,7 @@ onMounted(() => {
   }
   .right_arrow {
     position: absolute;
-    right: -4rpx;
+    right: -6rpx;
     bottom: -2rpx;
   }
   .arrow {

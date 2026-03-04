@@ -1,4 +1,5 @@
 import { getCountdownTimeMs } from '@/config';
+import { triggerSync } from './data-sync';
 
 // Stranger (陌生) module local engine — isolated from familiar module
 // Storage key prefix: sm:
@@ -39,7 +40,7 @@ const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 
 function get<T = any>(k: string): T { return uni.getStorageSync(k) as T }
-function set(k: string, v: any) { uni.setStorageSync(k, v) }
+function set(k: string, v: any) { uni.setStorageSync(k, v); triggerSync(); }
 
 // 当前配置版本号
 const SETTINGS_VERSION = 3;
