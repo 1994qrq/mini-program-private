@@ -97,9 +97,9 @@ const data = reactive<any>({
   // 周期价格选择相关
   selectedPeriod: '', // 选中的周期
   periodOptions: [
-    { value: '5', text: '782金币/5天', days: 5, price: 782 },
-    { value: '8', text: '1394金币/8天', days: 8, price: 1394 },
-    { value: '15', text: '1666金币/15天', days: 15, price: 1666 },
+    { value: '5', text: '782心币/5天', days: 5, price: 782 },
+    { value: '8', text: '1394心币/8天', days: 8, price: 1394 },
+    { value: '15', text: '1666心币/15天', days: 15, price: 1666 },
   ],
 });
 const popup = ref<any>(null);

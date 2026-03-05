@@ -4,7 +4,7 @@
       <view class="info m-bottom-40">
         <view class="info-left">
           <!-- 金额 -->
-          <view>金币余额</view>
+          <view>心币余额</view>
           <view class="flex-l">
             <image class="bag-icon" src="/static/icons/bag.png" mode="aspectFit" />
             <view class="m-left-8">{{ data.info?.remainingVirtual || 0 }}</view>
@@ -12,11 +12,17 @@
         </view>
         <!-- 会员等级 -->
         <view class="info-right" v-if="data.info?.userLevel >= 0">
-          <bc-vip :level="data.info?.userLevel" />
-           <view class="upgrade-tip">
-            <!-- 距离下一等级会员还差{{ data.info?.nextLevelGold || 0 }}个金币 -->
-                           
-          </view> 
+          <!-- 如果是游客/来宾（等级0），显示升级提示 -->
+          <view v-if="data.info?.userLevel === 0" class="guest-upgrade-tip">
+            充值{{ data.minRechargeForMember }}心币升级为会员
+          </view>
+          <!-- 如果是会员，显示会员等级 -->
+          <template v-else>
+            <bc-vip :level="data.info?.userLevel" />
+            <view class="upgrade-tip">
+              <!-- 距离下一等级会员还差{{ data.info?.nextLevelGold || 0 }}个心币 -->
+            </view>
+          </template>
         </view>
       </view>
       <view class="list">
@@ -27,7 +33,7 @@
             :hover-start-time="20"
             :hover-stay-time="70"
             @click="() => handleSelect(item)">
-            <view>{{ item.gold }}金币</view>
+            <view>{{ item.gold }}心币</view>
             <view class="price">￥{{ item.price }}</view>
           </view>
         </block>
@@ -105,6 +111,8 @@ const data = reactive<any>({
   protocolArr: ['《会员协议》', '《隐私政策》'],
   // 会员信息
   info: {},
+  // 升级为会员所需的最低心币数（示例值，可根据实际情况调整）
+  minRechargeForMember: 1000,
 });
 
 // 自定义金额输入框ref
@@ -203,8 +211,10 @@ const getVipInfo = async () => {
   try {
     const res = await api.common.info();
     data.info = res.data;
-  } catch (error) {}
-  // console.log('获取会员信息');
+    console.log('[充值页] 获取会员信息成功，当前等级:', data.info?.userLevel, '心币余额:', data.info?.remainingVirtual);
+  } catch (error) {
+    console.error('[充值页] 获取会员信息失败:', error);
+  }
 };
 
 // 支付
@@ -222,31 +232,100 @@ const fetchGetPrePayData = async () => {
       signType: res.data?.signType,
       timeStamp: String(res.data?.timeStamp), // 时间戳（单位：秒）
       paySign: res.data?.paySign, // 签名，这里用的 MD5/RSA 签名
-      success() {
+      async success() {
+        console.log('[充值] 支付成功，开始刷新用户信息');
+
+        // 显示加载提示
+        uni.showLoading({
+          title: '处理中...',
+          mask: true
+        });
+
+        // 延迟2秒后刷新用户信息，等待后端处理完成
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        // 支付成功后，多次刷新用户信息以确保获取到最新数据
+        let retryCount = 0;
+        const maxRetries = 3;
+        let userLevel = 0;
+
+        while (retryCount < maxRetries) {
+          await getVipInfo();
+          userLevel = data.info?.userLevel || 0;
+          console.log('[充值] 第', retryCount + 1, '次刷新，当前会员等级:', userLevel);
+
+          if (userLevel >= 1) {
+            // 已经升级为会员，退出循环
+            break;
+          }
+
+          // 等待1秒后重试
+          if (retryCount < maxRetries - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+          retryCount++;
+        }
+
+        // 设置刷新标志，让其他页面知道需要刷新
+        uni.setStorageSync('isRefresh', 1);
+
+        uni.hideLoading();
+
+        const message = userLevel >= 1 ? '充值成功！您已成为会员' : '充值成功！';
         uni.showModal({
           title: '提示',
-          content: '支付成功',
+          content: message,
           showCancel: false,
           success() {
+            // 返回上一页，上一页会通过 onShow 刷新数据
             uni.navigateBack();
           },
         });
       },
       fail(e) {
-        console.log(e);
+        console.log('支付失败:', e);
+        uni.showToast({
+          title: '支付失败',
+          icon: 'none',
+          duration: 2000
+        });
       },
     });
   } catch (error) {
-    console.log(error);
+    console.log('获取支付信息失败:', error);
+    uni.showToast({
+      title: '获取支付信息失败',
+      icon: 'none',
+      duration: 2000
+    });
   }
 };
 
 onLoad(async () => {
+  // 检查是否已登录
+  const token = uni.getStorageSync('token');
+  if (!token) {
+    // 未登录，跳转到登录页
+    uni.showModal({
+      title: '提示',
+      content: '请先登录',
+      showCancel: false,
+      confirmText: '去登录',
+      success: () => {
+        uni.redirectTo({
+          url: '/pages/login/index',
+        });
+      },
+    });
+    return;
+  }
+
   // 底部图片加载
   data.bottom_bg = await convertToBase64('/static/images/page_bottom_bg.png');
 });
 
 onShow(() => {
+  console.log('[充值页] onShow 触发，刷新会员信息');
   getVipInfo();
 });
 </script>
@@ -287,6 +366,18 @@ onShow(() => {
       flex-direction: column;
       align-items: flex-end;
       justify-content: center;
+
+      .guest-upgrade-tip {
+        font-size: 26rpx;
+        color: #d97706;
+        font-weight: 600;
+        padding: 12rpx 20rpx;
+        background: rgba(255, 255, 255, 0.8);
+        border-radius: 12rpx;
+        text-align: center;
+        line-height: 1.4;
+        box-shadow: 0 4rpx 12rpx rgba(217, 119, 6, 0.15);
+      }
     }
   }
 

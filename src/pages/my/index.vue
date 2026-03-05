@@ -34,7 +34,7 @@
         </view>
 
         <view class="card" @click="handleRechargeClick">
-          <view class="card-title">我的金币</view>
+          <view class="card-title">我的心币</view>
           <view class="card-main">
             <text class="coin">{{ formatMoney(data.info?.remainingVirtual || 0) }}</text>
           </view>

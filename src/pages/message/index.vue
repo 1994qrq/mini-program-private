@@ -32,17 +32,17 @@ const data = reactive({
   list: [
     {
       id: 1,
-      content: '截止2024年12月31日，您的任务XXX消耗金币584个，回复内容已通过系统发送到该任务中，请您查收。',
+      content: '截止2024年12月31日，您的任务XXX消耗心币584个，回复内容已通过系统发送到该任务中，请您查收。',
       createTime: '2024-05-08 23:34:45'
     },
     {
       id: 2,
-      content: '截止2024年12月31日，您的任务XXX消耗金币584个，回复内容已通过系统发送到该任务中，请您查收。',
+      content: '截止2024年12月31日，您的任务XXX消耗心币584个，回复内容已通过系统发送到该任务中，请您查收。',
       createTime: '2024-05-08 23:34:45'
     },
     {
       id: 3,
-      content: '截止2024年12月31日，您的任务XXX消耗金币584个，回复内容已通过系统发送到该任务中，请您查收。',
+      content: '截止2024年12月31日，您的任务XXX消耗心币584个，回复内容已通过系统发送到该任务中，请您查收。',
       createTime: '2024-05-08 23:34:45'
     }
   ],
@@ -76,12 +76,23 @@ const handleDel = (index: number) => {
 <style lang="scss" scoped>
 .container {
 	padding: 30rpx;
+	padding-bottom: calc(30rpx + env(safe-area-inset-bottom) + 100rpx);
 	min-height: 100vh;
 	box-sizing: border-box;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
 	background: linear-gradient(180deg, #eef0ff 0%, #f6f7ff 100%);
+
+	:deep(.uni-swipe) {
+		width: 100%;
+	}
+
+	:deep(.uni-swipe-action-item) {
+		width: 100%;
+		margin-bottom: 24rpx;
+	}
+
 	.list {
 		display: flex;
 		align-items: flex-start;
@@ -92,9 +103,7 @@ const handleDel = (index: number) => {
 		box-sizing: border-box;
 		border: none;
 		box-shadow: 0 12rpx 32rpx rgba(36, 36, 36, 0.08);
-		&:not(:last-of-type) {
-			margin-bottom: 24rpx;
-		}
+
 		.icon {
 			width: 48rpx;
 			height: 48rpx;
@@ -104,7 +113,7 @@ const handleDel = (index: number) => {
 		}
 		.right {
 			flex: 1;
-			margin-left: 0;
+			min-width: 0;
 			.title {
 				color: #1f1f1f;
 			}
@@ -115,6 +124,7 @@ const handleDel = (index: number) => {
 				-webkit-line-clamp: 2;
 				-webkit-box-orient: vertical;
 				overflow: hidden;
+				word-break: break-all;
 			}
 			.date {
 				color: #a0a0a0;

@@ -38,10 +38,10 @@
               <text class="vip-level">VIP 等级{{ data.info?.userLevel || 'X' }}</text>
               <text class="upgrade-tip">
                 距离下一级会员还需{{ formatMoney(data.nextLevelMoney) }}
-                {{ Math.floor(data.nextLevelMoney / 100) }}个金币
+                {{ Math.floor(data.nextLevelMoney / 100) }}个心币
               </text>
               <view class="coin-info">
-                <text class="coin-label">我的金币</text>
+                <text class="coin-label">我的心币</text>
                 <text class="coin-value">{{ formatMoney(data.info?.remainingVirtual || 0) }}</text>
               </view>
             </view>

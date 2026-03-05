@@ -15,6 +15,26 @@
       @agree="handleDisclaimerAgree"
       @disagree="handleDisclaimerDisagree"
     />
+
+    <!-- 用户名设置弹窗 -->
+    <md-dialog
+      ref="nicknameDialog"
+      title="设置用户名"
+      @ok="handleNicknameOk"
+      @cancel="handleNicknameCancel">
+      <view class="nickname-input-wrapper">
+        <view class="input-label">请设置您的用户名</view>
+        <uni-easyinput
+          v-model="data.nickname"
+          primaryColor="#827afd"
+          :styles="{
+            borderColor: '#827afd',
+          }"
+          :maxlength="20"
+          placeholder="请输入用户名"></uni-easyinput>
+        <view class="input-tip">默认使用微信昵称，您也可以自定义</view>
+      </view>
+    </md-dialog>
   </md-page>
 </template>
 
@@ -34,9 +54,13 @@ const data = reactive<any>({
   userId: null,
   configInfo: {},
   isLoadingUserId: false, // 是否正在获取 userId
+  nickname: '', // 用户名
+  phoneCode: '', // 手机号授权码
+  wxUserInfo: null, // 微信用户信息
 });
 
 const showDisclaimer = ref(false); // 是否显示免责声明弹窗
+const nicknameDialog = ref(null); // 用户名设置弹窗
 
 // 等待 userId 获取完成（最多等待10秒）
 const waitForUserId = async (): Promise<boolean> => {
@@ -50,6 +74,22 @@ const waitForUserId = async (): Promise<boolean> => {
   }
 
   return !!data.userId;
+};
+
+// 获取微信用户信息
+const getWxUserInfo = async () => {
+  try {
+    const res = await uni.getUserProfile({
+      desc: '用于完善用户资料',
+    });
+    data.wxUserInfo = res.userInfo;
+    data.nickname = res.userInfo.nickName || '';
+    console.log('[getWxUserInfo] 获取微信用户信息成功:', data.wxUserInfo);
+  } catch (error) {
+    console.error('[getWxUserInfo] 获取微信用户信息失败:', error);
+    // 如果获取失败，使用默认昵称
+    data.nickname = '用户' + Math.floor(Math.random() * 10000);
+  }
 };
 
 // 授权手机号回调
@@ -80,8 +120,36 @@ async function decryptPhoneNumber(e: any) {
     console.log('[decryptPhoneNumber] userId 获取成功:', data.userId);
   }
 
-  fetchAuthMobileLogin(e.detail.code);
+  // 保存手机号授权码
+  data.phoneCode = e.detail.code;
+
+  // 获取微信用户信息并显示用户名设置弹窗
+  await getWxUserInfo();
+  nicknameDialog.value?.open();
 }
+
+// 用户名设置确认
+const handleNicknameOk = () => {
+  if (!data.nickname || data.nickname.trim() === '') {
+    uni.showToast({
+      title: '请输入用户名',
+      icon: 'none',
+    });
+    return;
+  }
+
+  // 关闭弹窗
+  nicknameDialog.value?.close();
+
+  // 执行登录
+  fetchAuthMobileLogin(data.phoneCode, data.nickname.trim());
+};
+
+// 用户名设置取消
+const handleNicknameCancel = () => {
+  data.nickname = '';
+  data.phoneCode = '';
+};
 
 /**
  * 接口相关
@@ -134,17 +202,21 @@ const handleDisclaimerDisagree = () => {
 };
 
 // 授权手机登录
-const fetchAuthMobileLogin = async (code: string) => {
+const fetchAuthMobileLogin = async (code: string, nickname: string) => {
   try {
-    console.log('[fetchAuthMobileLogin] 开始获取手机号，userId:', data.userId, 'code:', code);
+    console.log('[fetchAuthMobileLogin] 开始获取手机号，userId:', data.userId, 'code:', code, 'nickname:', nickname);
 
     const res = await api.common.getPhoneNumber({
       code,
       userId: data.userId,
+      // TODO: 如果后端支持，可以在这里传递 nickname
+      // nickname: nickname,
     });
 
     console.log('[fetchAuthMobileLogin] 获取手机号成功，token:', res.data);
     uni.setStorageSync('token', res.data);
+    // 保存用户名到本地存储（如果后端不支持，可以先存本地）
+    uni.setStorageSync('userNickname', nickname);
     // 返回的页面执行刷新
     uni.setStorageSync('isRefresh', 1);
 
@@ -214,6 +286,22 @@ onLoad(() => {
   }
   .btn {
     margin-top: 100rpx;
+  }
+}
+
+.nickname-input-wrapper {
+  padding: 20rpx 0;
+  .input-label {
+    font-size: 28rpx;
+    color: #333;
+    margin-bottom: 20rpx;
+    font-weight: 500;
+  }
+  .input-tip {
+    font-size: 24rpx;
+    color: #999;
+    margin-top: 16rpx;
+    line-height: 1.5;
   }
 }
 </style>

@@ -94,14 +94,25 @@
     <view class="wenhao" @click="handleWenhao"><md-icon name="wenhao" width="60" height="60"></md-icon></view>
   </view>
   <bottom-tab-bar :current="2" />
+
+  <!-- 免责声明弹窗 -->
+  <DisclaimerModal
+    :visible="showDisclaimer"
+    @agree="handleDisclaimerAgree"
+    @disagree="handleDisclaimerDisagree"
+  />
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue';
+import { reactive, ref } from 'vue';
 // 接口
 import api from '@/api';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import { convertToBase64 } from '@/utils/util';
+// 免责声明组件
+import DisclaimerModal from '@/components/DisclaimerModal.vue';
+// 免责声明工具
+import { hasUserAgreedDisclaimer, setUserAgreedDisclaimer } from '@/utils/disclaimer';
 
 const data = reactive<any>({
   statusBarHeight: uni.getWindowInfo().statusBarHeight + 'px',
@@ -116,8 +127,20 @@ const data = reactive<any>({
   info: {},
 });
 
+const showDisclaimer = ref(false); // 是否显示免责声明弹窗
+
 // 充值
 const handlePay = () => {
+  // 检查是否已登录
+  const token = uni.getStorageSync('token');
+  if (!token) {
+    // 未登录，跳转到登录页
+    uni.navigateTo({
+      url: '/pages/login/index',
+    });
+    return;
+  }
+
   uni.navigateTo({
     url: '/pages/recharge/index',
   });
@@ -134,11 +157,14 @@ const handleJump = (type: string, module?: string) => {
   const userLevel = data.info?.userLevel || 0;
   const isGuest = userLevel < 1;
 
+  console.log('[首页] 点击模块:', module || type, '当前会员等级:', userLevel, '是否游客:', isGuest);
+
   // 判断是否是免费模块
   const isFreeModule = module === '免费模块';
 
   // 如果是来宾且不是免费模块，显示提示
   if (isGuest && !isFreeModule) {
+    console.log('[首页] 游客无权限访问，显示提示');
     showGuestTip();
     return;
   }
@@ -181,6 +207,38 @@ const showGuestTip = () => {
   });
 };
 
+// 免责声明处理函数
+const handleDisclaimerAgree = () => {
+  console.log('[handleDisclaimerAgree] 用户同意免责声明');
+  setUserAgreedDisclaimer(true);
+  showDisclaimer.value = false;
+
+  // 显示同意成功的提示
+  uni.showToast({
+    title: '感谢您的信任！',
+    icon: 'success',
+    duration: 2000
+  });
+};
+
+const handleDisclaimerDisagree = () => {
+  console.log('[handleDisclaimerDisagree] 用户不同意免责声明');
+  setUserAgreedDisclaimer(false);
+  showDisclaimer.value = false;
+
+  // 显示不同意后的提示
+  uni.showModal({
+    title: '提示',
+    content: '很抱歉，您需要同意用户协议才能继续使用我们的服务。',
+    showCancel: false,
+    confirmText: '知道了',
+    success: () => {
+      // 退出小程序
+      // uni.exitMiniProgram();
+    }
+  });
+};
+
 /**
  * 接口相关
  */
@@ -196,16 +254,25 @@ const getVipInfo = async () => {
   try {
     const res = await api.common.info();
     data.info = res.data;
-  } catch (error) {}
-  // console.log('获取会员信息');
+    console.log('[首页] 获取会员信息成功，当前等级:', data.info?.userLevel, '心币余额:', data.info?.remainingVirtual);
+  } catch (error) {
+    console.error('[首页] 获取会员信息失败:', error);
+  }
 };
 
 onLoad(async () => {
+  // 检查用户是否已同意免责声明
+  if (!hasUserAgreedDisclaimer()) {
+    console.log('[onLoad] 用户尚未同意免责声明，显示弹窗');
+    showDisclaimer.value = true;
+  }
+
   fetchModuleList();
   data.bottom_bg = await convertToBase64('/static/images/page_bottom_bg.png');
 });
 
 onShow(() => {
+  console.log('[首页] onShow 触发，刷新会员信息');
   getVipInfo();
 });
 </script>

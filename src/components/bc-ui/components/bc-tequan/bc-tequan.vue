@@ -4,7 +4,7 @@
     <view class="content">
       <view>有效期剩余天数：{{ 100 }}</view>
       <view>会员等级：会员等级{{ info?.userLevel || 0 }}</view>
-      <view>金币余额：{{ info?.remainingVirtual || 0 }}</view>
+      <view>心币余额：{{ info?.remainingVirtual || 0 }}</view>
     </view>
   </md-dialog>
 </template>

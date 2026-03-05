@@ -107,8 +107,14 @@ const handleJump = (item: Task.List.Data) => {
     return;
   }
 
+  // 检查任务是否存在
+  if (!item.taskId) {
+    Toast('任务不存在');
+    return;
+  }
+
   let url = '';
-  let params = `taskId=${item.taskId}&taskName=${item.taskName}`;
+  let params = `taskId=${item.taskId}&taskName=${encodeURIComponent(item.taskName || '')}`;
   if (item.taskStatus === 20) {
     // 20-问题已提交
     url = `/pages/sub-page/custom/analysis?${params}`;
