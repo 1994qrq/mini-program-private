@@ -1403,3 +1403,27 @@ export function resetIdleTimer(taskId: string) {
   t.lastActionAt = Date.now();
   set(`sm:task:${taskId}`, t);
 }
+
+/**
+ * 删除任务
+ * @param taskId 任务ID
+ * @returns 是否删除成功
+ */
+export function deleteTask(taskId: string): boolean {
+  initSmLocal();
+  const t: Task = get(`sm:task:${taskId}`);
+  if (!t) {
+    console.log('[sm.deleteTask] 任务不存在:', taskId);
+    return false;
+  }
+  t.status = 'deleted';
+  t.listBadge = '任务已删除';
+  t.listCountdownEndAt = null;
+  t.lastActionAt = Date.now();
+  set(`sm:task:${taskId}`, t);
+  // 从 sm:tasks 移除
+  const ids: string[] = get('sm:tasks') || [];
+  set('sm:tasks', ids.filter((i) => i !== taskId));
+  console.log('[sm.deleteTask] 任务删除成功:', taskId);
+  return true;
+}

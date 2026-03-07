@@ -682,18 +682,23 @@ export function getTask(taskId: string): Task | null {
   return t || null;
 }
 
-export function deleteTask(taskId: string) {
+export function deleteTask(taskId: string): boolean {
   initDefaults();
   const t: Task = get(`fm:task:${taskId}`);
-  if (!t) return;
+  if (!t) {
+    console.log('[deleteTask] 任务不存在:', taskId);
+    return false;
+  }
   t.status = "deleted";
   t.listBadge = "聊天任务进行中";
   t.listCountdownEndAt = null;
   t.lastActionAt = Date.now();
   set(`fm:task:${taskId}`, t);
-  // 可选：从 fm:tasks 移除
+  // 从 fm:tasks 移除
   const ids: string[] = get("fm:tasks") || [];
   set("fm:tasks", ids.filter((i) => i !== taskId));
+  console.log('[deleteTask] 任务删除成功:', taskId);
+  return true;
 }
 
 export function renewTask(taskId: string, days: DurationDays, cost: number): { success: boolean; reason?: string } {

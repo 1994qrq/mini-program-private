@@ -131,14 +131,24 @@ const formatMoney = (money: number): string => {
   });
 };
 // 自定义金额输入处理
-const handleCustomInput = (e: any) => {
-  const value = e.detail?.value || '';
+const handleCustomInput = (value: any) => {
+  console.log('[自定义金额] 输入事件触发，原始值:', value);
+  console.log('[自定义金额] 当前 customPrice:', data.customPrice);
+
+  // uni-easyinput 的 @input 事件直接传递值，不是事件对象
+  // 由于使用了 v-model，data.customPrice 已经被自动更新
+  // 这里直接使用 data.customPrice
+  const inputValue = String(data.customPrice || '');
+  console.log('[自定义金额] 处理后的值:', inputValue);
+
   // 只保留数字和小数点
-  const numericValue = value.replace(/[^\d.]/g, '');
+  const numericValue = inputValue.replace(/[^\d.]/g, '');
+  console.log('[自定义金额] 数字值:', numericValue);
 
   // 限制最大金额
   const maxAmount = 999999;
   if (numericValue && parseFloat(numericValue) > maxAmount) {
+    console.log('[自定义金额] 超过最大金额限制:', parseFloat(numericValue));
     uni.showToast({
       title: `充值金额不能超过${maxAmount}元`,
       icon: 'none',
@@ -146,6 +156,7 @@ const handleCustomInput = (e: any) => {
     });
     data.customPrice = String(maxAmount);
     data.currentPrice = maxAmount;
+    console.log('[自定义金额] 设置为最大金额:', maxAmount);
     return;
   }
 
@@ -154,32 +165,38 @@ const handleCustomInput = (e: any) => {
   // 更新当前价格为输入的金额
   if (numericValue && parseFloat(numericValue) > 0) {
     data.currentPrice = parseFloat(numericValue);
+    console.log('[自定义金额] 更新 currentPrice:', data.currentPrice);
   } else {
     data.currentPrice = null;
+    console.log('[自定义金额] currentPrice 设置为 null');
   }
 };
 
 const handleSelect = (item: any) => {
   if (item === 'custom') {
-    console.log('选择自定义');
+    console.log('[选择金额] 选择自定义');
     data.isCustom = true;
     data.current = null;
     data.currentPrice = data.customPrice ? parseFloat(data.customPrice) : null;
+    console.log('[选择金额] 自定义模式 - customPrice:', data.customPrice, 'currentPrice:', data.currentPrice);
     // 延迟聚焦到输入框
     nextTick(() => {
       setTimeout(() => {
         const inputRef = customInputRef.value;
         if (inputRef && typeof inputRef.focus === 'function') {
           inputRef.focus();
+          console.log('[选择金额] 输入框已聚焦');
         }
       }, 100);
     });
   } else {
     // 选择固定金额
+    console.log('[选择金额] 选择固定套餐 - 心币:', item.gold, '价格:', item.price);
     data.isCustom = false;
     data.current = item.gold;
     data.currentPrice = item.price;
     data.customPrice = ''; // 清空自定义输入
+    console.log('[选择金额] 固定模式 - current:', data.current, 'currentPrice:', data.currentPrice);
   }
 };
 
@@ -220,9 +237,60 @@ const getVipInfo = async () => {
 // 支付
 const fetchGetPrePayData = async () => {
   try {
+    console.log('[充值] ========== 开始获取支付信息 ==========');
+    console.log('[充值] 是否自定义:', data.isCustom);
+    console.log('[充值] 选中的套餐金额:', data.current);
+    console.log('[充值] 自定义金额输入:', data.customPrice);
+    console.log('[充值] 当前价格:', data.currentPrice);
+
+    // 验证金额
+    if (!data.currentPrice || data.currentPrice <= 0) {
+      console.error('[充值] 金额无效:', data.currentPrice);
+      uni.showToast({
+        title: '请输入有效的充值金额',
+        icon: 'none',
+        duration: 2000
+      });
+      return;
+    }
+
+    // 验证最低充值金额
+    if (data.currentPrice < 1) {
+      console.error('[充值] 金额低于最低限制:', data.currentPrice);
+      uni.showToast({
+        title: '最低充值1元',
+        icon: 'none',
+        duration: 2000
+      });
+      return;
+    }
+
+    console.log('[充值] 调用 getPrePayData 接口，金额:', data.currentPrice);
+
     const res = await api.common.getPrePayData({
       amount: data.currentPrice, // 使用当前选中的金额
     });
+
+    console.log('[充值] getPrePayData 接口响应:', res);
+
+    if (!res.data) {
+      console.error('[充值] 接口返回数据为空');
+      uni.showToast({
+        title: '获取支付信息失败',
+        icon: 'none',
+        duration: 2000
+      });
+      return;
+    }
+
+    console.log('[充值] 支付参数:', {
+      nonceStr: res.data.nonceStr,
+      package: res.data.packageInfo,
+      signType: res.data.signType,
+      timeStamp: res.data.timeStamp,
+      paySign: res.data.paySign ? '已设置' : '未设置'
+    });
+
     // 调起微信支付
     uni.requestPayment({
       provider: 'wxpay',
@@ -233,7 +301,9 @@ const fetchGetPrePayData = async () => {
       timeStamp: String(res.data?.timeStamp), // 时间戳（单位：秒）
       paySign: res.data?.paySign, // 签名，这里用的 MD5/RSA 签名
       async success() {
+        console.log('[充值] ========== 支付成功回调开始 ==========');
         console.log('[充值] 支付成功，开始刷新用户信息');
+        console.log('[充值] 充值金额:', data.currentPrice, '元');
 
         // 显示加载提示
         uni.showLoading({
@@ -242,29 +312,62 @@ const fetchGetPrePayData = async () => {
         });
 
         // 延迟2秒后刷新用户信息，等待后端处理完成
+        console.log('[充值] 等待2秒，让后端处理支付回调...');
         await new Promise(resolve => setTimeout(resolve, 2000));
 
         // 支付成功后，多次刷新用户信息以确保获取到最新数据
         let retryCount = 0;
         const maxRetries = 3;
         let userLevel = 0;
+        let prevLevel = data.info?.userLevel || 0;
+        let prevBalance = data.info?.remainingVirtual || 0;
+        let prevAccumulate = data.info?.accumulateMoney || 0;
+
+        console.log('[充值] 支付前状态:');
+        console.log('[充值]   - 等级: VIP', prevLevel);
+        console.log('[充值]   - 余额:', prevBalance);
+        console.log('[充值]   - 累计充值:', prevAccumulate, '元');
 
         while (retryCount < maxRetries) {
+          console.log('[充值] ========== 第', retryCount + 1, '次刷新 ==========');
           await getVipInfo();
+
           userLevel = data.info?.userLevel || 0;
-          console.log('[充值] 第', retryCount + 1, '次刷新，当前会员等级:', userLevel);
+          const currentBalance = data.info?.remainingVirtual || 0;
+          const currentAccumulate = data.info?.accumulateMoney || 0;
+
+          console.log('[充值] 刷新后状态:');
+          console.log('[充值]   - 等级: VIP', userLevel, prevLevel !== userLevel ? `(变化: ${prevLevel} → ${userLevel})` : '(未变化)');
+          console.log('[充值]   - 余额:', currentBalance, prevBalance !== currentBalance ? `(变化: ${prevBalance} → ${currentBalance})` : '(未变化)');
+          console.log('[充值]   - 累计充值:', currentAccumulate, '元', prevAccumulate !== currentAccumulate ? `(变化: ${prevAccumulate} → ${currentAccumulate})` : '(未变化)');
+
+          // 检查是否有任何数据更新
+          const hasAnyUpdate = userLevel !== prevLevel || currentBalance !== prevBalance || currentAccumulate !== prevAccumulate;
 
           if (userLevel >= 1) {
             // 已经升级为会员，退出循环
+            console.log('[充值] ✓ 已升级为会员，退出刷新循环');
             break;
+          }
+
+          if (hasAnyUpdate) {
+            console.log('[充值] ⚠️ 数据已更新但等级仍为0，可能是后端升级逻辑问题');
+          } else {
+            console.log('[充值] ⚠️ 数据未更新，后端可能还在处理中');
           }
 
           // 等待1秒后重试
           if (retryCount < maxRetries - 1) {
+            console.log('[充值] 等待1秒后重试...');
             await new Promise(resolve => setTimeout(resolve, 1000));
           }
           retryCount++;
         }
+
+        console.log('[充值] ========== 刷新完成 ==========');
+        console.log('[充值] 最终等级: VIP', userLevel);
+        console.log('[充值] 最终余额:', data.info?.remainingVirtual || 0);
+        console.log('[充值] 最终累计:', data.info?.accumulateMoney || 0, '元');
 
         // 设置刷新标志，让其他页面知道需要刷新
         uni.setStorageSync('isRefresh', 1);
@@ -272,15 +375,24 @@ const fetchGetPrePayData = async () => {
         uni.hideLoading();
 
         const message = userLevel >= 1 ? '充值成功！您已成为会员' : '充值成功！';
+
+        if (userLevel < 1 && data.info?.accumulateMoney && data.info.accumulateMoney >= 10) {
+          console.log('[充值] ❌ 异常: 累计充值已达标但等级未提升');
+          console.log('[充值] 建议: 请联系后端检查升级逻辑');
+        }
+
         uni.showModal({
           title: '提示',
           content: message,
           showCancel: false,
           success() {
+            console.log('[充值] 用户点击确定，返回上一页');
             // 返回上一页，上一页会通过 onShow 刷新数据
             uni.navigateBack();
           },
         });
+
+        console.log('[充值] ========== 支付成功回调结束 ==========');
       },
       fail(e) {
         console.log('支付失败:', e);
@@ -291,13 +403,42 @@ const fetchGetPrePayData = async () => {
         });
       },
     });
-  } catch (error) {
-    console.log('获取支付信息失败:', error);
+  } catch (error: any) {
+    console.error('[充值] ========== 获取支付信息失败 ==========');
+    console.error('[充值] 错误对象:', error);
+    console.error('[充值] 错误消息:', error.message);
+    console.error('[充值] 错误堆栈:', error.stack);
+
+    // 尝试解析错误信息
+    let errorMessage = '获取支付信息失败';
+
+    if (error.data && error.data.message) {
+      errorMessage = error.data.message;
+      console.error('[充值] 后端返回错误:', errorMessage);
+    } else if (error.message) {
+      errorMessage = error.message;
+      console.error('[充值] 错误信息:', errorMessage);
+    }
+
+    // 检查是否是网络错误
+    if (error.errMsg && error.errMsg.includes('request:fail')) {
+      errorMessage = '网络请求失败，请检查网络连接';
+      console.error('[充值] 网络错误');
+    }
+
+    // 检查是否是参数错误
+    if (errorMessage.includes('amount') || errorMessage.includes('金额')) {
+      errorMessage = '充值金额格式错误，请重新输入';
+      console.error('[充值] 金额参数错误');
+    }
+
     uni.showToast({
-      title: '获取支付信息失败',
+      title: errorMessage,
       icon: 'none',
-      duration: 2000
+      duration: 3000
     });
+
+    console.error('[充值] ========== 错误处理结束 ==========');
   }
 };
 

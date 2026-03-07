@@ -320,19 +320,12 @@ const fetchDelTask = async () => {
         uni.showToast({ title: '删除失败', icon: 'none' });
       }
     } else {
-      // 免费模块或其他：使用本地删除（免费模块）
+      // 免费模块：只删除本地数据，不调用后端接口
+      console.log('[删除任务] 免费模块，只删除本地数据');
       fm.initFamiliarLocal('free');
-      const deleted = fm.deleteTask(props.item.id || props.item.taskId);
-      if (deleted) {
-        uni.showToast({ title: '已删除', icon: 'none' });
-        emit('swipeClick');
-      } else {
-        // 如果本地删除失败，尝试调用后端 API（兼容其他模块）
-        await api.task.delTask({
-          taskId: props.item.taskId,
-        });
-        emit('swipeClick');
-      }
+      fm.deleteTask(props.item.id || props.item.taskId);
+      uni.showToast({ title: '已删除', icon: 'none' });
+      emit('swipeClick');
     }
   } catch (error) {
     console.error('删除任务失败:', error);
