@@ -565,20 +565,35 @@ const fetchCreateTask = async (params: { taskName: string; durationDays: number;
       // 熟悉/超熟/免费模块
       // 根据模块类型初始化不同的存储
       if (title.includes('免费')) {
+        console.log('[创建任务] 初始化免费模块存储');
         fm.initFamiliarLocal('free');
       } else if (title.includes('超熟')) {
+        console.log('[创建任务] 初始化超熟模块存储');
         fm.initFamiliarLocal('super');
       } else {
+        console.log('[创建任务] 初始化熟悉模块存储');
         fm.initFamiliarLocal('familiar');
       }
 
       const res = fm.createTask({ name, durationDays: params.durationDays });
+      console.log('[创建任务] 创建结果:', res);
+
       if (res.ok && res.task) {
         // 免费模块直接进入对话页，跳过问卷
         if (title.includes('免费')) {
+          console.log('[创建任务] 免费模块，进入第一阶段');
           // 免费模块需要进入第一阶段，因为round页面不支持阶段0
-          fm.enterStage1(res.task.id);
-          uni.navigateTo({ url: `/pages/sub-page/stepTask/round?module=免费模块&taskId=${res.task.id}` });
+          const enterResult = fm.enterStage1(res.task.id);
+          console.log('[创建任务] 进入第一阶段结果:', enterResult);
+
+          if (enterResult.ok) {
+            console.log('[创建任务] 跳转到round页面，任务ID:', res.task.id);
+            uni.navigateTo({ url: `/pages/sub-page/stepTask/round?module=免费模块&taskId=${res.task.id}` });
+          } else {
+            uni.showToast({ title: enterResult.reason || '进入第一阶段失败', icon: 'none' });
+            data.loading = false;
+            await getTaskList();
+          }
         } else {
           // 熟悉/超熟模块需要问卷
           uni.navigateTo({ url: `/pages/sub-page/stepTask/questionnaire?taskId=${res.task.id}&taskName=${params?.taskName}&module=${data.title}` });

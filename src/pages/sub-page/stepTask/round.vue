@@ -251,6 +251,9 @@ onLoad((options: any) => {
   console.log('[round] onLoad:', options);
   data.taskId = options.taskId;
   data.taskName = options.taskName || '您咨询';
+  data.moduleCodeName = options.module || ''; // 获取模块名称
+
+  console.log('[round] 任务ID:', data.taskId, '模块:', data.moduleCodeName);
 
   // 获取用户VIP等级
   getUserVipLevel();
@@ -282,17 +285,26 @@ const getUserVipLevel = async () => {
 
 // 加载任务数据
 const loadTaskData = () => {
+  console.log('[loadTaskData] 开始加载任务数据，模块:', data.moduleCodeName, '任务ID:', data.taskId);
+
   // 根据模块类型初始化不同的存储
   if (data.moduleCodeName && data.moduleCodeName.includes('免费')) {
+    console.log('[loadTaskData] 初始化免费模块存储');
     initFamiliarLocal('free');
   } else if (data.moduleCodeName && data.moduleCodeName.includes('超熟')) {
+    console.log('[loadTaskData] 初始化超熟模块存储');
     initFamiliarLocal('super');
   } else {
+    console.log('[loadTaskData] 初始化熟悉模块存储');
     initFamiliarLocal('familiar');
   }
+
   const task = getTask(data.taskId);
-  
+
+  console.log('[loadTaskData] 获取到的任务:', task);
+
   if (!task) {
+    console.error('[loadTaskData] 任务不存在，任务ID:', data.taskId);
     uni.showToast({
       title: '任务不存在',
       icon: 'error'
@@ -302,16 +314,16 @@ const loadTaskData = () => {
     }, 2000);
     return;
   }
-  
+
   // 更新页面数据
   data.taskName = task.name;
   data.score = task.stageScore;
   data.stage1 = task.stage1;
   data.currentRound = task.roundIndex || 0;
-  
+
   console.log('[loadTaskData] 任务数据:', task);
   console.log('[loadTaskData] 当前阶段:', task.stageIndex, '当前回合:', task.roundIndex);
-  
+
   // 检查任务状态
   if (task.stageIndex === 1) {
     // 第一阶段
