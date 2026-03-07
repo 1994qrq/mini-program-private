@@ -40,19 +40,38 @@ const showErrorToast = <T>(data: ResponseData<T>) => {
 };
 
 const request = <T>(url: string, method: 'GET' | 'POST', data?: Record<string, any>): Promise<ResponseData<T>> => {
+  const fullUrl = process.env.VUE_APP_BASEHOST + url;
+  const token = uni.getStorageSync('token');
+
+  console.log('[Request] 发起请求:', {
+    url: fullUrl,
+    method,
+    data,
+    hasToken: !!token
+  });
+
   return new Promise((reslove, reject) => {
     uni.request({
-      url: process.env.VUE_APP_BASEHOST + url,
+      url: fullUrl,
       header: {
-        Authorization: uni.getStorageSync('token'),
+        Authorization: token,
       },
       method,
       data,
       success: res => {
+        console.log('[Request] 请求成功:', {
+          url: fullUrl,
+          statusCode: res.statusCode,
+          data: res.data
+        });
         // 成功响应
         handleResponse(res, reslove, reject);
       },
       fail: err => {
+        console.error('[Request] 请求失败:', {
+          url: fullUrl,
+          error: err
+        });
         handleError(err, reject);
       },
     });
