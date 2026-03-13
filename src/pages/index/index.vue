@@ -153,17 +153,38 @@ const handleWenhao = () => {
 };
 
 const handleJump = (type: string, module?: string) => {
-  // 权限检查：来宾只能访问免费模块
+  // 判断是否是免费模块
+  const isFreeModule = module === '免费模块';
+
+  // 免费模块不需要登录，直接跳转
+  if (isFreeModule) {
+    console.log('[首页] 免费模块，无需登录检查');
+    if (type === 'step') {
+      uni.navigateTo({
+        url: '/pages/sub-page/stepTask/list?module=' + module,
+      });
+    }
+    return;
+  }
+
+  // 非免费模块，需要检查登录状态
+  const token = uni.getStorageSync('token');
+  if (!token) {
+    console.log('[首页] 用户未登录，跳转到登录页');
+    uni.navigateTo({
+      url: '/pages/login/index',
+    });
+    return;
+  }
+
+  // 已登录，检查会员等级权限
   const userLevel = data.info?.userLevel || 0;
   const isGuest = userLevel < 1;
 
   console.log('[首页] 点击模块:', module || type, '当前会员等级:', userLevel, '是否游客:', isGuest);
 
-  // 判断是否是免费模块
-  const isFreeModule = module === '免费模块';
-
-  // 如果是来宾且不是免费模块，显示提示
-  if (isGuest && !isFreeModule) {
+  // 如果是来宾（等级0），显示提示
+  if (isGuest) {
     console.log('[首页] 游客无权限访问，显示提示');
     showGuestTip();
     return;
@@ -272,8 +293,16 @@ onLoad(async () => {
 });
 
 onShow(() => {
-  console.log('[首页] onShow 触发，刷新会员信息');
-  getVipInfo();
+  console.log('[首页] onShow 触发');
+
+  // 只有在已登录的情况下才刷新会员信息
+  const token = uni.getStorageSync('token');
+  if (token) {
+    console.log('[首页] 用户已登录，刷新会员信息');
+    getVipInfo();
+  } else {
+    console.log('[首页] 用户未登录，跳过会员信息刷新');
+  }
 });
 </script>
 <style lang="scss" scoped>

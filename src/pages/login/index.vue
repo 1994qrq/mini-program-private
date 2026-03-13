@@ -123,14 +123,113 @@ async function decryptPhoneNumber(e: any) {
   // 保存手机号授权码
   data.phoneCode = e.detail.code;
 
-  // 获取微信用户信息并显示用户名设置弹窗
-  await getWxUserInfo();
-  nicknameDialog.value?.open();
+  // 先尝试直接登录，看看是否是老用户
+  console.log('[decryptPhoneNumber] 尝试直接登录...');
+  uni.showLoading({ title: '登录中...', mask: true });
+
+  try {
+    const res = await api.common.getPhoneNumber({
+      code: data.phoneCode,
+      userId: data.userId,
+    });
+
+    console.log('[decryptPhoneNumber] 登录成功，token:', res.data);
+    uni.setStorageSync('token', res.data);
+    uni.setStorageSync('isRefresh', 1);
+
+    // 登录成功后，同步内容库数据
+    try {
+      console.log('[decryptPhoneNumber] 开始同步内容库数据...');
+      await syncContentLibrary(false);
+      console.log('[decryptPhoneNumber] 内容库数据同步成功');
+    } catch (syncError) {
+      console.error('[decryptPhoneNumber] 内容库数据同步失败:', syncError);
+    }
+
+    // 获取用户信息，检查是否有昵称
+    try {
+      const userInfoRes = await api.common.info();
+      console.log('[decryptPhoneNumber] ========== 用户信息检查 ==========');
+      console.log('[decryptPhoneNumber] 完整用户信息:', JSON.stringify(userInfoRes.data));
+
+      // 检查用户信息中是否有昵称字段
+      // 优先使用后端返回的 nickname，如果没有则检查本地存储
+      const backendNickname = userInfoRes.data?.nickname;
+      const localNickname = uni.getStorageSync('userNickname');
+
+      console.log('[decryptPhoneNumber] 后端昵称:', backendNickname);
+      console.log('[decryptPhoneNumber] 本地昵称:', localNickname);
+
+      const hasNickname = backendNickname || localNickname;
+      console.log('[decryptPhoneNumber] 是否有昵称:', hasNickname);
+
+      if (hasNickname) {
+        console.log('[decryptPhoneNumber] ✓ 老用户，已有昵称:', hasNickname);
+        uni.hideLoading();
+
+        // 如果后端有昵称但本地没有，同步到本地
+        if (backendNickname && !localNickname) {
+          console.log('[decryptPhoneNumber] 同步后端昵称到本地');
+          uni.setStorageSync('userNickname', backendNickname);
+        }
+
+        // 返回上一页或跳转到首页
+        const pages = getCurrentPages();
+        if (pages && pages.length > 1) {
+          console.log('[decryptPhoneNumber] 返回上一页');
+          uni.navigateBack({ delta: 1 });
+        } else {
+          console.log('[decryptPhoneNumber] 跳转到首页');
+          uni.switchTab({ url: '/pages/task/index' });
+        }
+        return;
+      } else {
+        console.log('[decryptPhoneNumber] ✗ 新用户，需要设置昵称');
+        uni.hideLoading();
+
+        // 获取微信用户信息并显示用户名设置弹窗
+        await getWxUserInfo();
+        nicknameDialog.value?.open();
+      }
+    } catch (infoError) {
+      console.error('[decryptPhoneNumber] ========== 获取用户信息失败 ==========');
+      console.error('[decryptPhoneNumber] 错误:', infoError);
+      uni.hideLoading();
+
+      // 如果获取用户信息失败，检查本地是否有昵称
+      const localNickname = uni.getStorageSync('userNickname');
+      console.log('[decryptPhoneNumber] 本地昵称（失败情况）:', localNickname);
+
+      if (localNickname) {
+        console.log('[decryptPhoneNumber] 本地有昵称，直接跳转');
+        const pages = getCurrentPages();
+        if (pages && pages.length > 1) {
+          uni.navigateBack({ delta: 1 });
+        } else {
+          uni.switchTab({ url: '/pages/task/index' });
+        }
+      } else {
+        console.log('[decryptPhoneNumber] 本地无昵称，显示设置弹窗');
+        // 为了安全起见，还是显示昵称设置弹窗
+        await getWxUserInfo();
+        nicknameDialog.value?.open();
+      }
+    }
+  } catch (loginError) {
+    console.error('[decryptPhoneNumber] 登录失败:', loginError);
+    uni.hideLoading();
+    uni.showToast({ title: '登录失败，请重试', icon: 'none' });
+  }
 }
 
 // 用户名设置确认
-const handleNicknameOk = () => {
+const handleNicknameOk = async () => {
+  console.log('[handleNicknameOk] 开始处理昵称确认');
+  console.log('[handleNicknameOk] 当前昵称值:', data.nickname);
+  console.log('[handleNicknameOk] 昵称类型:', typeof data.nickname);
+
   if (!data.nickname || data.nickname.trim() === '') {
+    console.log('[handleNicknameOk] 昵称为空，提示用户');
     uni.showToast({
       title: '请输入用户名',
       icon: 'none',
@@ -138,11 +237,39 @@ const handleNicknameOk = () => {
     return;
   }
 
+  const trimmedNickname = data.nickname.trim();
+  console.log('[handleNicknameOk] 处理后的昵称:', trimmedNickname);
+
+  // 保存用户名到本地存储
+  uni.setStorageSync('userNickname', trimmedNickname);
+  console.log('[handleNicknameOk] ���户名已保存到本地存储');
+
+  // 验证是否保存成功
+  const savedNickname = uni.getStorageSync('userNickname');
+  console.log('[handleNicknameOk] 验证保存结果:', savedNickname);
+
   // 关闭弹窗
   nicknameDialog.value?.close();
+  console.log('[handleNicknameOk] 弹窗已关闭');
 
-  // 执行登录
-  fetchAuthMobileLogin(data.phoneCode, data.nickname.trim());
+  // TODO: 如果后端支持更新昵称接口，可以在这里调用
+  // try {
+  //   await api.member.updateNickname({ nickname: trimmedNickname });
+  // } catch (error) {
+  //   console.error('[handleNicknameOk] 更新昵称失败:', error);
+  // }
+
+  // 返回上一页或跳转到首页
+  const pages = getCurrentPages();
+  console.log('[handleNicknameOk] 当前页面栈长度:', pages.length);
+
+  if (pages && pages.length > 1) {
+    console.log('[handleNicknameOk] 返回上一页');
+    uni.navigateBack({ delta: 1 });
+  } else {
+    console.log('[handleNicknameOk] 跳转到首页');
+    uni.switchTab({ url: '/pages/task/index' });
+  }
 };
 
 // 用户名设置取消

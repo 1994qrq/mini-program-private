@@ -43,6 +43,10 @@
     {
       "path": "pages/debug-recharge-level",
       "title": "充值等级调试"
+    },
+    {
+      "path": "pages/debug-storage",
+      "title": "本地存储调试"
     }
   ],
   "subPackages": [

@@ -8,7 +8,7 @@
         </view>
         <view class="info">
           <view class="row">
-            <text class="nickname">{{ data.info?.nickname || '牛大胆' }}</text>
+            <text class="nickname">{{ displayNickname }}</text>
             <text class="arrow">›</text>
           </view>
           <view class="member-number">会员编号: {{ data.info?.memberNumber || '013919' }}</view>
@@ -58,13 +58,28 @@
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue';
+import { reactive, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 // 接口
 import api from '@/api/index';
 
 const data = reactive<any>({
   info: {},
+});
+
+// 计算显示的昵称：优先使用后端昵称，其次本地昵称，最后默认值
+const displayNickname = computed(() => {
+  // 优先使用后端返回的昵称
+  if (data.info?.nickname) {
+    return data.info.nickname;
+  }
+  // 其次使用本地存储的昵称
+  const localNickname = uni.getStorageSync('userNickname');
+  if (localNickname) {
+    return localNickname;
+  }
+  // 最后使用默认昵称
+  return '牛大胆';
 });
 
 /**
@@ -111,7 +126,18 @@ const getNextLevelMoney = (currentLevel: number, currentMoney: number): number =
 };
 
 onShow(() => {
-  getVipInfo();
+  // 只有在已登录的情况下才获取会员信息
+  const token = uni.getStorageSync('token');
+  if (token) {
+    console.log('[个人中心] 用户已登录，获取会员信息');
+    getVipInfo();
+  } else {
+    console.log('[个人中心] 用户未登录，跳过会员信息获取');
+    // 未登录时跳转到登录页
+    uni.navigateTo({
+      url: '/pages/login/index',
+    });
+  }
 });
 
 /**

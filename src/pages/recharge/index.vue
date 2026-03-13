@@ -317,7 +317,7 @@ const fetchGetPrePayData = async () => {
 
         // 支付成功后，多次刷新用户信息以确保获取到最新数据
         let retryCount = 0;
-        const maxRetries = 3;
+        const maxRetries = 5; // 增加到5次重试
         let userLevel = 0;
         let prevLevel = data.info?.userLevel || 0;
         let prevBalance = data.info?.remainingVirtual || 0;
@@ -327,6 +327,9 @@ const fetchGetPrePayData = async () => {
         console.log('[充值]   - 等级: VIP', prevLevel);
         console.log('[充值]   - 余额:', prevBalance);
         console.log('[充值]   - 累计充值:', prevAccumulate, '元');
+
+        // 记录是否有数据更新
+        let hasDataUpdated = false;
 
         while (retryCount < maxRetries) {
           console.log('[充值] ========== 第', retryCount + 1, '次刷新 ==========');
@@ -344,6 +347,14 @@ const fetchGetPrePayData = async () => {
           // 检查是否有任何数据更新
           const hasAnyUpdate = userLevel !== prevLevel || currentBalance !== prevBalance || currentAccumulate !== prevAccumulate;
 
+          if (hasAnyUpdate) {
+            hasDataUpdated = true;
+            // 更新前一次的值，用于下次比较
+            prevLevel = userLevel;
+            prevBalance = currentBalance;
+            prevAccumulate = currentAccumulate;
+          }
+
           if (userLevel >= 1) {
             // 已经升级为会员，退出循环
             console.log('[充值] ✓ 已升级为会员，退出刷新循环');
@@ -352,14 +363,18 @@ const fetchGetPrePayData = async () => {
 
           if (hasAnyUpdate) {
             console.log('[充值] ⚠️ 数据已更新但等级仍为0，可能是后端升级逻辑问题');
+            // 如果数据已更新但等级仍为0，再多等待一次看看是否会升级
+            if (retryCount < maxRetries - 1) {
+              console.log('[充值] 数据已更新，再等待2秒看是否会升级...');
+              await new Promise(resolve => setTimeout(resolve, 2000));
+            }
           } else {
             console.log('[充值] ⚠️ 数据未更新，后端可能还在处理中');
-          }
-
-          // 等待1秒后重试
-          if (retryCount < maxRetries - 1) {
-            console.log('[充值] 等待1秒后重试...');
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // 等待1秒后重试
+            if (retryCount < maxRetries - 1) {
+              console.log('[充值] 等待1秒后重试...');
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
           }
           retryCount++;
         }
@@ -368,27 +383,50 @@ const fetchGetPrePayData = async () => {
         console.log('[充值] 最终等级: VIP', userLevel);
         console.log('[充值] 最终余额:', data.info?.remainingVirtual || 0);
         console.log('[充值] 最终累计:', data.info?.accumulateMoney || 0, '元');
+        console.log('[充值] 数据是否更新:', hasDataUpdated ? '是' : '否');
 
         // 设置刷新标志，让其他页面知道需要刷新
         uni.setStorageSync('isRefresh', 1);
 
         uni.hideLoading();
 
-        const message = userLevel >= 1 ? '充值成功！您已成为会员' : '充值成功！';
+        let message = '';
+        let showDebugTip = false;
+
+        if (userLevel >= 1) {
+          message = '充值成功！您已成为会员';
+        } else if (hasDataUpdated) {
+          message = '充值成功！但会员等级未更新，请稍后刷新查看';
+          showDebugTip = true;
+        } else {
+          message = '充值成功！数据正在处理中，请稍后刷新查看';
+          showDebugTip = true;
+        }
 
         if (userLevel < 1 && data.info?.accumulateMoney && data.info.accumulateMoney >= 10) {
           console.log('[充值] ❌ 异常: 累计充值已达标但等级未提升');
           console.log('[充值] 建议: 请联系后端检查升级逻辑');
+          showDebugTip = true;
         }
 
         uni.showModal({
           title: '提示',
-          content: message,
-          showCancel: false,
-          success() {
-            console.log('[充值] 用户点击确定，返回上一页');
-            // 返回上一页，上一页会通过 onShow 刷新数据
-            uni.navigateBack();
+          content: message + (showDebugTip ? '\n\n如需排查问题，可访问调试页面查看详情' : ''),
+          showCancel: showDebugTip,
+          cancelText: '查看调试',
+          confirmText: '确定',
+          success(res) {
+            if (res.cancel && showDebugTip) {
+              // 跳转到调试页面
+              console.log('[充值] 用户选择查看调试页面');
+              uni.navigateTo({
+                url: '/pages/debug-recharge-level'
+              });
+            } else {
+              console.log('[充值] 用户点击确定，返回上一页');
+              // 返回上一页，上一页会通过 onShow 刷新数据
+              uni.navigateBack();
+            }
           },
         });
 
@@ -466,7 +504,25 @@ onLoad(async () => {
 });
 
 onShow(() => {
-  console.log('[充值页] onShow 触发，刷新会员信息');
+  console.log('[充值页] onShow 触发');
+
+  // 检查是否已登录
+  const token = uni.getStorageSync('token');
+  if (!token) {
+    console.log('[充值页] 用户未登录，跳转到登录页');
+    uni.redirectTo({
+      url: '/pages/login/index',
+    });
+    return;
+  }
+
+  // 检查是否有刷新标志（从其他页面返回时）
+  const needRefresh = uni.getStorageSync('needRefreshRecharge');
+  if (needRefresh) {
+    console.log('[充值页] 检测到刷新标志，强制刷新用户信息');
+    uni.removeStorageSync('needRefreshRecharge');
+  }
+
   getVipInfo();
 });
 </script>

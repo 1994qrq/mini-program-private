@@ -623,6 +623,21 @@ onLoad(async (options: any) => {
 });
 
 onShow(() => {
+  // 免费模块不需要登录检查，其他模块需要
+  const isFreeModule = data.module === '免费模块';
+
+  if (!isFreeModule) {
+    // 非免费模块，检查是否已登录
+    const token = uni.getStorageSync('token');
+    if (!token) {
+      console.log('[阶梯模块] 用户未登录，跳转到登录页');
+      uni.navigateTo({
+        url: '/pages/login/index',
+      });
+      return;
+    }
+  }
+
   // 页面显示时刷新任务列表（例如从问卷页面返回时）
   // 但不在首次加载时刷新，避免重复请求
   if (data.module && !data.isFirstLoad) {

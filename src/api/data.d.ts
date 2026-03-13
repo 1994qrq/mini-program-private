@@ -72,6 +72,8 @@ export namespace Common {
       remainingVirtual: number; // 虚拟币剩余数值
       userId: number;
       userLevel: number; // 用户vip等级
+      nickname?: string; // 用户昵称（可选，用于判断是否是新用户）
+      memberNumber?: string; // 会员编号
     }
   }
 
