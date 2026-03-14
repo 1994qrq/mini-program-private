@@ -240,37 +240,84 @@ const handleNicknameOk = async () => {
   const trimmedNickname = data.nickname.trim();
   console.log('[handleNicknameOk] 处理后的昵称:', trimmedNickname);
 
-  // 保存用户名到本地存储
-  uni.setStorageSync('userNickname', trimmedNickname);
-  console.log('[handleNicknameOk] ���户名已保存到本地存储');
+  // 显示加载提示
+  uni.showLoading({
+    title: '保存中...',
+    mask: true
+  });
 
-  // 验证是否保存成功
-  const savedNickname = uni.getStorageSync('userNickname');
-  console.log('[handleNicknameOk] 验证保存结果:', savedNickname);
+  try {
+    // 调用后端接口更新昵称
+    console.log('[handleNicknameOk] 调用后端接口更新昵称');
+    await api.common.updateNickname({ nickName: trimmedNickname });
+    console.log('[handleNicknameOk] 后端昵称更新成功');
 
-  // 关闭弹窗
-  nicknameDialog.value?.close();
-  console.log('[handleNicknameOk] 弹窗已关闭');
+    // 保存用户名到本地存储
+    uni.setStorageSync('userNickname', trimmedNickname);
+    console.log('[handleNicknameOk] 昵称已保存到本地存储');
 
-  // TODO: 如果后端支持更新昵称接口，可以在这里调用
-  // try {
-  //   await api.member.updateNickname({ nickname: trimmedNickname });
-  // } catch (error) {
-  //   console.error('[handleNicknameOk] 更新昵称失败:', error);
-  // }
+    // 验证是否保存成功
+    const savedNickname = uni.getStorageSync('userNickname');
+    console.log('[handleNicknameOk] 验证保存结果:', savedNickname);
 
-  // 返回上一页或跳转到首页
-  const pages = getCurrentPages();
-  console.log('[handleNicknameOk] 当前页面栈长度:', pages.length);
+    uni.hideLoading();
 
-  if (pages && pages.length > 1) {
-    console.log('[handleNicknameOk] 返回上一页');
-    uni.navigateBack({ delta: 1 });
-  } else {
-    console.log('[handleNicknameOk] 跳转到首页');
-    uni.switchTab({ url: '/pages/task/index' });
+    // 关闭弹窗
+    nicknameDialog.value?.close();
+    console.log('[handleNicknameOk] 弹窗已关闭');
+
+    // 显示成功提示
+    uni.showToast({
+      title: '设置成功',
+      icon: 'success',
+      duration: 1500
+    });
+
+    // 延迟跳转，让用户看到成功提示
+    setTimeout(() => {
+      // 返回上一页或跳转到首页
+      const pages = getCurrentPages();
+      console.log('[handleNicknameOk] 当前页面栈长度:', pages.length);
+
+      if (pages && pages.length > 1) {
+        console.log('[handleNicknameOk] 返回上一页');
+        uni.navigateBack({ delta: 1 });
+      } else {
+        console.log('[handleNicknameOk] 跳转到首页');
+        uni.switchTab({ url: '/pages/task/index' });
+      }
+    }, 1500);
+
+  } catch (error) {
+    console.error('[handleNicknameOk] 更新昵称失败:', error);
+    uni.hideLoading();
+
+    // 即使后端更新失败，也保存到本地
+    uni.setStorageSync('userNickname', trimmedNickname);
+    console.log('[handleNicknameOk] 后端更新失败，但已保存到本地');
+
+    // 关闭弹窗
+    nicknameDialog.value?.close();
+
+    // 显示警告提示
+    uni.showToast({
+      title: '设置成功（本地）',
+      icon: 'none',
+      duration: 2000
+    });
+
+    // 延迟跳转
+    setTimeout(() => {
+      const pages = getCurrentPages();
+      if (pages && pages.length > 1) {
+        uni.navigateBack({ delta: 1 });
+      } else {
+        uni.switchTab({ url: '/pages/task/index' });
+      }
+    }, 2000);
   }
 };
+
 
 // 用户名设置取消
 const handleNicknameCancel = () => {

@@ -77,6 +77,12 @@ export namespace Common {
     }
   }
 
+  namespace UpdateNickname {
+    interface Body {
+      nickName: string; // 用户昵称
+    }
+  }
+
   namespace GetPrePayData {
     interface Body {
       amount: number;

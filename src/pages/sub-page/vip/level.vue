@@ -37,8 +37,7 @@
               <text class="card-label">我的会员等级</text>
               <text class="vip-level">VIP 等级{{ data.info?.userLevel || 'X' }}</text>
               <text class="upgrade-tip">
-                距离下一级会员还需{{ formatMoney(data.nextLevelMoney) }}
-                {{ Math.floor(data.nextLevelMoney / 100) }}个心币
+                距离下一级会员还需{{ formatMoney(data.nextLevelVirtual) }}心币
               </text>
               <view class="coin-info">
                 <text class="coin-label">我的心币</text>
@@ -89,35 +88,21 @@
 import { reactive } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import api from '@/api/index';
+import { VIP_LEVEL_RULES, getNextLevelVirtual, formatVirtual } from '@/config/vip-level';
 
 const data = reactive<any>({
   statusBarHeight: uni.getWindowInfo().statusBarHeight || 0,
   info: {},
-  nextLevelMoney: 0,
-  levels: [
-    { value: 1, label1: '文字待定', label2: '文字待定' },
-    { value: 2, label1: '文字待定', label2: '文字待定' },
-    { value: 3, label1: '文字待定', label2: '文字待定' },
-    { value: 4, label1: '文字待定', label2: '文字待定' },
-    { value: 5, label1: '文字待定', label2: '文字待定' },
-  ],
+  nextLevelVirtual: 0,
+  levels: VIP_LEVEL_RULES.slice(1, 8).map(rule => ({
+    value: rule.level,
+    label1: rule.label,
+    label2: `${formatVirtual(rule.requirement)}心币`
+  })),
 });
 
-// 格式化金额
-const formatMoney = (money: number): string => {
-  if (!money) return '0';
-  return money.toLocaleString('zh-CN', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0
-  });
-};
-
-// 计算下一级所需金额
-const getNextLevelMoney = (currentLevel: number, currentMoney: number): number => {
-  const levelRequirements = [0, 1000, 5000, 10000, 50000, 100000, 500000, 1000000];
-  const nextLevelRequirement = levelRequirements[currentLevel] || levelRequirements[levelRequirements.length - 1];
-  return Math.max(0, nextLevelRequirement - currentMoney);
-};
+// 格式化心币数量（使用统一的格式化函数）
+const formatMoney = formatVirtual;
 
 // 获取会员信息
 const getVipInfo = async () => {
@@ -125,8 +110,8 @@ const getVipInfo = async () => {
     const res = await api.common.info();
     data.info = res.data;
 
-    if (data.info?.userLevel && data.info?.accumulateMoney !== undefined) {
-      data.nextLevelMoney = getNextLevelMoney(data.info.userLevel, data.info.accumulateMoney);
+    if (data.info?.userLevel !== undefined && data.info?.accumulateVirtual !== undefined) {
+      data.nextLevelVirtual = getNextLevelVirtual(data.info.userLevel, data.info.accumulateVirtual);
     }
   } catch (error) {
     console.error('获取会员信息失败:', error);

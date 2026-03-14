@@ -41,7 +41,7 @@
       </view>
       
       <!-- 回合允许时间倒计时 -->
-      <view class="m-bottom-30" v-if="data.roundAllowedTime > 0">
+      <view class="m-bottom-30" v-if="data.roundAllowedTime > 0" v-show="false">
         <view class="countdown-info">
           <text class="countdown-text">回合允许时间：{{ Math.floor(data.roundAllowedTime / 1000) }}秒</text>
         </view>
@@ -89,6 +89,21 @@
       <view v-if="!data.detail" class="m-bottom-20" style="font-size: 26rpx; color: #999;">
         当前任务没有有效步骤，请稍后重试或联系管理员。
       </view>
+
+      <!-- 第四阶段Go按钮 -->
+      <view v-if="data.showGoButton" class="go-button-container">
+        <!-- S18内容显示 -->
+        <view v-if="data.goButtonContent" class="go-content m-bottom-40">
+          <view class="go-content-text">{{ data.goButtonContent }}</view>
+        </view>
+
+        <!-- Go按钮 -->
+        <view class="go-button" @click="handleGoButtonClick">
+          <text class="go-text">Go</text>
+        </view>
+        <view class="go-hint">点击Go按钮继续</view>
+      </view>
+
       <bc-tip-row v-if="['d', 'z'].includes(data.stepSign)">
         这里是关于{{ data.stepSign?.toLocaleUpperCase() }}这个操作的提示，只有前三次显示。
       </bc-tip-row>
@@ -254,6 +269,10 @@ const data = reactive<any>({
   searchKeyword: '',            // 搜索关键词
   searchCost: 100,              // 当前搜索费用
 
+  // 第四阶段Go按钮相关
+  showGoButton: false,          // 是否显示Go按钮
+  goButtonContent: '',          // Go按钮上方的内容（S18内容）
+
 });
 const popup = ref<any>(null);
 const idleDialog = ref<any>(null);
@@ -385,6 +404,94 @@ const executeSearch = () => {
     });
   }
 };
+
+/**
+ * 显示Go按钮（第四阶段邀约成功后）
+ * @param content S18内容（可选）
+ */
+const showGoButton = (content?: string) => {
+  console.log('[showGoButton] 显示Go按钮');
+  data.showGoButton = true;
+  data.goButtonContent = content || '';
+};
+
+/**
+ * 隐藏Go按钮
+ */
+const hideGoButton = () => {
+  console.log('[hideGoButton] 隐藏Go按钮');
+  data.showGoButton = false;
+  data.goButtonContent = '';
+};
+
+/**
+ * 处理Go按钮点击
+ * 触发第四阶段的Go流程：S23 → S24 → S29/S30
+ */
+const handleGoButtonClick = async () => {
+  console.log('[handleGoButtonClick] 点击Go按钮');
+
+  // 隐藏Go按钮
+  hideGoButton();
+
+  // 显示S23延时提示
+  uni.showModal({
+    title: '温馨提示',
+    content: '邀约成功！请等待对方确认',
+    showCancel: false,
+    confirmText: '确定',
+    success: () => {
+      // S23确认后，显示S24询问是否关闭任务
+      uni.showModal({
+        title: '温馨提示',
+        content: '是否关闭当前任务？',
+        confirmText: '关闭任务',
+        cancelText: '继续任务',
+        success: (res) => {
+          if (res.confirm) {
+            // 用户选择"关闭任务"，显示S29确认
+            uni.showModal({
+              title: '确认关闭',
+              content: '确定要关闭任务吗？关闭后任务将从列表中移除',
+              confirmText: '确定',
+              cancelText: '取消',
+              success: (res2) => {
+                if (res2.confirm) {
+                  // S29确认后，结束任务
+                  const result = finishTask(data.taskId);
+                  if (result.ok) {
+                    uni.showToast({ title: '任务已结束', icon: 'success' });
+                    setTimeout(() => {
+                      uni.redirectTo({ url: '/pages/sub-page/stepTask/list?module=熟悉模块' });
+                    }, 1500);
+                  } else {
+                    uni.showToast({ title: result.reason || '结束任务失败', icon: 'none' });
+                  }
+                }
+              }
+            });
+          } else {
+            // 用户选择"继续任务"，显示S30
+            uni.showModal({
+              title: '温馨提示',
+              content: '任务将继续，您可以在任务有效期内使用搜索问答功能',
+              showCancel: false,
+              confirmText: '我知道了',
+              success: () => {
+                console.log('[handleGoButtonClick] 任务继续，可以使用搜索问答功能');
+                // 任务正常计时，在任务有效期内可以使用搜索问答
+                loadTaskData();
+              }
+            });
+          }
+        }
+      });
+    }
+  });
+};
+
+// 将showGoButton函数暴露给外部使用（如stage4.ts）
+(window as any).showGoButton = showGoButton;
 
 // 页面加载
 onLoad((options: any) => {
@@ -4092,6 +4199,85 @@ const zInit = computed(() => {
       opacity: 0.8;
       transform: scale(0.98);
     }
+  }
+}
+
+// 第四阶段Go按钮样式
+.go-button-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 60rpx 40rpx;
+  margin-top: 40rpx;
+}
+
+.go-content {
+  width: 100%;
+  padding: 40rpx;
+  background: #f8f9fa;
+  border-radius: 16rpx;
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.08);
+
+  .go-content-text {
+    font-size: 32rpx;
+    color: #333;
+    line-height: 1.8;
+    text-align: center;
+  }
+}
+
+.go-button {
+  width: 200rpx;
+  height: 200rpx;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 12rpx 32rpx rgba(102, 126, 234, 0.5);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  animation: pulse 2s infinite;
+
+  &:active {
+    transform: scale(0.95);
+    box-shadow: 0 6rpx 16rpx rgba(102, 126, 234, 0.4);
+  }
+
+  .go-text {
+    font-size: 64rpx;
+    font-weight: bold;
+    color: #fff;
+    text-shadow: 0 4rpx 8rpx rgba(0, 0, 0, 0.2);
+    letter-spacing: 4rpx;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 12rpx 32rpx rgba(102, 126, 234, 0.5);
+  }
+  50% {
+    box-shadow: 0 12rpx 40rpx rgba(102, 126, 234, 0.7);
+  }
+}
+
+.go-hint {
+  margin-top: 40rpx;
+  font-size: 28rpx;
+  color: #999;
+  text-align: center;
+  animation: fadeIn 1s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10rpx);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 }

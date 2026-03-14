@@ -88,6 +88,7 @@ import { reactive, ref, nextTick } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import { convertToBase64 } from '@/utils/util';
 import api from '@/api';
+import { VIP_LEVEL_RULES } from '@/config/vip-level';
 
 const data = reactive<any>({
   bottom_bg: '',
@@ -111,8 +112,8 @@ const data = reactive<any>({
   protocolArr: ['《会员协议》', '《隐私政策》'],
   // 会员信息
   info: {},
-  // 升级为会员所需的最低心币数（示例值，可根据实际情况调整）
-  minRechargeForMember: 1000,
+  // 升级为会员所需的最低心币数（VIP 1的要求）
+  minRechargeForMember: VIP_LEVEL_RULES[1].requirement,
 });
 
 // 自定义金额输入框ref

@@ -725,16 +725,79 @@ export function deleteTask(taskId: string): boolean {
   return true;
 }
 
+/**
+ * 续时功能 - 支持余额检查
+ * @param taskId 任务ID
+ * @param days 续时天数 (5/9/16)
+ * @param cost 续时费用
+ * @returns 续时结果
+ */
 export function renewTask(taskId: string, days: DurationDays, cost: number): { success: boolean; reason?: string } {
   initDefaults();
   const t: Task = get(`fm:task:${taskId}`);
   if (!t) return { success: false, reason: "任务不存在" };
+
+  // 检查用户余额
+  const userBalance = getUserBalance();
+  if (userBalance < cost) {
+    console.log('[renewTask] 余额不足:', { userBalance, cost });
+    return { success: false, reason: "余额不足，请先充值" };
+  }
+
   const now = Date.now();
-  // mock余额充足，直接续费
+
+  // 扣除余额
+  const deductResult = deductBalance(cost);
+  if (!deductResult) {
+    return { success: false, reason: "扣费失败" };
+  }
+
+  // 续时成功
   t.expireAt = Math.max(t.expireAt, now) + days * 24 * 60 * 60 * 1000;
   t.renewHistory.push({ days, cost, at: now, success: true });
   set(`fm:task:${taskId}`, t);
+
+  console.log('[renewTask] 续时成功:', { taskId, days, cost, newExpireAt: new Date(t.expireAt).toLocaleString() });
   return { success: true };
+}
+
+/**
+ * 获取用户余额
+ */
+export function getUserBalance(): number {
+  const balance = get("fm:userBalance");
+  return typeof balance === 'number' ? balance : 0;
+}
+
+/**
+ * 设置用户余额
+ */
+export function setUserBalance(balance: number): void {
+  set("fm:userBalance", balance);
+  console.log('[setUserBalance] 余额已更新:', balance);
+}
+
+/**
+ * 扣除余额
+ */
+export function deductBalance(amount: number): boolean {
+  const balance = getUserBalance();
+  if (balance >= amount) {
+    setUserBalance(balance - amount);
+    console.log('[deductBalance] 扣费成功:', { amount, remainingBalance: balance - amount });
+    return true;
+  }
+  console.log('[deductBalance] 余额不足:', { balance, amount });
+  return false;
+}
+
+/**
+ * 充值余额
+ */
+export function rechargeBalance(amount: number): void {
+  const balance = getUserBalance();
+  setUserBalance(balance + amount);
+  console.log('[rechargeBalance] 充值成功:', { amount, newBalance: balance + amount });
 }
 
 // Stage / Round control (simplified mapping per doc)
@@ -1199,18 +1262,6 @@ export function checkStage0Countdown(taskId: string): { ok: boolean; action: str
 
 
 // Idle handling
-export function updateLastAction(taskId: string) {
-  initDefaults();
-  const t = getTask(taskId);
-  if (!t) return;
-  const now = Date.now();
-  const settings: Settings = get("fm:settings");
-  t.lastActionAt = now;
-  t.idleWarningAt = now + settings.cd.idleWarnMs;
-  t.hardIdleToCdAt = now + settings.cd.idleForceCdMs;
-  set(`fm:task:${taskId}`, t);
-}
-
 export function checkIdleAndHandle(taskId: string): { warn: boolean; forcedCd: boolean } {
   initDefaults();
   const t = getTask(taskId);
@@ -2342,16 +2393,27 @@ export function halfPriceRestart(taskId: string) {
   if (!t) return { ok: false, reason: "任务不存在" };
 
   // 计算半价费用（5天任务的50%）
-  const halfPrice = 138 * 0.5; // 5天任务价格的50%
+  const halfPrice = 138 * 0.5; // 5天任务价格的50% = 69心币
 
-  // TODO: 检查余额是否足够
-  // TODO: 扣除余额
+  // 检查余额是否足够
+  const userBalance = getUserBalance();
+  if (userBalance < halfPrice) {
+    console.log('[halfPriceRestart] 余额不足:', { userBalance, halfPrice });
+    return { ok: false, reason: "余额不足，请先充值" };
+  }
+
+  // 扣除余额
+  const deductResult = deductBalance(halfPrice);
+  if (!deductResult) {
+    return { ok: false, reason: "扣费失败" };
+  }
 
   // 创建新任务
   const newTaskId = `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const newTask: Task = {
     ...t,
     id: newTaskId,
+    name: t.name + '(重开)',
     createdAt: Date.now(),
     durationDays: 5,
     expireAt: Date.now() + 5 * 24 * 60 * 60 * 1000,
@@ -2361,7 +2423,24 @@ export function halfPriceRestart(taskId: string) {
     stepIndex: 0,
     stageScore: 0,
     totalScore: 0,
-    status: "active"
+    status: "active",
+    // 重置所有状态
+    currentLibChain: null,
+    zUnlockAt: null,
+    dMode: false,
+    opponentFindUnlockAt: null,
+    opponentFindCopyUnlockAt: null,
+    stageCdUnlockAt: null,
+    roundCdUnlockAt: null,
+    opponentFindUsedInRound: false,
+    lastActionAt: Date.now(),
+    idleWarningShown: false,
+    idleWarningAt: null,
+    searchQaCost: 100, // 重置搜索费用
+    searchQaCount: 0,
+    // 保留问卷答案
+    questionnaireAnswers: t.questionnaireAnswers,
+    askFlow: t.askFlow,
   };
 
   // 保存新任务
@@ -2376,8 +2455,14 @@ export function halfPriceRestart(taskId: string) {
   t.status = "deleted";
   set(`fm:task:${taskId}`, t);
 
-  console.log('[halfPriceRestart] 半价重开任务:', { oldTaskId: taskId, newTaskId, halfPrice });
-  return { ok: true, newTaskId, halfPrice };
+  console.log('[halfPriceRestart] 半价重开任务成功:', {
+    oldTaskId: taskId,
+    newTaskId,
+    halfPrice,
+    remainingBalance: getUserBalance()
+  });
+
+  return { ok: true, newTaskId, halfPrice, task: newTask };
 }
 
 // ==================== 第四阶段核心函数 ====================

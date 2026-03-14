@@ -140,23 +140,29 @@ const handleInviteSuccess = async (taskId: number) => {
   if (result.ok && result.action === 'showContentS18') {
     // 显示内容库S18
     // TODO: 抽取并显示内容库S18的内容
+    const s18Content = '恭喜您，邀约成功！请点击下方Go按钮继续';
 
-    // 用户在当前页面选择是否点击Go
-    uni.showModal({
-      title: '温馨提示',
-      content: '是否点击Go按钮？',
-      confirmText: '点击Go',
-      cancelText: '暂不点击',
-      success: async (res) => {
-        if (res.confirm) {
-          // 点击Go，开启延时
-          await handleGoClick(taskId);
-        } else {
-          // 暂不点击，返回S20
-          await showS20(taskId);
+    // 显示Go按钮（通过全局函数）
+    if (typeof (window as any).showGoButton === 'function') {
+      (window as any).showGoButton(s18Content);
+    } else {
+      // 兜底：使用弹窗方式
+      uni.showModal({
+        title: '温馨提示',
+        content: '是否点击Go按钮？',
+        confirmText: '点击Go',
+        cancelText: '暂不点击',
+        success: async (res) => {
+          if (res.confirm) {
+            // 点击Go，开启延时
+            await handleGoClick(taskId);
+          } else {
+            // 暂不点击，返回S20
+            await showS20(taskId);
+          }
         }
-      }
-    });
+      });
+    }
   }
 };
 

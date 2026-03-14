@@ -97,6 +97,7 @@
 import { ref, computed } from 'vue';
 import api from '@/api';
 import type { Common } from '@/api/data';
+import { VIP_LEVEL_RULES, calculateLevel, formatVirtual } from '@/config/vip-level';
 
 const userInfo = ref<Partial<Common.Info.Data>>({});
 const refreshHistory = ref<any[]>([]);
@@ -108,16 +109,10 @@ const diagnosisStatus = ref({
   upgrade: 'unknown'
 });
 
-const levelRules = [
-  { requirement: '游客/来宾（默认）' },
-  { requirement: '充值 ≥ 10元' },
-  { requirement: '充值 ≥ 50元' },
-  { requirement: '充值 ≥ 100元' },
-  { requirement: '充值 ≥ 500元' },
-  { requirement: '充值 ≥ 1000元' },
-  { requirement: '充值 ≥ 5000元' },
-  { requirement: '充值 ≥ 10000元' }
-];
+// 使用统一的等级规则配置
+const levelRules = VIP_LEVEL_RULES.map(rule => ({
+  requirement: rule.description
+}));
 
 const levelClass = computed(() => {
   const level = userInfo.value.userLevel || 0;
@@ -188,8 +183,9 @@ const refreshUserInfo = async () => {
         }
 
         addLog(`当前等级: VIP ${res.data.userLevel}`);
-        addLog(`心币余额: ${res.data.remainingVirtual}`);
+        addLog(`心币余额: ${formatVirtual(res.data.remainingVirtual)}`);
         addLog(`累计充值: ${res.data.accumulateMoney}元`);
+        addLog(`累计心币: ${formatVirtual(res.data.accumulateVirtual)}`);
 
         if (levelChanged) {
           addLog(`🎉 等级发生变化: VIP ${prevLevel} → VIP ${res.data.userLevel}`);
@@ -218,19 +214,12 @@ const refreshUserInfo = async () => {
 const checkUpgradeLogic = (data: Common.Info.Data) => {
   addLog('--- 检查升级逻辑 ---');
 
-  const { userLevel, accumulateMoney } = data;
+  const { userLevel, accumulateVirtual } = data;
 
-  // 根据累计充值金额判断应该是什么等级
-  let expectedLevel = 0;
-  if (accumulateMoney >= 10000) expectedLevel = 7;
-  else if (accumulateMoney >= 5000) expectedLevel = 6;
-  else if (accumulateMoney >= 1000) expectedLevel = 5;
-  else if (accumulateMoney >= 500) expectedLevel = 4;
-  else if (accumulateMoney >= 100) expectedLevel = 3;
-  else if (accumulateMoney >= 50) expectedLevel = 2;
-  else if (accumulateMoney >= 10) expectedLevel = 1;
+  // 使用统一的等级计算函数
+  const expectedLevel = calculateLevel(accumulateVirtual);
 
-  addLog(`累计充值: ${accumulateMoney}元`);
+  addLog(`累计充值心币: ${formatVirtual(accumulateVirtual)}`);
   addLog(`当前等级: VIP ${userLevel}`);
   addLog(`预期等级: VIP ${expectedLevel}`);
 
@@ -285,22 +274,22 @@ const checkBackendUpgrade = () => {
   addLog('请联系后端开发人员检查以下内容:');
   addLog('');
   addLog('1. 支付回调处理:');
-  addLog('   - 支付成功后是否正确更新 accumulateMoney');
+  addLog('   - 支付成功后是否正确更新 accumulateVirtual（累计心币）');
   addLog('   - 是否触发了等级升级逻辑');
   addLog('');
-  addLog('2. 等级升级规则:');
+  addLog('2. 等级升级规则（按累计心币计算）:');
   addLog('   - VIP 0: 默认（游客/来宾）');
-  addLog('   - VIP 1: 累计充值 ≥ 10元');
-  addLog('   - VIP 2: 累计充值 ≥ 50元');
-  addLog('   - VIP 3: 累计充值 ≥ 100元');
-  addLog('   - VIP 4: 累计充值 ≥ 500元');
-  addLog('   - VIP 5: 累计充值 ≥ 1000元');
-  addLog('   - VIP 6: 累计充值 ≥ 5000元');
-  addLog('   - VIP 7: 累计充值 ≥ 10000元');
+  addLog('   - VIP 1: 累计充值 ≥ 1000心币');
+  addLog('   - VIP 2: 累计充值 ≥ 5000心币');
+  addLog('   - VIP 3: 累计充值 ≥ 10000心币');
+  addLog('   - VIP 4: 累计充值 ≥ 50000心币');
+  addLog('   - VIP 5: 累计充值 ≥ 100000心币');
+  addLog('   - VIP 6: 累计充值 ≥ 500000心币');
+  addLog('   - VIP 7: 累计充值 ≥ 1000000心币');
   addLog('');
   addLog('3. 数据库更新:');
   addLog('   - 检查 member 表的 user_level 字段');
-  addLog('   - 检查 accumulate_money 字段');
+  addLog('   - 检查 accumulate_virtual 字段（累计心币）');
   addLog('   - 确认事务是否正确提交');
   addLog('');
   addLog('4. 日志检查:');
