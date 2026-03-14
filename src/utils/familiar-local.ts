@@ -162,6 +162,15 @@ const VERSION = 1;
 // Module prefix for storage isolation
 let modulePrefix = 'fm'; // default: familiar module
 
+// 图文特殊库权限接口
+interface ImageTextSpecialPermission {
+  enabled: boolean; // 是否激活
+  content: string; // 特殊内容
+  activatedAt: number; // 激活时间
+  refreshAt: number; // 下次刷新时间
+  taskId: string; // 激活该权限的任务ID
+}
+
 // Storage helpers
 const get = (k: string) => {
   try {
@@ -2759,4 +2768,107 @@ export function resetSearchQaCost(taskId: string) {
 
   set(`fm:task:${taskId}`, t);
   console.log('[resetSearchQaCost] 搜索问答费用已重置');
+}
+
+/**
+ * 激活图文特殊库权限
+ * @param taskId 任务ID
+ * @param content 特殊内容（可选，如果不提供则使用默认内容）
+ */
+export function activateImageTextSpecialPermission(taskId: string, content?: string) {
+  initDefaults();
+
+  const now = Date.now();
+  // 6-9天后随机刷新，转换为毫秒
+  const minDays = 6;
+  const maxDays = 9;
+  const randomDays = minDays + Math.random() * (maxDays - minDays);
+  const refreshAt = now + randomDays * 24 * 60 * 60 * 1000;
+
+  const permission: ImageTextSpecialPermission = {
+    enabled: true,
+    content: content || '这是图文模块的特殊内容',
+    activatedAt: now,
+    refreshAt,
+    taskId
+  };
+
+  // 使用全局key存储，不受模块前缀影响
+  try {
+    uni.setStorageSync('imageTextSpecialPermission', permission);
+    console.log('[activateImageTextSpecialPermission] 图文特殊库权限已激活:', {
+      taskId,
+      refreshAt: new Date(refreshAt).toLocaleString(),
+      refreshInDays: randomDays.toFixed(2)
+    });
+  } catch (e) {
+    console.error('[activateImageTextSpecialPermission] 激活失败:', e);
+  }
+}
+
+/**
+ * 获取图文特殊库权限
+ * @returns 权限信息，如果未激活则返回null
+ */
+export function getImageTextSpecialPermission(): ImageTextSpecialPermission | null {
+  try {
+    const permission = uni.getStorageSync('imageTextSpecialPermission');
+    if (!permission || !permission.enabled) {
+      return null;
+    }
+
+    // 检查是否需要刷新
+    const now = Date.now();
+    if (permission.refreshAt && now >= permission.refreshAt) {
+      console.log('[getImageTextSpecialPermission] 权限已过期，需要刷新');
+      // 刷新内容（这里简化处理，实际应该从服务器获取新内容）
+      refreshImageTextSpecialContent();
+      return uni.getStorageSync('imageTextSpecialPermission');
+    }
+
+    return permission;
+  } catch (e) {
+    console.error('[getImageTextSpecialPermission] 获取失败:', e);
+    return null;
+  }
+}
+
+/**
+ * 刷新图文特殊库内容
+ */
+export function refreshImageTextSpecialContent() {
+  try {
+    const permission = uni.getStorageSync('imageTextSpecialPermission');
+    if (!permission) return;
+
+    const now = Date.now();
+    // 设置下次刷新时间（6-9天后）
+    const minDays = 6;
+    const maxDays = 9;
+    const randomDays = minDays + Math.random() * (maxDays - minDays);
+    const refreshAt = now + randomDays * 24 * 60 * 60 * 1000;
+
+    permission.content = '这是刷新后的图文模块特殊内容';
+    permission.refreshAt = refreshAt;
+
+    uni.setStorageSync('imageTextSpecialPermission', permission);
+    console.log('[refreshImageTextSpecialContent] 图文特殊库内容已刷新:', {
+      refreshAt: new Date(refreshAt).toLocaleString(),
+      refreshInDays: randomDays.toFixed(2)
+    });
+  } catch (e) {
+    console.error('[refreshImageTextSpecialContent] 刷新失败:', e);
+  }
+}
+
+/**
+ * 取消图文特殊库权限
+ */
+export function deactivateImageTextSpecialPermission() {
+  try {
+    uni.removeStorageSync('imageTextSpecialPermission');
+    console.log('[deactivateImageTextSpecialPermission] 图文特殊库权限已取消');
+  } catch (e) {
+    console.error('[deactivateImageTextSpecialPermission] 取消失败:', e);
+  }
 }

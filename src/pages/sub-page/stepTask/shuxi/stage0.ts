@@ -6,6 +6,7 @@ import type { Four } from '@/api/data';
 // 工具
 import { hasItTimeOut, Toast } from '@/utils/util';
 import { taskModule } from '@/utils/data';
+import { activateImageTextSpecialPermission } from '@/utils/familiar-local';
 
 // 提示S3
 const hint3 = (taskId: number, onComplete?: () => void) => {
@@ -26,6 +27,11 @@ const hint3 = (taskId: number, onComplete?: () => void) => {
 // 提示S4
 const hint4 = (params: { taskId: number; specialStepId?: number; flag?: boolean }) => {
   const { taskId, flag = true } = params;
+
+  // 激活图文特殊库权限
+  console.log('[hint4] 问3选择"是"，激活图文特殊库权限');
+  activateImageTextSpecialPermission(taskId.toString());
+
   getHint(
     {
       hintCode: 'S4',
