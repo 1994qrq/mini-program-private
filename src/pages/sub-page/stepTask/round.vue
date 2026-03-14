@@ -78,20 +78,7 @@
       >
         对方找
       </view>
-      <!-- 第二个Z倒计时组件（只在有倒计时结束时间时显示） -->
-      <bc-countdown
-          :key="data.zEndTimeStr"
-          :time="''"
-          :day="zInit.days"
-          :hour="zInit.hours"
-          :minute="zInit.minutes"
-          :second="zInit.seconds"
-          desc="倒计时结束后，将回复新内容"
-          @timeup="zTimeup"
-          v-if="data.currentStep === 'z' && data.zEndTimeStr && !data.isPaused"
-          :size="small"
-          />
-      <!-- D出现 -->
+
       <!-- 空状态/错误提示 -->
       <view v-if="!data.detail" class="m-bottom-20" style="font-size: 26rpx; color: #999;">
         当前任务没有有效步骤，请稍后重试或联系管理员。
@@ -99,9 +86,6 @@
       <bc-tip-row v-if="['d', 'z'].includes(data.stepSign)">
         这里是关于{{ data.stepSign?.toLocaleUpperCase() }}这个操作的提示，只有前三次显示。
       </bc-tip-row>
-      <!-- 大CD倒计时 -->
-      <bc-countdown v-if="['z'].includes(data.stepSign) && !data.isPaused" size="small" :time="data.detail?.endTime" :desc="zCountdownMsg"
-        @timeup="zTimeup" />
       <!-- 对方找倒计时 -->
       <bc-countdown v-if="data.stepSign === 'lookfor' && !data.isPaused" size="small" :time="data.detail?.otherFindEndTime"
         desc="倒计时结束后，对方找按钮将变为可点击" @timeup="lookforTimeup" />
