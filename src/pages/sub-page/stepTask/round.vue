@@ -4,9 +4,15 @@
       <view v-if="data.stepSign" class="search-wrap m-bottom-30">
         <md-icon class="wenhao" name="wenhao" width="48" height="48" @click="handleWenhao"></md-icon>
         <view class="search flex-c m-right-12">
-          <input placeholder="请输入对方的问题" class="m-left-20 input" placeholder-style="color: #7A59ED;" />
+          <input
+            v-model="data.searchKeyword"
+            placeholder="请输入对方的问题"
+            class="m-left-20 input"
+            placeholder-style="color: #7A59ED;"
+            @confirm="handleSearch"
+          />
         </view>
-        <md-icon name="search_btn" width="76" height="76"></md-icon>
+        <md-icon name="search_btn" width="76" height="76" @click="handleSearch"></md-icon>
       </view>
       <!-- 状态条：模块/阶段/回合/步骤/积分 -->
       <view class="m-bottom-20" style="font-size: 24rpx; color: #666; line-height: 1.6;" v-show="false" >
@@ -101,6 +107,18 @@
       <!--  内容列表，根据倒计时状态禁用复制按钮 -->
       <bc-copy-list :info="data.pageInfo || {}" :disabled="!data.canCopyLookfor" :userVipLevel="userVipLevel" @copy="handleCopyInPopup" />
     </md-dialog>
+
+    <!-- 空闲警告弹窗 -->
+    <md-dialog ref="idleDialog" title="温馨提示" :width="730" hideOk hideCancel>
+      <view class="idle-warning-content">
+        <view class="idle-text">您已经40分钟未操作，请选择当前状态：</view>
+        <view class="idle-choices">
+          <view class="idle-btn" @click="handleIdleChoice('no_reply')">对方未回复</view>
+          <view class="idle-btn" @click="handleIdleChoice('left')">自己离开了</view>
+          <view class="idle-btn" @click="handleIdleChoice('replied')">对方已回复</view>
+        </view>
+      </view>
+    </md-dialog>
   </md-page>
 </template>
 
@@ -134,6 +152,16 @@ import {
   getCurrentChainContent,
   getNextChainContent,
   getMockContentByLibrary,
+  // 未操作超时函数
+  updateLastAction,
+  checkIdleWarning,
+  markIdleWarningShown,
+  handleIdleWarningChoice,
+  checkForceIdleToCd,
+  forceEnterBigCd,
+  // 搜索问答函数
+  getSearchQaCost,
+  performSearchQa,
   // 第2阶段函数
   enterStage2,
   startStage2Round,
@@ -222,12 +250,140 @@ const data = reactive<any>({
   // 倒计时暂停/恢复相关
   isPaused: false,              // 是否处于暂停状态（控制倒计时组件显示/隐藏）
 
+  // 搜索问答相关
+  searchKeyword: '',            // 搜索关键词
+  searchCost: 100,              // 当前搜索费用
+
 });
 const popup = ref<any>(null);
+const idleDialog = ref<any>(null);
+
+// 空闲检查定时器
+let idleCheckTimer: any = null;
+
+// 启动空闲检查
+const startIdleCheck = () => {
+  if (idleCheckTimer) return;
+
+  idleCheckTimer = setInterval(() => {
+    // 检查40分钟警告
+    if (checkIdleWarning(data.taskId)) {
+      markIdleWarningShown(data.taskId);
+      idleDialog.value?.open();
+    }
+
+    // 检查2小时强制CD
+    if (checkForceIdleToCd(data.taskId)) {
+      forceEnterBigCd(data.taskId);
+      loadTaskData();
+    }
+  }, 10000); // 每10秒检查一次
+};
+
+// 停止空闲检查
+const stopIdleCheck = () => {
+  if (idleCheckTimer) {
+    clearInterval(idleCheckTimer);
+    idleCheckTimer = null;
+  }
+};
+
+// 处理空闲警告选择
+const handleIdleChoice = (choice: 'no_reply' | 'left' | 'replied') => {
+  const result = handleIdleWarningChoice(data.taskId, choice);
+
+  if (result.ok) {
+    if (result.action === 'show_wait_toast') {
+      uni.showToast({
+        title: '请等待对方回复后再操作',
+        icon: 'none',
+        duration: 2000
+      });
+      // 不关闭对话框，继续等待
+    } else if (result.action === 'close_dialog') {
+      idleDialog.value?.close();
+    } else if (result.action === 'show_left_prompt') {
+      idleDialog.value?.close();
+      uni.showModal({
+        title: '温馨提示',
+        content: '您选择了离开，请在方便时继续对话',
+        showCancel: false,
+        confirmText: '确定',
+        success: () => {
+          // 恢复正常对话
+          updateLastAction(data.taskId);
+        }
+      });
+    }
+  }
+};
 
 // 问号说明
 const handleWenhao = () => {
   uni.navigateTo({ url: '/pages/sub-page/describe/wenhao' });
+};
+
+// 搜索问答处理
+const handleSearch = () => {
+  if (!data.searchKeyword || data.searchKeyword.trim() === '') {
+    uni.showToast({
+      title: '请输入搜索内容',
+      icon: 'none',
+      duration: 2000
+    });
+    return;
+  }
+
+  // 获取当前搜索费用
+  const currentCost = getSearchQaCost(data.taskId);
+
+  // 显示确认对话框
+  uni.showModal({
+    title: '搜索问答',
+    content: `本次搜索需要消耗 ${currentCost} 心币，是否继续？`,
+    confirmText: '确定',
+    cancelText: '取消',
+    success: (res) => {
+      if (res.confirm) {
+        // 用户确认，执行搜索
+        executeSearch();
+      }
+    }
+  });
+};
+
+// 执行搜索
+const executeSearch = () => {
+  // 执行搜索并更新费用
+  const result = performSearchQa(data.taskId);
+
+  if (result.ok) {
+    // 更新显示的费用为下次费用
+    data.searchCost = result.nextCost;
+
+    // TODO: 这里应该调用实际的搜索API
+    // 目前先显示提示
+    uni.showToast({
+      title: `搜索成功，消耗 ${result.cost} 心币`,
+      icon: 'success',
+      duration: 2000
+    });
+
+    // 清空搜索框
+    data.searchKeyword = '';
+
+    console.log('[executeSearch] 搜索完成:', {
+      keyword: data.searchKeyword,
+      cost: result.cost,
+      nextCost: result.nextCost
+    });
+  } else {
+    uni.showToast({
+      title: result.reason || '搜索失败',
+      icon: 'none',
+      duration: 2000
+    });
+  }
 };
 
 // 页面加载
@@ -244,6 +400,8 @@ onLoad((options: any) => {
 
   if (data.taskId) {
     loadTaskData();
+    // 启动空闲检查
+    startIdleCheck();
   } else {
     uni.showToast({
       title: '任务ID缺失',
@@ -253,6 +411,11 @@ onLoad((options: any) => {
       uni.navigateBack();
     }, 2000);
   }
+});
+
+// 页面卸载时清理定时器
+onUnmounted(() => {
+  stopIdleCheck();
 });
 
 // 获取用户VIP等级
@@ -304,6 +467,8 @@ const loadTaskData = () => {
   data.score = task.stageScore;
   data.stage1 = task.stage1;
   data.currentRound = task.roundIndex || 0;
+  // 初始化搜索费用
+  data.searchCost = getSearchQaCost(data.taskId);
 
   console.log('[loadTaskData] 任务数据:', task);
   console.log('[loadTaskData] 当前阶段:', task.stageIndex, '当前回合:', task.roundIndex);
@@ -1062,7 +1227,10 @@ const finishCurrentContent = () => {
 // 处理复制按钮点击
 const handleCopy = (item: any) => {
   console.log('[round] 复制内容:', item);
-  
+
+  // 更新最后操作时间
+  updateLastAction(data.taskId);
+
   if (!item || !item.content) {
     uni.showToast({
       title: '没有内容可复制',
@@ -3876,11 +4044,48 @@ const zInit = computed(() => {
   padding: 20rpx;
   text-align: center;
   margin-bottom: 20rpx;
-  
+
   .countdown-text {
     font-size: 28rpx;
     color: #007aff;
     font-weight: 500;
+  }
+}
+
+// 空闲警告弹窗样式
+.idle-warning-content {
+  padding: 40rpx 30rpx;
+
+  .idle-text {
+    font-size: 32rpx;
+    color: #333;
+    text-align: center;
+    margin-bottom: 40rpx;
+    line-height: 1.6;
+  }
+
+  .idle-choices {
+    display: flex;
+    flex-direction: column;
+    gap: 24rpx;
+  }
+
+  .idle-btn {
+    height: 88rpx;
+    line-height: 88rpx;
+    border-radius: 16rpx;
+    text-align: center;
+    font-size: 32rpx;
+    font-weight: 600;
+    color: #fff;
+    background: linear-gradient(90deg, #f9753d 0%, #f7b261 100%);
+    box-shadow: 0 8rpx 16rpx rgba(0, 0, 0, 0.12);
+    transition: all 0.3s;
+
+    &:active {
+      opacity: 0.8;
+      transform: scale(0.98);
+    }
   }
 }
 }

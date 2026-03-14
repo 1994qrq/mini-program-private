@@ -146,6 +146,9 @@ interface Task {
     goClicked: boolean;
     returnedFromStage3: boolean;
   };
+  // 搜索问答费用
+  searchQaCost: number; // 当前搜索问答费用
+  searchQaCount: number; // 已使用搜索问答次数
 }
 
 interface ClipboardState {
@@ -667,6 +670,8 @@ export function createTask(payload: { name: string; durationDays: DurationDays }
     renewHistory: [],
     listBadge: "聊天任务进行中",
     listCountdownEndAt: null,
+    searchQaCost: 100, // 初始搜索费用100心币
+    searchQaCount: 0, // 初始搜索次数0
   };
 
   const ids: string[] = get("fm:tasks") || [];
@@ -679,7 +684,17 @@ export function createTask(payload: { name: string; durationDays: DurationDays }
 export function getTask(taskId: string): Task | null {
   initDefaults();
   const t: Task = get(`fm:task:${taskId}`);
-  return t || null;
+  if (!t) return null;
+
+  // 兼容旧任务：如果没有搜索费用字段，初始化为默认值
+  if (t.searchQaCost === undefined) {
+    t.searchQaCost = 100;
+  }
+  if (t.searchQaCount === undefined) {
+    t.searchQaCount = 0;
+  }
+
+  return t;
 }
 
 export function deleteTask(taskId: string): boolean {
@@ -2545,4 +2560,203 @@ export function handleRoundTimeout(taskId: string) {
   t.stage1.currentRoundStartTime = null;
 
   set(`fm:task:${taskId}`, t);
+}
+
+/**
+ * 更新最后操作时间
+ * @param taskId 任务ID
+ */
+export function updateLastAction(taskId: string) {
+  initDefaults();
+  const t = getTask(taskId);
+  if (!t) return;
+
+  const now = Date.now();
+  t.lastActionAt = now;
+
+  // 重置空闲警告和强制CD时间
+  const settings = get("fm:settings") as Settings;
+  t.idleWarningAt = now + settings.cd.idleWarnMs;
+  t.hardIdleToCdAt = now + settings.cd.idleForceCdMs;
+
+  set(`fm:task:${taskId}`, t);
+  console.log('[updateLastAction] 更新最后操作时间:', new Date(now).toLocaleString());
+}
+
+/**
+ * 检查是否需要显示空闲警告
+ * @param taskId 任务ID
+ * @returns 是否需要显示警告
+ */
+export function checkIdleWarning(taskId: string): boolean {
+  initDefaults();
+  const t = getTask(taskId);
+  if (!t) return false;
+
+  const now = Date.now();
+
+  // 如果已经显示过警告，不再重复显示
+  if (t.prompts?.idleWarning?.shown) {
+    return false;
+  }
+
+  // 检查是否超过40分钟未操作
+  if (t.idleWarningAt && now >= t.idleWarningAt) {
+    console.log('[checkIdleWarning] 40分钟未操作，需要显示警告');
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * 标记空闲警告已显示
+ * @param taskId 任务ID
+ */
+export function markIdleWarningShown(taskId: string) {
+  initDefaults();
+  const t = getTask(taskId);
+  if (!t) return;
+
+  t.prompts = {
+    ...(t.prompts || {}),
+    idleWarning: { shown: true, at: Date.now() }
+  };
+
+  set(`fm:task:${taskId}`, t);
+}
+
+/**
+ * 处理空闲警告的用户选择
+ * @param taskId 任务ID
+ * @param choice 用户选择：'no_reply' | 'left' | 'replied'
+ */
+export function handleIdleWarningChoice(taskId: string, choice: 'no_reply' | 'left' | 'replied') {
+  initDefaults();
+  const t = getTask(taskId);
+  if (!t) return { ok: false, reason: '任务不存在' };
+
+  console.log('[handleIdleWarningChoice] 用户选择:', choice);
+
+  if (choice === 'no_reply') {
+    // 对方未回复：显示提示，继续等待
+    return { ok: true, action: 'show_wait_toast', reason: '请等待对方回复后再操作' };
+  } else if (choice === 'replied') {
+    // 对方已回复：关闭对话框，重置空闲时间
+    updateLastAction(taskId);
+    return { ok: true, action: 'close_dialog', reason: '继续对话' };
+  } else if (choice === 'left') {
+    // 自己离开了：显示提示板，然后恢复正常对话
+    return { ok: true, action: 'show_left_prompt', reason: '显示离开提示板' };
+  }
+
+  return { ok: false, reason: '未知选择' };
+}
+
+/**
+ * 检查是否需要强制进入大CD
+ * @param taskId 任务ID
+ * @returns 是否需要强制进入CD
+ */
+export function checkForceIdleToCd(taskId: string): boolean {
+  initDefaults();
+  const t = getTask(taskId);
+  if (!t) return false;
+
+  const now = Date.now();
+
+  // 检查是否超过2小时未操作
+  if (t.hardIdleToCdAt && now >= t.hardIdleToCdAt) {
+    console.log('[checkForceIdleToCd] 2小时未操作，强制进入大CD');
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * 强制进入大CD（2小时未操作）
+ * @param taskId 任务ID
+ */
+export function forceEnterBigCd(taskId: string) {
+  initDefaults();
+  const t = getTask(taskId);
+  if (!t) return;
+
+  console.log('[forceEnterBigCd] 强制进入大CD');
+
+  // 根据当前阶段进入相应的大CD
+  if (t.stageIndex === 1 && t.stage1) {
+    // 第一阶段：进入回合CD
+    const multiplier = t.stage1.roundCdMultiplier || 1;
+    enterRoundBigCd(taskId, multiplier);
+  } else if (t.stageIndex === 2 || t.stageIndex === 3) {
+    // 第二、三阶段：进入回合CD
+    const multiplier = t.specialRound === 'a' ? 2 : (t.specialRound === 'b' ? 3 : 1);
+    enterRoundBigCd(taskId, multiplier);
+  }
+
+  // 重置空闲时间
+  t.idleWarningAt = null;
+  t.hardIdleToCdAt = null;
+
+  set(`fm:task:${taskId}`, t);
+}
+
+/**
+ * 获取当前搜索问答费用
+ * @param taskId 任务ID
+ * @returns 当前搜索费用
+ */
+export function getSearchQaCost(taskId: string): number {
+  initDefaults();
+  const t = getTask(taskId);
+  if (!t) return 100; // 默认100心币
+  return t.searchQaCost || 100;
+}
+
+/**
+ * 执行搜索问答并更新费用
+ * @param taskId 任务ID
+ * @returns 搜索结果和新费用
+ */
+export function performSearchQa(taskId: string): { ok: boolean; cost: number; nextCost: number; reason?: string } {
+  initDefaults();
+  const t = getTask(taskId);
+  if (!t) return { ok: false, cost: 0, nextCost: 0, reason: '任务不存在' };
+
+  const currentCost = t.searchQaCost || 100;
+
+  // 执行搜索（这里只更新费用，实际搜索逻辑在UI层处理）
+  t.searchQaCount = (t.searchQaCount || 0) + 1;
+
+  // 计算下次费用：当前费用 * 1.6
+  const nextCost = Math.round(currentCost * 1.6);
+  t.searchQaCost = nextCost;
+
+  set(`fm:task:${taskId}`, t);
+
+  console.log('[performSearchQa] 搜索问答执行:', {
+    count: t.searchQaCount,
+    currentCost,
+    nextCost
+  });
+
+  return { ok: true, cost: currentCost, nextCost };
+}
+
+/**
+ * 重置搜索问答费用（用于测试或特殊情况）
+ * @param taskId 任务ID
+ */
+export function resetSearchQaCost(taskId: string) {
+  initDefaults();
+  const t = getTask(taskId);
+  if (!t) return;
+
+  t.searchQaCost = 100;
+  t.searchQaCount = 0;
+
+  set(`fm:task:${taskId}`, t);
+  console.log('[resetSearchQaCost] 搜索问答费用已重置');
 }
