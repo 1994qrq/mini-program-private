@@ -1945,7 +1945,8 @@ const cdTimeup = async () => {
       if (startResult.ok) {
         data.currentRound = nextRound;
         data.currentStep = 'normal';
-        await _round();
+        // 直接加载下一回合内容
+        await loadCurrentRoundContent();
         return;
       }
     } else if (currentStage === 2 || currentStage === 3) {
@@ -1974,7 +1975,8 @@ const cdTimeup = async () => {
         if (startResult.ok) {
           data.currentRound = nextRound;
           data.currentStep = 'normal';
-          await _round();
+          // 直接进入内容库
+          enterContentLib();
           return;
         }
       } else if (currentStage === 3) {
@@ -1982,12 +1984,16 @@ const cdTimeup = async () => {
         if (startResult.ok) {
           data.currentRound = nextRound;
           data.currentStep = 'normal';
-          await _round();
+          // 直接进入内容库
+          enterContentLib();
           return;
         }
       }
     }
 
+    // 如果上面的逻辑都没有return，则调用_round()作为兜底
+    console.log('[cdTimeup] 对方找CD结束，调用_round()作为兜底');
+    await _round();
     return;
   }
 
