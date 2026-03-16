@@ -88,6 +88,9 @@ function clearAllSyncData(): void {
       }
     }
     console.log('[DataSync] 本地数据清空完成，共清除', clearedCount, '个键');
+
+    // 触发数据同步完成事件，通知界面刷新
+    uni.$emit('dataSyncCompleted', { action: 'clear' });
   } catch (e) {
     console.error('[DataSync] 清空数据失败:', e);
   } finally {
@@ -105,6 +108,9 @@ function restoreAllData(data: Record<string, any>): void {
       } catch {}
     }
     console.log('[DataSync] 数据恢复完成，共', Object.keys(data).length, '个键');
+
+    // 触发数据同步完成事件，通知界面刷新
+    uni.$emit('dataSyncCompleted', { action: 'restore' });
   } finally {
     _restoring = false; // 恢复完成，重新启用上传触发
   }

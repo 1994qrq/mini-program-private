@@ -71,7 +71,7 @@
 
 <script setup lang="ts">
 import { onLoad, onShow } from '@dcloudio/uni-app';
-import { reactive, ref, computed } from 'vue';
+import { reactive, ref, computed, onUnmounted } from 'vue';
 // 接口
 import api from '@/api';
 import type { Four, Task } from '@/api/data';
@@ -612,16 +612,6 @@ const fetchCreateTask = async (params: { taskName: string; durationDays: number;
   }
 };
 
-onLoad(async (options: any) => {
-  const module = options?.module as taskModuleKey;
-  data.module = taskModule[module];
-  data.title = module;
-  data.isFirstLoad = true;
-  await getTaskList(taskModule[module]);
-  data.bottom_bg = await convertToBase64('/static/images/page_bottom_bg.png');
-  data.isFirstLoad = false;
-});
-
 onShow(() => {
   // 免费模块不需要登录检查，其他模块需要
   const isFreeModule = data.module === '免费模块';
@@ -643,6 +633,31 @@ onShow(() => {
   if (data.module && !data.isFirstLoad) {
     getTaskList();
   }
+});
+
+// 监听数据同步完成事件
+const handleDataSyncCompleted = (event: { action: string }) => {
+  console.log('[StepTaskList] 收到数据同步完成事件:', event.action);
+  if (data.module) {
+    getTaskList();
+  }
+};
+
+// 页面加载时注册事件监听
+onLoad(async (options: any) => {
+  uni.$on('dataSyncCompleted', handleDataSyncCompleted);
+  const module = options?.module as taskModuleKey;
+  data.module = taskModule[module];
+  data.title = module;
+  data.isFirstLoad = true;
+  await getTaskList(taskModule[module]);
+  data.bottom_bg = await convertToBase64('/static/images/page_bottom_bg.png');
+  data.isFirstLoad = false;
+});
+
+// 页面卸载时移除事件监听
+onUnmounted(() => {
+  uni.$off('dataSyncCompleted', handleDataSyncCompleted);
 });
 </script>
 

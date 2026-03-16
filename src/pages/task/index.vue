@@ -24,7 +24,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue';
+import { reactive, onUnmounted } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 // 接口
 import * as fm from '@/utils/familiar-local';
@@ -291,6 +291,23 @@ onLoad(() => {
 // 进入页面时刷新
 onShow(() => {
 	fetchTaskList();
+});
+
+// 监听数据同步完成事件
+const handleDataSyncCompleted = (event: { action: string }) => {
+	console.log('[TaskList] 收到数据同步完成事件:', event.action);
+	fetchTaskList();
+};
+
+// 页面加载时注册事件监听
+onLoad(() => {
+	uni.$on('dataSyncCompleted', handleDataSyncCompleted);
+	fetchTaskList();
+});
+
+// 页面卸载时移除事件监听
+onUnmounted(() => {
+	uni.$off('dataSyncCompleted', handleDataSyncCompleted);
 });
 </script>
 
