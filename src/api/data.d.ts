@@ -111,9 +111,15 @@ export namespace Common {
   namespace GetMessageList {
     interface Data {
       id: number;
-      content: string;
-      createTime: string;
-      isRead?: boolean;
+      moduleCode: string; // 模块代码
+      stageId: number; // 阶段ID
+      taskId: number; // 任务ID
+      msgType: number; // 消息类型
+      msgTitle: string; // 消息标题
+      msgContent: string; // 消息内容
+      extendParam: string; // 扩展参数（JSON字符串）
+      msgStatus: number; // 消息状态 0-未读 1-已读
+      createTime: string; // 创建时间
     }
   }
 

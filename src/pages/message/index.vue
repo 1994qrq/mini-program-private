@@ -11,8 +11,8 @@
             <view class="list">
               <md-icon class="icon" name="rocket"></md-icon>
               <view class="right">
-                <view class="title fs-28 m-bottom-10 font-bold">系统消息</view>
-                <view class="content m-bottom-10">{{ item.content }}</view>
+                <view class="title fs-28 m-bottom-10 font-bold">{{ item.msgTitle || '系统消息' }}</view>
+                <view class="content m-bottom-10">{{ item.msgContent }}</view>
                 <view class="date">{{ item.createTime }}</view>
               </view>
             </view>
@@ -28,16 +28,10 @@
 <script setup lang="ts">
 import { reactive, onMounted } from 'vue';
 import api from '@/api';
-
-interface MessageItem {
-  id: number;
-  content: string;
-  createTime: string;
-  isRead?: boolean;
-}
+import type { Common } from '@/api/data';
 
 const data = reactive<{
-  list: MessageItem[];
+  list: Common.GetMessageList.Data[];
   options: any[];
   loading: boolean;
 }>({
