@@ -26,5 +26,9 @@ export const COMMON = {
   // 获取搜索框副标题列表
   getPlaceholderList: (data: Common.GetPlaceholderList.Body) =>
     request<Common.GetPlaceholderList.Data>('/api/module/getPlaceholderList', 'GET', data),
+  // 获取消息列表
+  getMessageList: () => request<Common.GetMessageList.Data[]>('/api/message/list', 'GET'),
+  // 删除消息
+  deleteMessage: (data: Common.DeleteMessage.Body) => request<boolean>('/api/message/delete', 'POST', data),
 };
 export default COMMON;

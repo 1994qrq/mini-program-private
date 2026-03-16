@@ -106,6 +106,23 @@ export namespace Common {
       updateInterval: number; // 更新间隔（小时）
     }
   }
+
+  // 获取消息列表
+  namespace GetMessageList {
+    interface Data {
+      id: number;
+      content: string;
+      createTime: string;
+      isRead?: boolean;
+    }
+  }
+
+  // 删除消息
+  namespace DeleteMessage {
+    interface Body {
+      id: number;
+    }
+  }
 }
 
 // 线下任务

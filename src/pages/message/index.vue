@@ -26,26 +26,22 @@
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue';
+import { reactive, onMounted } from 'vue';
+import api from '@/api';
 
-const data = reactive({
-  list: [
-    {
-      id: 1,
-      content: '截止2024年12月31日，您的任务XXX消耗心币584个，回复内容已通过系统发送到该任务中，请您查收。',
-      createTime: '2024-05-08 23:34:45'
-    },
-    {
-      id: 2,
-      content: '截止2024年12月31日，您的任务XXX消耗心币584个，回复内容已通过系统发送到该任务中，请您查收。',
-      createTime: '2024-05-08 23:34:45'
-    },
-    {
-      id: 3,
-      content: '截止2024年12月31日，您的任务XXX消耗心币584个，回复内容已通过系统发送到该任务中，请您查收。',
-      createTime: '2024-05-08 23:34:45'
-    }
-  ],
+interface MessageItem {
+  id: number;
+  content: string;
+  createTime: string;
+  isRead?: boolean;
+}
+
+const data = reactive<{
+  list: MessageItem[];
+  options: any[];
+  loading: boolean;
+}>({
+  list: [],
   options: [
     {
       text: '删除',
@@ -54,23 +50,64 @@ const data = reactive({
       },
     },
   ],
+  loading: false,
 });
 
-const handleDel = (index: number) => {
+// 获取消息列表
+const fetchMessageList = async () => {
+  if (data.loading) return;
+  data.loading = true;
+
+  try {
+    const res = await api.common.getMessageList();
+    if (res.data && Array.isArray(res.data)) {
+      data.list = res.data;
+    } else {
+      data.list = [];
+    }
+  } catch (error) {
+    console.error('[MessageList] 获取消息列表失败:', error);
+    // 接口失败时显示空列表
+    data.list = [];
+  } finally {
+    data.loading = false;
+  }
+};
+
+const handleDel = async (index: number) => {
+  const message = data.list[index];
+
   uni.showModal({
     title: '提示',
     content: '确定要删除这条消息吗？',
-    success: function (res) {
+    success: async function (res) {
       if (res.confirm) {
-        data.list.splice(index, 1);
-        uni.showToast({
-          title: '删除成功',
-          icon: 'none'
-        });
+        try {
+          // 调用删除接口
+          await api.common.deleteMessage({ id: message.id });
+
+          // 删除成功后从列表中移除
+          data.list.splice(index, 1);
+          uni.showToast({
+            title: '删除成功',
+            icon: 'none'
+          });
+        } catch (error) {
+          console.error('[MessageList] 删除消息失败:', error);
+          uni.showToast({
+            title: '删除失败',
+            icon: 'none'
+          });
+        }
       }
     }
   });
 };
+
+// 页面加载时获取消息列表
+onMounted(() => {
+  fetchMessageList();
+});
 </script>
 
 <style lang="scss" scoped>
