@@ -2,13 +2,17 @@
 @import './mixins.scss';
 
 .medium-font {
-	font-family: 'PingFang Medium';
+	font-family: 'PingFang SC', 'Helvetica Neue', 'Arial', sans-serif;
+	font-weight: 500;
 }
 .number {
-	font-family: 'D-DIN';
+	font-family: 'Helvetica Neue', 'Arial', 'PingFang SC', sans-serif;
+	font-variant-numeric: tabular-nums;
 }
 .number-bold {
-	font-family: 'D-DIN-Bold';
+	font-family: 'Helvetica Neue', 'Arial', 'PingFang SC', sans-serif;
+	font-weight: bold;
+	font-variant-numeric: tabular-nums;
 }
 .font-bold {
 	font-weight: bold;

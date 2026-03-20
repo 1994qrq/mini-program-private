@@ -13,10 +13,11 @@ const handleResponse = <T>(res: any, resolve: (value: T | PromiseLike<T>) => voi
   if (isSuccessStatusCode(res.statusCode) && res?.data?.code == 200) {
     resolve(res.data);
   } else if (res.statusCode == 401) {
-    // 登录失败
+    // 登录失败 - 清除token但不自动跳转
+    console.log('[Request] 401 未授权，清除token');
     uni.removeStorageSync('token');
-    // 跳转至登录页面
-    uni.navigateTo({ url: '/pages/login/index' });
+    // 不再自动跳转到登录页，由各个页面自己控制
+    // 这样可以避免在首页等公共页面自动弹出登录
     reject(res);
   } else {
     // 分离了报错状态码逻辑
@@ -40,19 +41,38 @@ const showErrorToast = <T>(data: ResponseData<T>) => {
 };
 
 const request = <T>(url: string, method: 'GET' | 'POST', data?: Record<string, any>): Promise<ResponseData<T>> => {
+  const fullUrl = process.env.VUE_APP_BASEHOST + url;
+  const token = uni.getStorageSync('token');
+
+  console.log('[Request] 发起请求:', {
+    url: fullUrl,
+    method,
+    data,
+    hasToken: !!token
+  });
+
   return new Promise((reslove, reject) => {
     uni.request({
-      url: process.env.VUE_APP_BASEHOST + url,
+      url: fullUrl,
       header: {
-        Authorization: uni.getStorageSync('token'),
+        Authorization: token,
       },
       method,
       data,
       success: res => {
+        console.log('[Request] 请求成功:', {
+          url: fullUrl,
+          statusCode: res.statusCode,
+          data: res.data
+        });
         // 成功响应
         handleResponse(res, reslove, reject);
       },
       fail: err => {
+        console.error('[Request] 请求失败:', {
+          url: fullUrl,
+          error: err
+        });
         handleError(err, reject);
       },
     });

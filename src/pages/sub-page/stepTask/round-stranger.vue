@@ -2,7 +2,7 @@
   <md-page :title="taskName || '陌生模块对话'">
     <view class="container">
       <!-- 状态栏 -->
-      <view class="status-bar m-bottom-20">
+      <view class="status-bar m-bottom-20" v-show="false">
         <text>阶段：{{ stageIndex }}</text>
         <text class="m-left-12">｜</text>
         <text>回合：{{ roundIndex || '-' }}</text>

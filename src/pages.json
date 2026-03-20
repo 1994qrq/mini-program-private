@@ -31,6 +31,22 @@
     {
       "path": "pages/task-purchase/index",
       "title": "任务购买"
+    },
+    {
+      "path": "pages/debug-image-text",
+      "title": "图文模块调试"
+    },
+    {
+      "path": "pages/debug-content-library",
+      "title": "内容库调试"
+    },
+    {
+      "path": "pages/debug-recharge-level",
+      "title": "充值等级调试"
+    },
+    {
+      "path": "pages/debug-storage",
+      "title": "本地存储调试"
     }
   ],
   "subPackages": [

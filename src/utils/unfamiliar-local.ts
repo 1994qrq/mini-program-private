@@ -1532,3 +1532,28 @@ export function resetIdleTimer(taskId: string) {
   set(`um:task:${taskId}`, t);
 }
 
+/**
+ * 删除任务
+ * @param taskId 任务ID
+ * @returns 是否删除成功
+ */
+export function deleteTask(taskId: string): boolean {
+  initUmLocal();
+  const t: Task = get(`um:task:${taskId}`);
+  if (!t) {
+    console.log('[um.deleteTask] 任务不存在:', taskId);
+    return false;
+  }
+  t.status = 'deleted';
+  t.listBadge = '任务已删除';
+  t.listCountdownEndAt = null;
+  t.lastActionAt = Date.now();
+  set(`um:task:${taskId}`, t);
+  // 从 um:tasks 移除
+  const ids: string[] = get('um:tasks') || [];
+  set('um:tasks', ids.filter((i) => i !== taskId));
+  console.log('[um.deleteTask] 任务删除成功:', taskId);
+  return true;
+}
+
+

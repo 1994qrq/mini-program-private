@@ -5,7 +5,7 @@
       <view class="info m-bottom-40">
         <view class="info-left">
           <!-- 金额 -->
-          <view>金币余额</view>
+          <view>心币余额</view>
           <view class="flex-l">
             <md-icon name="bag" height="50" width="50" />
             <view class="m-left-8">{{ data.info?.remainingVirtual || 0 }}</view>
@@ -48,7 +48,7 @@
           <view class="tip-item">• 购买任务后将立即生效，有效期为所选天数</view>
           <view class="tip-item">• 任务期间可使用熟悉模块的全部功能</view>
           <view class="tip-item">• 任务到期后，未完成的进度将保留</view>
-          <view class="tip-item">• 购买前请确保金币余额充足</view>
+          <view class="tip-item">• 购买前请确保心币余额充足</view>
         </view>
       </view>
 
@@ -146,7 +146,7 @@ const handlePurchase = async () => {
     return;
   }
 
-  // 3. 验证金币余额是否充足
+  // 3. 验证心币余额是否充足
   const balance = data.info?.remainingVirtual || 0;
   if (balance < data.currentPrice) {
     // 检查用户是否是会员
@@ -154,10 +154,10 @@ const handlePurchase = async () => {
     const isGuest = userLevel < 1;
 
     uni.showModal({
-      title: '金币不足',
+      title: '心币不足',
       content: isGuest
         ? '充值即可升级为会员'
-        : `您的金币余额不足，需要${data.currentPrice}金币，当前余额${balance}金币。是否前往充值？`,
+        : `您的心币余额不足，需要${data.currentPrice}心币，当前余额${balance}心币。是否前往充值？`,
       confirmText: isGuest ? '立即充值' : '去充值',
       cancelText: '取消',
       success: (res) => {
@@ -174,7 +174,7 @@ const handlePurchase = async () => {
   // 4. 显示确认对话框
   uni.showModal({
     title: '确认购买',
-    content: `确认购买${data.currentDays}天任务，需支付${data.currentPrice}金币？`,
+    content: `确认购买${data.currentDays}天任务，需支付${data.currentPrice}心币？`,
     confirmText: '确认购买',
     cancelText: '取消',
     success: async (res) => {
@@ -195,7 +195,7 @@ const executePurchase = async () => {
     // 初始化本地存储
     initFamiliarLocal();
 
-    // TODO: 调用后端接口扣除金币
+    // TODO: 调用后端接口扣除心币
     // await api.task.purchaseTask({
     //   days: data.currentDays,
     //   price: data.currentPrice,
@@ -208,7 +208,7 @@ const executePurchase = async () => {
 
     console.log('[任务购买] 任务创建成功，taskId:', newTaskId);
 
-    // 本地模拟：扣除金币（实际应该由后端完成）
+    // 本地模拟：扣除心币（实际应该由后端完成）
     // 这里仅作演示，实际应该等待后端接口返回
     if (data.info) {
       data.info.remainingVirtual = (data.info.remainingVirtual || 0) - data.currentPrice;

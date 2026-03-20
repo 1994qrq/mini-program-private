@@ -72,6 +72,32 @@ function collectAllData(): Record<string, any> {
   return result;
 }
 
+/** 清空所有需要同步的本地数据 */
+function clearAllSyncData(): void {
+  _restoring = true; // 标记开始清空，禁用上传触发
+  try {
+    const info = uni.getStorageInfoSync();
+    const keys: string[] = info.keys || [];
+    let clearedCount = 0;
+    for (const key of keys) {
+      if (shouldSyncKey(key)) {
+        try {
+          uni.removeStorageSync(key);
+          clearedCount++;
+        } catch {}
+      }
+    }
+    console.log('[DataSync] 本地数据清空完成，共清除', clearedCount, '个键');
+
+    // 触发数据同步完成事件，通知界面刷新
+    uni.$emit('dataSyncCompleted', { action: 'clear' });
+  } catch (e) {
+    console.error('[DataSync] 清空数据失败:', e);
+  } finally {
+    _restoring = false; // 清空完成，重新启用上传触发
+  }
+}
+
 /** 将服务器数据恢复到本地存储 */
 function restoreAllData(data: Record<string, any>): void {
   _restoring = true; // 标记开始恢复，禁用上传触发
@@ -82,6 +108,9 @@ function restoreAllData(data: Record<string, any>): void {
       } catch {}
     }
     console.log('[DataSync] 数据恢复完成，共', Object.keys(data).length, '个键');
+
+    // 触发数据同步完成事件，通知界面刷新
+    uni.$emit('dataSyncCompleted', { action: 'restore' });
   } finally {
     _restoring = false; // 恢复完成，重新启用上传触发
   }
@@ -182,12 +211,15 @@ export async function downloadAndRestore(): Promise<boolean> {
               resolve(false);
             }
           } else {
-            console.warn('[DataSync] 下载返回非200，可能是首次使用无备份:', res.statusCode);
-            resolve(false);
+            // 服务器端没有文件（404或其他非200状态），清空本地数据
+            console.warn('[DataSync] 服务器无备份文件（状态码:', res.statusCode, '），清空本地数据');
+            clearAllSyncData();
+            resolve(true); // 清空成功也返回true
           }
         },
         fail: (err) => {
           console.error('[DataSync] 下载请求失败:', err);
+          // 网络错误不清空本地数据，保留现有数据
           resolve(false);
         },
       });

@@ -2,14 +2,14 @@ import api from '@/api';
 import type { Four } from '@/api/data';
 import { questionTemplete } from './data';
 
-// 检查是否有足够的虚拟币
+// 检查是否有足够的心币
 export const checkVirtualCoin = async (payScene: string) => {
   try {
     const res = await api.common.checkVirtualCoin({ payScene });
     if (!res?.data) {
       uni.showModal({
         title: '提示',
-        content: `虚拟币不足，请充值后再进行操作`,
+        content: `心币不足，请充值后再进行操作`,
         showCancel: false,
       });
       return false;

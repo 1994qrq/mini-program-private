@@ -175,6 +175,16 @@ const fetchCreateTask = async (params: Pick<Task.Create.Body, 'taskName'>) => {
 };
 
 onShow(() => {
+  // 检查是否已登录
+  const token = uni.getStorageSync('token');
+  if (!token) {
+    console.log('[问诊模块] 用户未登录，跳转到登录页');
+    uni.navigateTo({
+      url: '/pages/login/index',
+    });
+    return;
+  }
+
   getTaskList();
 });
 </script>

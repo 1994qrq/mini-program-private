@@ -255,22 +255,82 @@ const fetchDropList = async () => {
 // 任务续时
 const fetchRenewTime = async () => {
   try {
-    await api.task.renewTime({
-      taskId: props.item.taskId,
-      time: data.continuedTimeValue,
-    });
-    uni.showModal({
-      title: '提示',
-      content: '任务续时成功',
-      showCancel: false,
-      success: res => {
-        if (res.confirm) {
-          emit('swipeClick');
-          popup.value!.close();
-        }
-      },
-    });
-  } catch (error) {}
+    // 判断任务类型，使用不同的续时方法
+    const taskType = props.taskType; // '熟悉'、'不熟'、'超熟'、'陌生'、''(免费)
+    const taskId = props.item.id || props.item.taskId;
+
+    // 续时价格配置
+    const renewPriceConfig: Record<number, number> = {
+      5: 138,   // 5天 138心币
+      9: 225,   // 9天 225心币
+      16: 294,  // 16天 294心币
+    };
+
+    const days = parseInt(data.continuedTimeValue);
+    const cost = renewPriceConfig[days] || 0;
+
+    if (!cost) {
+      uni.showToast({ title: '续时天数错误', icon: 'none' });
+      return;
+    }
+
+    if (taskType === '熟悉' || taskType === '超熟') {
+      // 熟悉/超熟模块：使用本地续时
+      const moduleType = taskType === '超熟' ? 'super' : 'familiar';
+      fm.initFamiliarLocal(moduleType);
+
+      const result = fm.renewTask(taskId, days as any, cost);
+
+      if (result.success) {
+        uni.showModal({
+          title: '提示',
+          content: `续时成功！已续时${days}天，消耗${cost}心币`,
+          showCancel: false,
+          success: res => {
+            if (res.confirm) {
+              emit('swipeClick');
+              popup.value!.close();
+            }
+          },
+        });
+      } else {
+        uni.showModal({
+          title: '续时失败',
+          content: result.reason || '未知错误',
+          showCancel: true,
+          cancelText: '取消',
+          confirmText: '去充值',
+          success: res => {
+            if (res.confirm) {
+              // 跳转到充值页面
+              uni.navigateTo({ url: '/pages/recharge/index' });
+            }
+            popup.value!.close();
+          },
+        });
+      }
+    } else {
+      // 其他模块：使用后端接口
+      await api.task.renewTime({
+        taskId: props.item.taskId,
+        time: data.continuedTimeValue,
+      });
+      uni.showModal({
+        title: '提示',
+        content: '任务续时成功',
+        showCancel: false,
+        success: res => {
+          if (res.confirm) {
+            emit('swipeClick');
+            popup.value!.close();
+          }
+        },
+      });
+    }
+  } catch (error) {
+    console.error('[fetchRenewTime] 续时失败:', error);
+    uni.showToast({ title: '续时失败', icon: 'none' });
+  }
 };
 
 // 任务删除
@@ -320,19 +380,12 @@ const fetchDelTask = async () => {
         uni.showToast({ title: '删除失败', icon: 'none' });
       }
     } else {
-      // 免费模块或其他：使用本地删除（免费模块）
+      // 免费模块：只删除本地数据，不调用后端接口
+      console.log('[删除任务] 免费模块，只删除本地数据');
       fm.initFamiliarLocal('free');
-      const deleted = fm.deleteTask(props.item.id || props.item.taskId);
-      if (deleted) {
-        uni.showToast({ title: '已删除', icon: 'none' });
-        emit('swipeClick');
-      } else {
-        // 如果本地删除失败，尝试调用后端 API（兼容其他模块）
-        await api.task.delTask({
-          taskId: props.item.taskId,
-        });
-        emit('swipeClick');
-      }
+      fm.deleteTask(props.item.id || props.item.taskId);
+      uni.showToast({ title: '已删除', icon: 'none' });
+      emit('swipeClick');
     }
   } catch (error) {
     console.error('删除任务失败:', error);

@@ -8,7 +8,7 @@
         </view>
         <view class="info">
           <view class="row">
-            <text class="nickname">{{ data.info?.nickname || '牛大胆' }}</text>
+            <text class="nickname">{{ displayNickname }}</text>
             <text class="arrow">›</text>
           </view>
           <view class="member-number">会员编号: {{ data.info?.memberNumber || '013919' }}</view>
@@ -24,17 +24,23 @@
         <view class="card" @click="handleMemberCardClick">
           <view class="card-title">我的会员等级</view>
           <view class="card-main">
-            <text class="vip-level">VIP等级 {{ data.info?.userLevel ?? 2 }}</text>
+            <text class="vip-level">{{ currentLevelLabel }}</text>
           </view>
-          <view class="card-sub">
-            距离下一级会员还有
-            <text class="num">{{ formatMoney(data.info?.nextLevelMoney || 0) }}</text>
+          <view class="card-sub" v-if="nextLevelLabel">
+            距离{{ nextLevelLabel }}还需
+            <text class="num">{{ formatMoney(data.nextLevelVirtual) }}</text>心币
+          </view>
+          <view class="card-sub" v-else>
+            已达最高等级
+          </view>
+          <view class="card-sub benefit" v-if="nextLevelBenefits">
+            升级后可获得：{{ nextLevelBenefits }}
           </view>
           <view class="card-arrow">→</view>
         </view>
 
         <view class="card" @click="handleRechargeClick">
-          <view class="card-title">我的金币</view>
+          <view class="card-title">我的心币</view>
           <view class="card-main">
             <text class="coin">{{ formatMoney(data.info?.remainingVirtual || 0) }}</text>
           </view>
@@ -58,66 +64,73 @@
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue';
+import { reactive, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-// 接口
 import api from '@/api/index';
+import { getNextLevelVirtual, getLevelRule, formatVirtual } from '@/config/vip-level';
 
 const data = reactive<any>({
   info: {},
+  nextLevelVirtual: 0,
 });
 
-/**
- * 工具函数
- */
-// 格式化金额，只显示数值，不显示单位
-const formatMoney = (money: number): string => {
-  if (!money) return '0';
-  return money.toLocaleString('zh-CN', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0
-  });
-};
+const displayNickname = computed(() => {
+  if (data.info?.nickname) {
+    return data.info.nickname;
+  }
+  const localNickname = uni.getStorageSync('userNickname');
+  if (localNickname) {
+    return localNickname;
+  }
+  return '牛大胆';
+});
 
-/**
- * 接口相关
- */
-// 获取会员信息
+const currentLevelLabel = computed(() => {
+  const rule = getLevelRule(data.info?.userLevel ?? 0);
+  return rule?.label || '游客/来宾';
+});
+
+const nextLevelLabel = computed(() => {
+  const nextLevel = (data.info?.userLevel ?? 0) + 1;
+  const rule = getLevelRule(nextLevel);
+  return rule?.label || '';
+});
+
+const nextLevelBenefits = computed(() => {
+  const nextLevel = (data.info?.userLevel ?? 0) + 1;
+  const rule = getLevelRule(nextLevel);
+  return rule?.benefits || '';
+});
+
+const formatMoney = formatVirtual;
+
 const getVipInfo = async () => {
   try {
     const res = await api.common.info();
     data.info = res.data;
     console.log('会员信息:', data.info);
 
-    // 计算距离下一级还需要的金额
-    if (data.info?.userLevel && data.info?.accumulateMoney !== undefined) {
-      // 这里需要根据实际情况计算下一级所需金额
-      // 暂时使用示例数据，实际应该根据等级规则计算
-      const nextLevelMoney = getNextLevelMoney(data.info.userLevel, data.info.accumulateMoney);
-      data.info.nextLevelMoney = nextLevelMoney;
+    if (data.info?.userLevel !== undefined && data.info?.accumulateVirtual !== undefined) {
+      data.nextLevelVirtual = getNextLevelVirtual(data.info.userLevel, data.info.accumulateVirtual);
     }
   } catch (error) {
     console.error('获取会员信息失败:', error);
   }
 };
 
-// 计算下一级所需金额（示例函数，需要根据实际情况调整）
-const getNextLevelMoney = (currentLevel: number, currentMoney: number): number => {
-  // 这里应该根据实际的等级规则计算
-  // 示例：每级需要10000元，返回差额
-  const levelRequirements = [0, 1000, 5000, 10000, 50000, 100000, 500000, 1000000]; // 各级所需累计金额
-  const nextLevelRequirement = levelRequirements[currentLevel] || levelRequirements[levelRequirements.length - 1];
-  return Math.max(0, nextLevelRequirement - currentMoney);
-};
-
 onShow(() => {
-  getVipInfo();
+  const token = uni.getStorageSync('token');
+  if (token) {
+    console.log('[个人中心] 用户已登录，获取会员信息');
+    getVipInfo();
+  } else {
+    console.log('[个人中心] 用户未登录，跳过会员信息获取');
+    uni.navigateTo({
+      url: '/pages/login/index',
+    });
+  }
 });
 
-/**
- * 事件处理函数
- */
-// 会员卡片点击
 const handleMemberCardClick = () => {
   console.log('点击会员卡片');
   uni.navigateTo({
@@ -125,11 +138,9 @@ const handleMemberCardClick = () => {
   });
 };
 
-// 充值点击
 const handleRechargeClick = () => {
   console.log('点击充值, 用户VIP等级:', data.info?.userLevel);
 
-  // 如果用户是游客/来宾（VIP等级<1），显示提示
   if (!data.info?.userLevel || data.info.userLevel < 1) {
     uni.showModal({
       title: '提示',
@@ -138,7 +149,6 @@ const handleRechargeClick = () => {
       cancelText: '取消',
       success: (res) => {
         if (res.confirm) {
-          // 用户点击确认，跳转到充值页面
           uni.navigateTo({
             url: '/pages/recharge/index'
           });
@@ -148,13 +158,11 @@ const handleRechargeClick = () => {
     return;
   }
 
-  // 已经是会员，直接跳转充值页面
   uni.navigateTo({
     url: '/pages/recharge/index'
   });
 };
 
-// 特权点击
 const handlePrivilegeClick = () => {
   console.log('点击我的特权');
   uni.showToast({
@@ -164,7 +172,6 @@ const handlePrivilegeClick = () => {
   });
 };
 
-// 个人信息点击
 const handleProfileClick = () => {
   console.log('点击个人信息');
   uni.showToast({
@@ -278,6 +285,11 @@ const handleProfileClick = () => {
 .card-sub {
   font-size: 24rpx;
   color: #8c8c8c;
+}
+.card-sub.benefit {
+  margin-top: 8rpx;
+  color: #6b6b6b;
+  font-size: 22rpx;
 }
 .card-sub .num { font-weight: 700; color: #1f1f1f; }
 .card-sub.link { color: #6b6b6b; }

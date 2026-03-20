@@ -1,13 +1,21 @@
 <template>
   <view class="vip">
     <md-icon name="zuan" height="31.5" width="42" />
-    <view class="m-left-8">会员等级{{ level || 0 }}</view>
+    <view class="m-left-8">{{ displayLabel }}</view>
   </view>
 </template>
 
 <script setup lang="ts">
-defineProps({
+import { computed } from 'vue';
+import { getLevelRule } from '@/config/vip-level';
+
+const props = defineProps({
   level: Number,
+});
+
+const displayLabel = computed(() => {
+  const rule = getLevelRule(props.level ?? 0);
+  return rule?.label || '游客/来宾';
 });
 </script>
 

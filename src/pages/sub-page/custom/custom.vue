@@ -77,12 +77,12 @@ const form = ref(null);
 const handleOk = async () => {
   try {
     const res = await form.value?.validate();
-    // 判断是否有充足的虚拟币
+    // 判断是否有充足的心币
     const hasPrice = await checkVirtualCoin(payModule['定制二阶段付费']);
     if (hasPrice) {
       uni.showModal({
         title: '温馨提示',
-        content: `提交后将消耗掉虚拟币以获取方案，请确认是否提交`,
+        content: `提交后将消耗心币以获取方案，请确认是否提交`,
         success: s => {
           if (s.confirm) {
             fetchSubmitSecondQuestion({ ...res, imgUrlList: res.imgUrlList?.map((item: { url: string }) => item.url) });

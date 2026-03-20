@@ -4,9 +4,15 @@
       <view v-if="data.stepSign" class="search-wrap m-bottom-30">
         <md-icon class="wenhao" name="wenhao" width="48" height="48" @click="handleWenhao"></md-icon>
         <view class="search flex-c m-right-12">
-          <input placeholder="请输入对方的问题" class="m-left-20 input" placeholder-style="color: #7A59ED;" />
+          <input
+            v-model="data.searchKeyword"
+            placeholder="请输入对方的问题"
+            class="m-left-20 input"
+            placeholder-style="color: #7A59ED;"
+            @confirm="handleSearch"
+          />
         </view>
-        <md-icon name="search_btn" width="76" height="76"></md-icon>
+        <md-icon name="search_btn" width="76" height="76" @click="handleSearch"></md-icon>
       </view>
       <!-- 状态条：模块/阶段/回合/步骤/积分 -->
       <view class="m-bottom-20" style="font-size: 24rpx; color: #666; line-height: 1.6;" v-show="false" >
@@ -35,7 +41,7 @@
       </view>
       
       <!-- 回合允许时间倒计时 -->
-      <view class="m-bottom-30" v-if="data.roundAllowedTime > 0">
+      <view class="m-bottom-30" v-if="data.roundAllowedTime > 0" v-show="false">
         <view class="countdown-info">
           <text class="countdown-text">回合允许时间：{{ Math.floor(data.roundAllowedTime / 1000) }}秒</text>
         </view>
@@ -78,30 +84,29 @@
       >
         对方找
       </view>
-      <!-- 第二个Z倒计时组件（只在有倒计时结束时间时显示） -->
-      <bc-countdown
-          :key="data.zEndTimeStr"
-          :time="''"
-          :day="zInit.days"
-          :hour="zInit.hours"
-          :minute="zInit.minutes"
-          :second="zInit.seconds"
-          desc="倒计时结束后，将回复新内容"
-          @timeup="zTimeup"
-          v-if="data.currentStep === 'z' && data.zEndTimeStr && !data.isPaused"
-          :size="small"
-          />
-      <!-- D出现 -->
+
       <!-- 空状态/错误提示 -->
       <view v-if="!data.detail" class="m-bottom-20" style="font-size: 26rpx; color: #999;">
         当前任务没有有效步骤，请稍后重试或联系管理员。
       </view>
+
+      <!-- 第四阶段Go按钮 -->
+      <view v-if="data.showGoButton" class="go-button-container">
+        <!-- S18内容显示 -->
+        <view v-if="data.goButtonContent" class="go-content m-bottom-40">
+          <view class="go-content-text">{{ data.goButtonContent }}</view>
+        </view>
+
+        <!-- Go按钮 -->
+        <view class="go-button" @click="handleGoButtonClick">
+          <text class="go-text">Go</text>
+        </view>
+        <view class="go-hint">点击Go按钮继续</view>
+      </view>
+
       <bc-tip-row v-if="['d', 'z'].includes(data.stepSign)">
         这里是关于{{ data.stepSign?.toLocaleUpperCase() }}这个操作的提示，只有前三次显示。
       </bc-tip-row>
-      <!-- 大CD倒计时 -->
-      <bc-countdown v-if="['z'].includes(data.stepSign) && !data.isPaused" size="small" :time="data.detail?.endTime" :desc="zCountdownMsg"
-        @timeup="zTimeup" />
       <!-- 对方找倒计时 -->
       <bc-countdown v-if="data.stepSign === 'lookfor' && !data.isPaused" size="small" :time="data.detail?.otherFindEndTime"
         desc="倒计时结束后，对方找按钮将变为可点击" @timeup="lookforTimeup" />
@@ -116,6 +121,18 @@
 
       <!--  内容列表，根据倒计时状态禁用复制按钮 -->
       <bc-copy-list :info="data.pageInfo || {}" :disabled="!data.canCopyLookfor" :userVipLevel="userVipLevel" @copy="handleCopyInPopup" />
+    </md-dialog>
+
+    <!-- 空闲警告弹窗 -->
+    <md-dialog ref="idleDialog" title="温馨提示" :width="730" hideOk hideCancel>
+      <view class="idle-warning-content">
+        <view class="idle-text">您已经40分钟未操作，请选择当前状态：</view>
+        <view class="idle-choices">
+          <view class="idle-btn" @click="handleIdleChoice('no_reply')">对方未回复</view>
+          <view class="idle-btn" @click="handleIdleChoice('left')">自己离开了</view>
+          <view class="idle-btn" @click="handleIdleChoice('replied')">对方已回复</view>
+        </view>
+      </view>
     </md-dialog>
   </md-page>
 </template>
@@ -150,6 +167,16 @@ import {
   getCurrentChainContent,
   getNextChainContent,
   getMockContentByLibrary,
+  // 未操作超时函数
+  updateLastAction,
+  checkIdleWarning,
+  markIdleWarningShown,
+  handleIdleWarningChoice,
+  checkForceIdleToCd,
+  forceEnterBigCd,
+  // 搜索问答函数
+  getSearchQaCost,
+  performSearchQa,
   // 第2阶段函数
   enterStage2,
   startStage2Round,
@@ -238,25 +265,250 @@ const data = reactive<any>({
   // 倒计时暂停/恢复相关
   isPaused: false,              // 是否处于暂停状态（控制倒计时组件显示/隐藏）
 
+  // 搜索问答相关
+  searchKeyword: '',            // 搜索关键词
+  searchCost: 100,              // 当前搜索费用
+
+  // 第四阶段Go按钮相关
+  showGoButton: false,          // 是否显示Go按钮
+  goButtonContent: '',          // Go按钮上方的内容（S18内容）
+
 });
 const popup = ref<any>(null);
+const idleDialog = ref<any>(null);
+
+// 空闲检查定时器
+let idleCheckTimer: any = null;
+
+// 启动空闲检查
+const startIdleCheck = () => {
+  if (idleCheckTimer) return;
+
+  idleCheckTimer = setInterval(() => {
+    // 检查40分钟警告
+    if (checkIdleWarning(data.taskId)) {
+      markIdleWarningShown(data.taskId);
+      idleDialog.value?.open();
+    }
+
+    // 检查2小时强制CD
+    if (checkForceIdleToCd(data.taskId)) {
+      forceEnterBigCd(data.taskId);
+      loadTaskData();
+    }
+  }, 10000); // 每10秒检查一次
+};
+
+// 停止空闲检查
+const stopIdleCheck = () => {
+  if (idleCheckTimer) {
+    clearInterval(idleCheckTimer);
+    idleCheckTimer = null;
+  }
+};
+
+// 处理空闲警告选择
+const handleIdleChoice = (choice: 'no_reply' | 'left' | 'replied') => {
+  const result = handleIdleWarningChoice(data.taskId, choice);
+
+  if (result.ok) {
+    if (result.action === 'show_wait_toast') {
+      uni.showToast({
+        title: '请等待对方回复后再操作',
+        icon: 'none',
+        duration: 2000
+      });
+      // 不关闭对话框，继续等待
+    } else if (result.action === 'close_dialog') {
+      idleDialog.value?.close();
+    } else if (result.action === 'show_left_prompt') {
+      idleDialog.value?.close();
+      uni.showModal({
+        title: '温馨提示',
+        content: '您选择了离开，请在方便时继续对话',
+        showCancel: false,
+        confirmText: '确定',
+        success: () => {
+          // 恢复正常对话
+          updateLastAction(data.taskId);
+        }
+      });
+    }
+  }
+};
 
 // 问号说明
 const handleWenhao = () => {
   uni.navigateTo({ url: '/pages/sub-page/describe/wenhao' });
 };
 
+// 搜索问答处理
+const handleSearch = () => {
+  if (!data.searchKeyword || data.searchKeyword.trim() === '') {
+    uni.showToast({
+      title: '请输入搜索内容',
+      icon: 'none',
+      duration: 2000
+    });
+    return;
+  }
+
+  // 获取当前搜索费用
+  const currentCost = getSearchQaCost(data.taskId);
+
+  // 显示确认对话框
+  uni.showModal({
+    title: '搜索问答',
+    content: `本次搜索需要消耗 ${currentCost} 心币，是否继续？`,
+    confirmText: '确定',
+    cancelText: '取消',
+    success: (res) => {
+      if (res.confirm) {
+        // 用户确认，执行搜索
+        executeSearch();
+      }
+    }
+  });
+};
+
+// 执行搜索
+const executeSearch = () => {
+  // 执行搜索并更新费用
+  const result = performSearchQa(data.taskId);
+
+  if (result.ok) {
+    // 更新显示的费用为下次费用
+    data.searchCost = result.nextCost;
+
+    // TODO: 这里应该调用实际的搜索API
+    // 目前先显示提示
+    uni.showToast({
+      title: `搜索成功，消耗 ${result.cost} 心币`,
+      icon: 'success',
+      duration: 2000
+    });
+
+    // 清空搜索框
+    data.searchKeyword = '';
+
+    console.log('[executeSearch] 搜索完成:', {
+      keyword: data.searchKeyword,
+      cost: result.cost,
+      nextCost: result.nextCost
+    });
+  } else {
+    uni.showToast({
+      title: result.reason || '搜索失败',
+      icon: 'none',
+      duration: 2000
+    });
+  }
+};
+
+/**
+ * 显示Go按钮（第四阶段邀约成功后）
+ * @param content S18内容（可选）
+ */
+const showGoButton = (content?: string) => {
+  console.log('[showGoButton] 显示Go按钮');
+  data.showGoButton = true;
+  data.goButtonContent = content || '';
+};
+
+/**
+ * 隐藏Go按钮
+ */
+const hideGoButton = () => {
+  console.log('[hideGoButton] 隐藏Go按钮');
+  data.showGoButton = false;
+  data.goButtonContent = '';
+};
+
+/**
+ * 处理Go按钮点击
+ * 触发第四阶段的Go流程：S23 → S24 → S29/S30
+ */
+const handleGoButtonClick = async () => {
+  console.log('[handleGoButtonClick] 点击Go按钮');
+
+  // 隐藏Go按钮
+  hideGoButton();
+
+  // 显示S23延时提示
+  uni.showModal({
+    title: '温馨提示',
+    content: '邀约成功！请等待对方确认',
+    showCancel: false,
+    confirmText: '确定',
+    success: () => {
+      // S23确认后，显示S24询问是否关闭任务
+      uni.showModal({
+        title: '温馨提示',
+        content: '是否关闭当前任务？',
+        confirmText: '关闭任务',
+        cancelText: '继续任务',
+        success: (res) => {
+          if (res.confirm) {
+            // 用户选择"关闭任务"，显示S29确认
+            uni.showModal({
+              title: '确认关闭',
+              content: '确定要关闭任务吗？关闭后任务将从列表中移除',
+              confirmText: '确定',
+              cancelText: '取消',
+              success: (res2) => {
+                if (res2.confirm) {
+                  // S29确认后，结束任务
+                  const result = finishTask(data.taskId);
+                  if (result.ok) {
+                    uni.showToast({ title: '任务已结束', icon: 'success' });
+                    setTimeout(() => {
+                      uni.redirectTo({ url: '/pages/sub-page/stepTask/list?module=熟悉模块' });
+                    }, 1500);
+                  } else {
+                    uni.showToast({ title: result.reason || '结束任务失败', icon: 'none' });
+                  }
+                }
+              }
+            });
+          } else {
+            // 用户选择"继续任务"，显示S30
+            uni.showModal({
+              title: '温馨提示',
+              content: '任务将继续，您可以在任务有效期内使用搜索问答功能',
+              showCancel: false,
+              confirmText: '我知道了',
+              success: () => {
+                console.log('[handleGoButtonClick] 任务继续，可以使用搜索问答功能');
+                // 任务正常计时，在任务有效期内可以使用搜索问答
+                loadTaskData();
+              }
+            });
+          }
+        }
+      });
+    }
+  });
+};
+
+// 将showGoButton函数暴露给外部使用（如stage4.ts）
+(window as any).showGoButton = showGoButton;
+
 // 页面加载
 onLoad((options: any) => {
   console.log('[round] onLoad:', options);
   data.taskId = options.taskId;
   data.taskName = options.taskName || '您咨询';
+  data.moduleCodeName = options.module || ''; // 获取模块名称
+
+  console.log('[round] 任务ID:', data.taskId, '模块:', data.moduleCodeName);
 
   // 获取用户VIP等级
   getUserVipLevel();
 
   if (data.taskId) {
     loadTaskData();
+    // 启动空闲检查
+    startIdleCheck();
   } else {
     uni.showToast({
       title: '任务ID缺失',
@@ -266,6 +518,11 @@ onLoad((options: any) => {
       uni.navigateBack();
     }, 2000);
   }
+});
+
+// 页面卸载时清理定时器
+onUnmounted(() => {
+  stopIdleCheck();
 });
 
 // 获取用户VIP等级
@@ -282,17 +539,26 @@ const getUserVipLevel = async () => {
 
 // 加载任务数据
 const loadTaskData = () => {
+  console.log('[loadTaskData] 开始加载任务数据，模块:', data.moduleCodeName, '任务ID:', data.taskId);
+
   // 根据模块类型初始化不同的存储
   if (data.moduleCodeName && data.moduleCodeName.includes('免费')) {
+    console.log('[loadTaskData] 初始化免费模块存储');
     initFamiliarLocal('free');
   } else if (data.moduleCodeName && data.moduleCodeName.includes('超熟')) {
+    console.log('[loadTaskData] 初始化超熟模块存储');
     initFamiliarLocal('super');
   } else {
+    console.log('[loadTaskData] 初始化熟悉模块存储');
     initFamiliarLocal('familiar');
   }
+
   const task = getTask(data.taskId);
-  
+
+  console.log('[loadTaskData] 获取到的任务:', task);
+
   if (!task) {
+    console.error('[loadTaskData] 任务不存在，任务ID:', data.taskId);
     uni.showToast({
       title: '任务不存在',
       icon: 'error'
@@ -302,16 +568,18 @@ const loadTaskData = () => {
     }, 2000);
     return;
   }
-  
+
   // 更新页面数据
   data.taskName = task.name;
   data.score = task.stageScore;
   data.stage1 = task.stage1;
   data.currentRound = task.roundIndex || 0;
-  
+  // 初始化搜索费用
+  data.searchCost = getSearchQaCost(data.taskId);
+
   console.log('[loadTaskData] 任务数据:', task);
   console.log('[loadTaskData] 当前阶段:', task.stageIndex, '当前回合:', task.roundIndex);
-  
+
   // 检查任务状态
   if (task.stageIndex === 1) {
     // 第一阶段
@@ -1066,7 +1334,10 @@ const finishCurrentContent = () => {
 // 处理复制按钮点击
 const handleCopy = (item: any) => {
   console.log('[round] 复制内容:', item);
-  
+
+  // 更新最后操作时间
+  updateLastAction(data.taskId);
+
   if (!item || !item.content) {
     uni.showToast({
       title: '没有内容可复制',
@@ -1781,7 +2052,8 @@ const cdTimeup = async () => {
       if (startResult.ok) {
         data.currentRound = nextRound;
         data.currentStep = 'normal';
-        await _round();
+        // 直接加载下一回合内容
+        await loadCurrentRoundContent();
         return;
       }
     } else if (currentStage === 2 || currentStage === 3) {
@@ -1810,7 +2082,8 @@ const cdTimeup = async () => {
         if (startResult.ok) {
           data.currentRound = nextRound;
           data.currentStep = 'normal';
-          await _round();
+          // 直接进入内容库
+          enterContentLib();
           return;
         }
       } else if (currentStage === 3) {
@@ -1818,12 +2091,16 @@ const cdTimeup = async () => {
         if (startResult.ok) {
           data.currentRound = nextRound;
           data.currentStep = 'normal';
-          await _round();
+          // 直接进入内容库
+          enterContentLib();
           return;
         }
       }
     }
 
+    // 如果上面的逻辑都没有return，则调用_round()作为兜底
+    console.log('[cdTimeup] 对方找CD结束，调用_round()作为兜底');
+    await _round();
     return;
   }
 
@@ -3880,11 +4157,127 @@ const zInit = computed(() => {
   padding: 20rpx;
   text-align: center;
   margin-bottom: 20rpx;
-  
+
   .countdown-text {
     font-size: 28rpx;
     color: #007aff;
     font-weight: 500;
+  }
+}
+
+// 空闲警告弹窗样式
+.idle-warning-content {
+  padding: 40rpx 30rpx;
+
+  .idle-text {
+    font-size: 32rpx;
+    color: #333;
+    text-align: center;
+    margin-bottom: 40rpx;
+    line-height: 1.6;
+  }
+
+  .idle-choices {
+    display: flex;
+    flex-direction: column;
+    gap: 24rpx;
+  }
+
+  .idle-btn {
+    height: 88rpx;
+    line-height: 88rpx;
+    border-radius: 16rpx;
+    text-align: center;
+    font-size: 32rpx;
+    font-weight: 600;
+    color: #fff;
+    background: linear-gradient(90deg, #f9753d 0%, #f7b261 100%);
+    box-shadow: 0 8rpx 16rpx rgba(0, 0, 0, 0.12);
+    transition: all 0.3s;
+
+    &:active {
+      opacity: 0.8;
+      transform: scale(0.98);
+    }
+  }
+}
+
+// 第四阶段Go按钮样式
+.go-button-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 60rpx 40rpx;
+  margin-top: 40rpx;
+}
+
+.go-content {
+  width: 100%;
+  padding: 40rpx;
+  background: #f8f9fa;
+  border-radius: 16rpx;
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.08);
+
+  .go-content-text {
+    font-size: 32rpx;
+    color: #333;
+    line-height: 1.8;
+    text-align: center;
+  }
+}
+
+.go-button {
+  width: 200rpx;
+  height: 200rpx;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 12rpx 32rpx rgba(102, 126, 234, 0.5);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  animation: pulse 2s infinite;
+
+  &:active {
+    transform: scale(0.95);
+    box-shadow: 0 6rpx 16rpx rgba(102, 126, 234, 0.4);
+  }
+
+  .go-text {
+    font-size: 64rpx;
+    font-weight: bold;
+    color: #fff;
+    text-shadow: 0 4rpx 8rpx rgba(0, 0, 0, 0.2);
+    letter-spacing: 4rpx;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 12rpx 32rpx rgba(102, 126, 234, 0.5);
+  }
+  50% {
+    box-shadow: 0 12rpx 40rpx rgba(102, 126, 234, 0.7);
+  }
+}
+
+.go-hint {
+  margin-top: 40rpx;
+  font-size: 28rpx;
+  color: #999;
+  text-align: center;
+  animation: fadeIn 1s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10rpx);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 }

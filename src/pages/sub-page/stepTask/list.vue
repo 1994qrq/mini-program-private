@@ -71,7 +71,7 @@
 
 <script setup lang="ts">
 import { onLoad, onShow } from '@dcloudio/uni-app';
-import { reactive, ref, computed } from 'vue';
+import { reactive, ref, computed, onUnmounted } from 'vue';
 // 接口
 import api from '@/api';
 import type { Four, Task } from '@/api/data';
@@ -97,9 +97,9 @@ const data = reactive<any>({
   // 周期价格选择相关
   selectedPeriod: '', // 选中的周期
   periodOptions: [
-    { value: '5', text: '782金币/5天', days: 5, price: 782 },
-    { value: '8', text: '1394金币/8天', days: 8, price: 1394 },
-    { value: '15', text: '1666金币/15天', days: 15, price: 1666 },
+    { value: '5', text: '782心币/5天', days: 5, price: 782 },
+    { value: '8', text: '1394心币/8天', days: 8, price: 1394 },
+    { value: '15', text: '1666心币/15天', days: 15, price: 1666 },
   ],
 });
 const popup = ref<any>(null);
@@ -565,20 +565,35 @@ const fetchCreateTask = async (params: { taskName: string; durationDays: number;
       // 熟悉/超熟/免费模块
       // 根据模块类型初始化不同的存储
       if (title.includes('免费')) {
+        console.log('[创建任务] 初始化免费模块存储');
         fm.initFamiliarLocal('free');
       } else if (title.includes('超熟')) {
+        console.log('[创建任务] 初始化超熟模块存储');
         fm.initFamiliarLocal('super');
       } else {
+        console.log('[创建任务] 初始化熟悉模块存储');
         fm.initFamiliarLocal('familiar');
       }
 
       const res = fm.createTask({ name, durationDays: params.durationDays });
+      console.log('[创建任务] 创建结果:', res);
+
       if (res.ok && res.task) {
         // 免费模块直接进入对话页，跳过问卷
         if (title.includes('免费')) {
+          console.log('[创建任务] 免费模块，进入第一阶段');
           // 免费模块需要进入第一阶段，因为round页面不支持阶段0
-          fm.enterStage1(res.task.id);
-          uni.navigateTo({ url: `/pages/sub-page/stepTask/round?module=免费模块&taskId=${res.task.id}` });
+          const enterResult = fm.enterStage1(res.task.id);
+          console.log('[创建任务] 进入第一阶段结果:', enterResult);
+
+          if (enterResult.ok) {
+            console.log('[创建任务] 跳转到round页面，任务ID:', res.task.id);
+            uni.navigateTo({ url: `/pages/sub-page/stepTask/round?module=免费模块&taskId=${res.task.id}` });
+          } else {
+            uni.showToast({ title: enterResult.reason || '进入第一阶段失败', icon: 'none' });
+            data.loading = false;
+            await getTaskList();
+          }
         } else {
           // 熟悉/超熟模块需要问卷
           uni.navigateTo({ url: `/pages/sub-page/stepTask/questionnaire?taskId=${res.task.id}&taskName=${params?.taskName}&module=${data.title}` });
@@ -597,7 +612,40 @@ const fetchCreateTask = async (params: { taskName: string; durationDays: number;
   }
 };
 
+onShow(() => {
+  // 免费模块不需要登录检查，其他模块需要
+  const isFreeModule = data.module === '免费模块';
+
+  if (!isFreeModule) {
+    // 非免费模块，检查是否已登录
+    const token = uni.getStorageSync('token');
+    if (!token) {
+      console.log('[阶梯模块] 用户未登录，跳转到登录页');
+      uni.navigateTo({
+        url: '/pages/login/index',
+      });
+      return;
+    }
+  }
+
+  // 页面显示时刷新任务列表（例如从问卷页面返回时）
+  // 但不在首次加载时刷新，避免重复请求
+  if (data.module && !data.isFirstLoad) {
+    getTaskList();
+  }
+});
+
+// 监听数据同步完成事件
+const handleDataSyncCompleted = (event: { action: string }) => {
+  console.log('[StepTaskList] 收到数据同步完成事件:', event.action);
+  if (data.module) {
+    getTaskList();
+  }
+};
+
+// 页面加载时注册事件监听
 onLoad(async (options: any) => {
+  uni.$on('dataSyncCompleted', handleDataSyncCompleted);
   const module = options?.module as taskModuleKey;
   data.module = taskModule[module];
   data.title = module;
@@ -607,12 +655,9 @@ onLoad(async (options: any) => {
   data.isFirstLoad = false;
 });
 
-onShow(() => {
-  // 页面显示时刷新任务列表（例如从问卷页面返回时）
-  // 但不在首次加载时刷新，避免重复请求
-  if (data.module && !data.isFirstLoad) {
-    getTaskList();
-  }
+// 页面卸载时移除事件监听
+onUnmounted(() => {
+  uni.$off('dataSyncCompleted', handleDataSyncCompleted);
 });
 </script>
 

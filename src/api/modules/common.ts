@@ -17,6 +17,8 @@ export const COMMON = {
   moduleExt: (data: Common.ModuleExt.Body) => request<string>('/api/module/moduleExt', 'POST', data),
   // 查询用户详细信息
   info: () => request<Common.Info.Data>('/api/member/info', 'GET'),
+  // 更新用户昵称
+  updateNickname: (data: Common.UpdateNickname.Body) => request<boolean>('/api/member/updateNickName', 'POST', data),
   // 微信充钱获得预付单号
   getPrePayData: (data: Common.GetPrePayData.Body) => request<Common.GetPrePayData.Data>('/api/pay/getPrePayData', 'GET', data),
   // 充值金额和虚拟币的比例兑换
@@ -24,5 +26,9 @@ export const COMMON = {
   // 获取搜索框副标题列表
   getPlaceholderList: (data: Common.GetPlaceholderList.Body) =>
     request<Common.GetPlaceholderList.Data>('/api/module/getPlaceholderList', 'GET', data),
+  // 获取消息列表
+  getMessageList: () => request<Common.GetMessageList.Data[]>('/api/message/list', 'GET'),
+  // 删除消息
+  deleteMessage: (data: Common.DeleteMessage.Body) => request<boolean>('/api/message/delete', 'POST', data),
 };
 export default COMMON;

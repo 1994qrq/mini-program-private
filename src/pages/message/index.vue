@@ -11,8 +11,8 @@
             <view class="list">
               <md-icon class="icon" name="rocket"></md-icon>
               <view class="right">
-                <view class="title fs-28 m-bottom-10 font-bold">系统消息</view>
-                <view class="content m-bottom-10">{{ item.content }}</view>
+                <view class="title fs-28 m-bottom-10 font-bold">{{ item.msgTitle || '系统消息' }}</view>
+                <view class="content m-bottom-10">{{ item.msgContent }}</view>
                 <view class="date">{{ item.createTime }}</view>
               </view>
             </view>
@@ -26,26 +26,16 @@
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue';
+import { reactive, onMounted } from 'vue';
+import api from '@/api';
+import type { Common } from '@/api/data';
 
-const data = reactive({
-  list: [
-    {
-      id: 1,
-      content: '截止2024年12月31日，您的任务XXX消耗金币584个，回复内容已通过系统发送到该任务中，请您查收。',
-      createTime: '2024-05-08 23:34:45'
-    },
-    {
-      id: 2,
-      content: '截止2024年12月31日，您的任务XXX消耗金币584个，回复内容已通过系统发送到该任务中，请您查收。',
-      createTime: '2024-05-08 23:34:45'
-    },
-    {
-      id: 3,
-      content: '截止2024年12月31日，您的任务XXX消耗金币584个，回复内容已通过系统发送到该任务中，请您查收。',
-      createTime: '2024-05-08 23:34:45'
-    }
-  ],
+const data = reactive<{
+  list: Common.GetMessageList.Data[];
+  options: any[];
+  loading: boolean;
+}>({
+  list: [],
   options: [
     {
       text: '删除',
@@ -54,34 +44,86 @@ const data = reactive({
       },
     },
   ],
+  loading: false,
 });
 
-const handleDel = (index: number) => {
+// 获取消息列表
+const fetchMessageList = async () => {
+  if (data.loading) return;
+  data.loading = true;
+
+  try {
+    const res = await api.common.getMessageList();
+    if (res.data && Array.isArray(res.data)) {
+      data.list = res.data;
+    } else {
+      data.list = [];
+    }
+  } catch (error) {
+    console.error('[MessageList] 获取消息列表失败:', error);
+    // 接口失败时显示空列表
+    data.list = [];
+  } finally {
+    data.loading = false;
+  }
+};
+
+const handleDel = async (index: number) => {
+  const message = data.list[index];
+
   uni.showModal({
     title: '提示',
     content: '确定要删除这条消息吗？',
-    success: function (res) {
+    success: async function (res) {
       if (res.confirm) {
-        data.list.splice(index, 1);
-        uni.showToast({
-          title: '删除成功',
-          icon: 'none'
-        });
+        try {
+          // 调用删除接口
+          await api.common.deleteMessage({ id: message.id });
+
+          // 删除成功后从列表中移除
+          data.list.splice(index, 1);
+          uni.showToast({
+            title: '删除成功',
+            icon: 'none'
+          });
+        } catch (error) {
+          console.error('[MessageList] 删除消息失败:', error);
+          uni.showToast({
+            title: '删除失败',
+            icon: 'none'
+          });
+        }
       }
     }
   });
 };
+
+// 页面加载时获取消息列表
+onMounted(() => {
+  fetchMessageList();
+});
 </script>
 
 <style lang="scss" scoped>
 .container {
 	padding: 30rpx;
+	padding-bottom: calc(30rpx + env(safe-area-inset-bottom) + 100rpx);
 	min-height: 100vh;
 	box-sizing: border-box;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
 	background: linear-gradient(180deg, #eef0ff 0%, #f6f7ff 100%);
+
+	:deep(.uni-swipe) {
+		width: 100%;
+	}
+
+	:deep(.uni-swipe-action-item) {
+		width: 100%;
+		margin-bottom: 24rpx;
+	}
+
 	.list {
 		display: flex;
 		align-items: flex-start;
@@ -92,9 +134,7 @@ const handleDel = (index: number) => {
 		box-sizing: border-box;
 		border: none;
 		box-shadow: 0 12rpx 32rpx rgba(36, 36, 36, 0.08);
-		&:not(:last-of-type) {
-			margin-bottom: 24rpx;
-		}
+
 		.icon {
 			width: 48rpx;
 			height: 48rpx;
@@ -104,7 +144,7 @@ const handleDel = (index: number) => {
 		}
 		.right {
 			flex: 1;
-			margin-left: 0;
+			min-width: 0;
 			.title {
 				color: #1f1f1f;
 			}
@@ -115,6 +155,7 @@ const handleDel = (index: number) => {
 				-webkit-line-clamp: 2;
 				-webkit-box-orient: vertical;
 				overflow: hidden;
+				word-break: break-all;
 			}
 			.date {
 				color: #a0a0a0;

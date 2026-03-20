@@ -15,7 +15,7 @@
       <bc-bottom-bar rightBtn @ok="handleSubmit" @back="handleBack" />
     </view>
     <!-- 提示弹窗 -->
-    <md-dialog ref="popup" @ok="handleOk">提交后将消耗掉虚拟币以获取方案，请确认是否提交。</md-dialog>
+    <md-dialog ref="popup" @ok="handleOk">提交后将消耗心币以获取方案，请确认是否提交。</md-dialog>
   </md-page>
 </template>
 

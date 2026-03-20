@@ -203,15 +203,45 @@ const checkVirtualCoin = async () => {
 // 查询图文列表
 const getList = async () => {
   try {
+    console.log('[图文-子页面] 开始获取图文列表');
+    console.log('[图文-子页面] Token:', uni.getStorageSync('token'));
+
     const res = await api.task.moduleImg();
-    const mappedList = res.data?.moduleImgVoList.map(item => ({
+
+    console.log('[图文-子页面] 接口响应:', res);
+    console.log('[图文-子页面] 响应码:', res.code);
+    console.log('[图文-子页面] 响应数据:', res.data);
+
+    // 检查数据有效性
+    if (!res.data) {
+      console.error('[图文-子页面] 响应数据为空');
+      uni.showToast({ title: '获取图文数据失败', icon: 'none' });
+      return;
+    }
+
+    if (!res.data.moduleImgVoList) {
+      console.error('[图文-子页面] 图文列表字段不存在');
+      uni.showToast({ title: '图文列表数据异常', icon: 'none' });
+      return;
+    }
+
+    console.log('[图文-子页面] 图文列表长度:', res.data.moduleImgVoList.length);
+
+    if (res.data.moduleImgVoList.length === 0) {
+      console.warn('[图文-子页面] 图文列表为空');
+      uni.showToast({ title: '暂无图文内容', icon: 'none', duration: 2000 });
+    }
+
+    const mappedList = res.data.moduleImgVoList.map(item => ({
       ...item,
       title: item?.title || '图文内容',
       content: item.imgContent,
       imgs: item.imgUrlList,
       type: 'img_text',
       dataType: item.type,
-    })) || [];
+    }));
+
+    console.log('[图文-子页面] 映射后的列表:', mappedList);
 
     // 将图文内容按 dataType 分组成不同的套餐
     // dataType: null 为第一套，1 为第二套，2 为第三套
@@ -228,10 +258,27 @@ const getList = async () => {
     const sortedKeys = Object.keys(setMap).sort((a, b) => Number(a) - Number(b));
     data.allSets = sortedKeys.map(key => setMap[key]);
 
+    console.log('[图文-子页面] 套餐分组:', data.allSets);
+
     // 保留原有的 list 用于兼容性
     data.list = mappedList;
     data.describe = res.data?.describe || '';
-  } catch (error) {}
+
+    console.log('[图文-子页面] 图文说明:', data.describe);
+
+  } catch (error: any) {
+    console.error('[图文-子页面] 获取列表失败:', error);
+    console.error('[图文-子页面] 错误详情:', {
+      message: error.message,
+      stack: error.stack,
+      error: error
+    });
+    uni.showToast({
+      title: error.message || '获取图文列表失败',
+      icon: 'none',
+      duration: 3000
+    });
+  }
 };
 
 // 创建任务
@@ -245,6 +292,16 @@ const fetchCreateTask = async (params: Pick<Task.Create.Body, 'taskName'>) => {
 };
 
 onShow(() => {
+  // 检查是否已登录
+  const token = uni.getStorageSync('token');
+  if (!token) {
+    console.log('[图文模块] 用户未登录，跳转到登录页');
+    uni.navigateTo({
+      url: '/pages/login/index',
+    });
+    return;
+  }
+
   getList();
   getUserInfo(); // 页面显示时获取用户信息
 });

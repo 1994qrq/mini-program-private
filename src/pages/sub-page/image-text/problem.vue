@@ -100,18 +100,34 @@ const getQuestionList = async () => {
     const res = await api.task.moduleQuestion({
       moduleCode: taskModule['图文模块'],
     });
-    data.list = res.data?.questionVoList?.map(item => ({
+
+    console.log('[图文问答] 原始问题列表:', res.data?.questionVoList);
+
+    // 按照 questionNum 排序（升序）
+    const sortedQuestions = (res.data?.questionVoList || []).sort((a, b) => {
+      return (a.questionNum || 0) - (b.questionNum || 0);
+    });
+
+    console.log('[图文问答] 排序后问题列表:', sortedQuestions);
+
+    data.list = sortedQuestions.map(item => ({
       id: item.questionId,
       title: `NO.${item.questionNum}`,
       content: item.questionTitle,
       checkboxList: item.optionContentList,
       type: item.questionType,
+      questionNum: item.questionNum, // 保留 questionNum 用于调试
     }));
-    data.submitList = res.data?.questionVoList.map(({ questionId, ...item }) => ({
+
+    data.submitList = sortedQuestions.map(({ questionId, ...item }) => ({
       questionId,
       userSubmitContent: item.questionType == 1 ? undefined : '',
     }));
-  } catch (error) {}
+
+    console.log('[图文问答] 最终显示列表:', data.list);
+  } catch (error) {
+    console.error('[图文问答] 获取问题列表失败:', error);
+  }
 };
 
 // 提交问卷

@@ -1,22 +1,16 @@
 <template>
   <view class="page">
-    <!-- 自定义导航栏 -->
     <view class="navbar" :style="{ paddingTop: data.statusBarHeight + 'px' }">
       <view class="navbar-content">
         <view class="nav-left" @click="goBack">
           <text class="back-icon">‹</text>
         </view>
         <view class="nav-title">我的会员等级</view>
-        <view class="nav-right">
-          <text class="icon-menu">⋯</text>
-          <text class="icon-help">◉</text>
-        </view>
+        <view class="nav-right"></view>
       </view>
     </view>
 
-    <!-- 内容区域 -->
     <view class="content" :style="{ paddingTop: (44 + data.statusBarHeight) + 'px' }">
-      <!-- 用户信息 -->
       <view class="user-header">
         <view class="avatar">
           <md-icon type="bg" name="apple"></md-icon>
@@ -25,24 +19,25 @@
           <text class="username">{{ data.info?.nickname || '李晓李晓' }}</text>
         </view>
         <view class="level-badge">
-          <text>会员等级：{{ data.info?.userLevel || 'X' }}</text>
+          <text>{{ currentLevelLabel }}</text>
         </view>
       </view>
 
-      <!-- 会员卡片 -->
       <view class="vip-card">
         <view class="card-bg">
           <view class="card-content">
             <view class="card-left">
-              <text class="card-label">我的会员等级</text>
-              <text class="vip-level">VIP 等级{{ data.info?.userLevel || 'X' }}</text>
-              <text class="upgrade-tip">
-                距离下一级会员还需{{ formatMoney(data.nextLevelMoney) }}
-                {{ Math.floor(data.nextLevelMoney / 100) }}个金币
+              <text class="card-label">当前称号</text>
+              <text class="vip-level">{{ currentLevelLabel }}</text>
+              <text class="upgrade-tip" v-if="nextLevelLabel">
+                距离{{ nextLevelLabel }}还需{{ formatMoney(data.nextLevelVirtual) }}心币
+              </text>
+              <text class="upgrade-tip" v-else>
+                已达最高等级
               </text>
               <view class="coin-info">
-                <text class="coin-label">我的金币</text>
-                <text class="coin-value">{{ formatMoney(data.info?.remainingVirtual || 0) }}</text>
+                <text class="coin-label">升级后可获得</text>
+                <text class="coin-value">{{ nextLevelBenefits || '全部模块开放，尊享特权' }}</text>
               </view>
             </view>
             <view class="card-right">
@@ -62,7 +57,6 @@
         </view>
       </view>
 
-      <!-- 等级进度条 -->
       <view class="level-progress">
         <view class="progress-line"></view>
         <view class="levels">
@@ -70,9 +64,9 @@
             v-for="level in data.levels"
             :key="level.value"
             class="level-item"
-            :class="{ active: level.value <= (data.info?.userLevel || 1) }">
+            :class="{ active: level.value <= (data.info?.userLevel || 0) }">
             <view class="level-circle">
-              <text>V{{ level.value }}</text>
+              <text>{{ level.value }}</text>
             </view>
             <view class="level-desc">
               <text>{{ level.label1 }}</text>
@@ -86,66 +80,64 @@
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue';
+import { reactive, computed } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import api from '@/api/index';
+import { VIP_LEVEL_RULES, getNextLevelVirtual, getLevelRule, formatVirtual } from '@/config/vip-level';
 
 const data = reactive<any>({
   statusBarHeight: uni.getWindowInfo().statusBarHeight || 0,
   info: {},
-  nextLevelMoney: 0,
-  levels: [
-    { value: 1, label1: '文字待定', label2: '文字待定' },
-    { value: 2, label1: '文字待定', label2: '文字待定' },
-    { value: 3, label1: '文字待定', label2: '文字待定' },
-    { value: 4, label1: '文字待定', label2: '文字待定' },
-    { value: 5, label1: '文字待定', label2: '文字待定' },
-  ],
+  nextLevelVirtual: 0,
+  levels: VIP_LEVEL_RULES.slice(1, 8).map(rule => ({
+    value: rule.level,
+    label1: rule.label,
+    label2: `${formatVirtual(rule.requirement)}心币`
+  })),
 });
 
-// 格式化金额
-const formatMoney = (money: number): string => {
-  if (!money) return '0';
-  return money.toLocaleString('zh-CN', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0
-  });
-};
+const currentLevelLabel = computed(() => {
+  const rule = getLevelRule(data.info?.userLevel ?? 0);
+  return rule?.label || '游客/来宾';
+});
 
-// 计算下一级所需金额
-const getNextLevelMoney = (currentLevel: number, currentMoney: number): number => {
-  const levelRequirements = [0, 1000, 5000, 10000, 50000, 100000, 500000, 1000000];
-  const nextLevelRequirement = levelRequirements[currentLevel] || levelRequirements[levelRequirements.length - 1];
-  return Math.max(0, nextLevelRequirement - currentMoney);
-};
+const nextLevelLabel = computed(() => {
+  const nextLevel = (data.info?.userLevel ?? 0) + 1;
+  const rule = getLevelRule(nextLevel);
+  return rule?.label || '';
+});
 
-// 获取会员信息
+const nextLevelBenefits = computed(() => {
+  const nextLevel = (data.info?.userLevel ?? 0) + 1;
+  const rule = getLevelRule(nextLevel);
+  return rule?.benefits || '';
+});
+
+const formatMoney = formatVirtual;
+
 const getVipInfo = async () => {
   try {
     const res = await api.common.info();
     data.info = res.data;
 
-    if (data.info?.userLevel && data.info?.accumulateMoney !== undefined) {
-      data.nextLevelMoney = getNextLevelMoney(data.info.userLevel, data.info.accumulateMoney);
+    if (data.info?.userLevel !== undefined && data.info?.accumulateVirtual !== undefined) {
+      data.nextLevelVirtual = getNextLevelVirtual(data.info.userLevel, data.info.accumulateVirtual);
     }
   } catch (error) {
     console.error('获取会员信息失败:', error);
   }
 };
 
-// 返回
 const goBack = () => {
   uni.navigateBack();
 };
 
-// 去充值
 const handleRecharge = () => {
   uni.navigateTo({
     url: '/pages/recharge/index'
   });
 };
 
-// 我的特权
 const handlePrivilege = () => {
   uni.showToast({
     title: '特权功能开发中...',

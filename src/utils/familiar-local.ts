@@ -146,6 +146,9 @@ interface Task {
     goClicked: boolean;
     returnedFromStage3: boolean;
   };
+  // 搜索问答费用
+  searchQaCost: number; // 当前搜索问答费用
+  searchQaCount: number; // 已使用搜索问答次数
 }
 
 interface ClipboardState {
@@ -158,6 +161,15 @@ const VERSION = 1;
 
 // Module prefix for storage isolation
 let modulePrefix = 'fm'; // default: familiar module
+
+// 图文特殊库权限接口
+interface ImageTextSpecialPermission {
+  enabled: boolean; // 是否激活
+  content: string; // 特殊内容
+  activatedAt: number; // 激活时间
+  refreshAt: number; // 下次刷新时间
+  taskId: string; // 激活该权限的任务ID
+}
 
 // Storage helpers
 const get = (k: string) => {
@@ -667,6 +679,8 @@ export function createTask(payload: { name: string; durationDays: DurationDays }
     renewHistory: [],
     listBadge: "聊天任务进行中",
     listCountdownEndAt: null,
+    searchQaCost: 100, // 初始搜索费用100心币
+    searchQaCount: 0, // 初始搜索次数0
   };
 
   const ids: string[] = get("fm:tasks") || [];
@@ -679,33 +693,111 @@ export function createTask(payload: { name: string; durationDays: DurationDays }
 export function getTask(taskId: string): Task | null {
   initDefaults();
   const t: Task = get(`fm:task:${taskId}`);
-  return t || null;
+  if (!t) return null;
+
+  // 兼容旧任务：如果没有搜索费用字段，初始化为默认值
+  if (t.searchQaCost === undefined) {
+    t.searchQaCost = 100;
+  }
+  if (t.searchQaCount === undefined) {
+    t.searchQaCount = 0;
+  }
+
+  return t;
 }
 
-export function deleteTask(taskId: string) {
+export function deleteTask(taskId: string): boolean {
   initDefaults();
   const t: Task = get(`fm:task:${taskId}`);
-  if (!t) return;
+  if (!t) {
+    console.log('[deleteTask] 任务不存在:', taskId);
+    return false;
+  }
   t.status = "deleted";
   t.listBadge = "聊天任务进行中";
   t.listCountdownEndAt = null;
   t.lastActionAt = Date.now();
   set(`fm:task:${taskId}`, t);
-  // 可选：从 fm:tasks 移除
+  // 从 fm:tasks 移除
   const ids: string[] = get("fm:tasks") || [];
   set("fm:tasks", ids.filter((i) => i !== taskId));
+  console.log('[deleteTask] 任务删除成功:', taskId);
+  return true;
 }
 
+/**
+ * 续时功能 - 支持余额检查
+ * @param taskId 任务ID
+ * @param days 续时天数 (5/9/16)
+ * @param cost 续时费用
+ * @returns 续时结果
+ */
 export function renewTask(taskId: string, days: DurationDays, cost: number): { success: boolean; reason?: string } {
   initDefaults();
   const t: Task = get(`fm:task:${taskId}`);
   if (!t) return { success: false, reason: "任务不存在" };
+
+  // 检查用户余额
+  const userBalance = getUserBalance();
+  if (userBalance < cost) {
+    console.log('[renewTask] 余额不足:', { userBalance, cost });
+    return { success: false, reason: "余额不足，请先充值" };
+  }
+
   const now = Date.now();
-  // mock余额充足，直接续费
+
+  // 扣除余额
+  const deductResult = deductBalance(cost);
+  if (!deductResult) {
+    return { success: false, reason: "扣费失败" };
+  }
+
+  // 续时成功
   t.expireAt = Math.max(t.expireAt, now) + days * 24 * 60 * 60 * 1000;
   t.renewHistory.push({ days, cost, at: now, success: true });
   set(`fm:task:${taskId}`, t);
+
+  console.log('[renewTask] 续时成功:', { taskId, days, cost, newExpireAt: new Date(t.expireAt).toLocaleString() });
   return { success: true };
+}
+
+/**
+ * 获取用户余额
+ */
+export function getUserBalance(): number {
+  const balance = get("fm:userBalance");
+  return typeof balance === 'number' ? balance : 0;
+}
+
+/**
+ * 设置用户余额
+ */
+export function setUserBalance(balance: number): void {
+  set("fm:userBalance", balance);
+  console.log('[setUserBalance] 余额已更新:', balance);
+}
+
+/**
+ * 扣除余额
+ */
+export function deductBalance(amount: number): boolean {
+  const balance = getUserBalance();
+  if (balance >= amount) {
+    setUserBalance(balance - amount);
+    console.log('[deductBalance] 扣费成功:', { amount, remainingBalance: balance - amount });
+    return true;
+  }
+  console.log('[deductBalance] 余额不足:', { balance, amount });
+  return false;
+}
+
+/**
+ * 充值余额
+ */
+export function rechargeBalance(amount: number): void {
+  const balance = getUserBalance();
+  setUserBalance(balance + amount);
+  console.log('[rechargeBalance] 充值成功:', { amount, newBalance: balance + amount });
 }
 
 // Stage / Round control (simplified mapping per doc)
@@ -1170,18 +1262,6 @@ export function checkStage0Countdown(taskId: string): { ok: boolean; action: str
 
 
 // Idle handling
-export function updateLastAction(taskId: string) {
-  initDefaults();
-  const t = getTask(taskId);
-  if (!t) return;
-  const now = Date.now();
-  const settings: Settings = get("fm:settings");
-  t.lastActionAt = now;
-  t.idleWarningAt = now + settings.cd.idleWarnMs;
-  t.hardIdleToCdAt = now + settings.cd.idleForceCdMs;
-  set(`fm:task:${taskId}`, t);
-}
-
 export function checkIdleAndHandle(taskId: string): { warn: boolean; forcedCd: boolean } {
   initDefaults();
   const t = getTask(taskId);
@@ -2313,16 +2393,27 @@ export function halfPriceRestart(taskId: string) {
   if (!t) return { ok: false, reason: "任务不存在" };
 
   // 计算半价费用（5天任务的50%）
-  const halfPrice = 138 * 0.5; // 5天任务价格的50%
+  const halfPrice = 138 * 0.5; // 5天任务价格的50% = 69心币
 
-  // TODO: 检查余额是否足够
-  // TODO: 扣除余额
+  // 检查余额是否足够
+  const userBalance = getUserBalance();
+  if (userBalance < halfPrice) {
+    console.log('[halfPriceRestart] 余额不足:', { userBalance, halfPrice });
+    return { ok: false, reason: "余额不足，请先充值" };
+  }
+
+  // 扣除余额
+  const deductResult = deductBalance(halfPrice);
+  if (!deductResult) {
+    return { ok: false, reason: "扣费失败" };
+  }
 
   // 创建新任务
   const newTaskId = `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const newTask: Task = {
     ...t,
     id: newTaskId,
+    name: t.name + '(重开)',
     createdAt: Date.now(),
     durationDays: 5,
     expireAt: Date.now() + 5 * 24 * 60 * 60 * 1000,
@@ -2332,7 +2423,24 @@ export function halfPriceRestart(taskId: string) {
     stepIndex: 0,
     stageScore: 0,
     totalScore: 0,
-    status: "active"
+    status: "active",
+    // 重置所有状态
+    currentLibChain: null,
+    zUnlockAt: null,
+    dMode: false,
+    opponentFindUnlockAt: null,
+    opponentFindCopyUnlockAt: null,
+    stageCdUnlockAt: null,
+    roundCdUnlockAt: null,
+    opponentFindUsedInRound: false,
+    lastActionAt: Date.now(),
+    idleWarningShown: false,
+    idleWarningAt: null,
+    searchQaCost: 100, // 重置搜索费用
+    searchQaCount: 0,
+    // 保留问卷答案
+    questionnaireAnswers: t.questionnaireAnswers,
+    askFlow: t.askFlow,
   };
 
   // 保存新任务
@@ -2347,8 +2455,14 @@ export function halfPriceRestart(taskId: string) {
   t.status = "deleted";
   set(`fm:task:${taskId}`, t);
 
-  console.log('[halfPriceRestart] 半价重开任务:', { oldTaskId: taskId, newTaskId, halfPrice });
-  return { ok: true, newTaskId, halfPrice };
+  console.log('[halfPriceRestart] 半价重开任务成功:', {
+    oldTaskId: taskId,
+    newTaskId,
+    halfPrice,
+    remainingBalance: getUserBalance()
+  });
+
+  return { ok: true, newTaskId, halfPrice, task: newTask };
 }
 
 // ==================== 第四阶段核心函数 ====================
@@ -2540,4 +2654,306 @@ export function handleRoundTimeout(taskId: string) {
   t.stage1.currentRoundStartTime = null;
 
   set(`fm:task:${taskId}`, t);
+}
+
+/**
+ * 更新最后操作时间
+ * @param taskId 任务ID
+ */
+export function updateLastAction(taskId: string) {
+  initDefaults();
+  const t = getTask(taskId);
+  if (!t) return;
+
+  const now = Date.now();
+  t.lastActionAt = now;
+
+  // 重置空闲警告和强制CD时间
+  const settings = get("fm:settings") as Settings;
+  t.idleWarningAt = now + settings.cd.idleWarnMs;
+  t.hardIdleToCdAt = now + settings.cd.idleForceCdMs;
+
+  set(`fm:task:${taskId}`, t);
+  console.log('[updateLastAction] 更新最后操作时间:', new Date(now).toLocaleString());
+}
+
+/**
+ * 检查是否需要显示空闲警告
+ * @param taskId 任务ID
+ * @returns 是否需要显示警告
+ */
+export function checkIdleWarning(taskId: string): boolean {
+  initDefaults();
+  const t = getTask(taskId);
+  if (!t) return false;
+
+  const now = Date.now();
+
+  // 如果已经显示过警告，不再重复显示
+  if (t.prompts?.idleWarning?.shown) {
+    return false;
+  }
+
+  // 检查是否超过40分钟未操作
+  if (t.idleWarningAt && now >= t.idleWarningAt) {
+    console.log('[checkIdleWarning] 40分钟未操作，需要显示警告');
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * 标记空闲警告已显示
+ * @param taskId 任务ID
+ */
+export function markIdleWarningShown(taskId: string) {
+  initDefaults();
+  const t = getTask(taskId);
+  if (!t) return;
+
+  t.prompts = {
+    ...(t.prompts || {}),
+    idleWarning: { shown: true, at: Date.now() }
+  };
+
+  set(`fm:task:${taskId}`, t);
+}
+
+/**
+ * 处理空闲警告的用户选择
+ * @param taskId 任务ID
+ * @param choice 用户选择：'no_reply' | 'left' | 'replied'
+ */
+export function handleIdleWarningChoice(taskId: string, choice: 'no_reply' | 'left' | 'replied') {
+  initDefaults();
+  const t = getTask(taskId);
+  if (!t) return { ok: false, reason: '任务不存在' };
+
+  console.log('[handleIdleWarningChoice] 用户选择:', choice);
+
+  if (choice === 'no_reply') {
+    // 对方未回复：显示提示，继续等待
+    return { ok: true, action: 'show_wait_toast', reason: '请等待对方回复后再操作' };
+  } else if (choice === 'replied') {
+    // 对方已回复：关闭对话框，重置空闲时间
+    updateLastAction(taskId);
+    return { ok: true, action: 'close_dialog', reason: '继续对话' };
+  } else if (choice === 'left') {
+    // 自己离开了：显示提示板，然后恢复正常对话
+    return { ok: true, action: 'show_left_prompt', reason: '显示离开提示板' };
+  }
+
+  return { ok: false, reason: '未知选择' };
+}
+
+/**
+ * 检查是否需要强制进入大CD
+ * @param taskId 任务ID
+ * @returns 是否需要强制进入CD
+ */
+export function checkForceIdleToCd(taskId: string): boolean {
+  initDefaults();
+  const t = getTask(taskId);
+  if (!t) return false;
+
+  const now = Date.now();
+
+  // 检查是否超过2小时未操作
+  if (t.hardIdleToCdAt && now >= t.hardIdleToCdAt) {
+    console.log('[checkForceIdleToCd] 2小时未操作，强制进入大CD');
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * 强制进入大CD（2小时未操作）
+ * @param taskId 任务ID
+ */
+export function forceEnterBigCd(taskId: string) {
+  initDefaults();
+  const t = getTask(taskId);
+  if (!t) return;
+
+  console.log('[forceEnterBigCd] 强制进入大CD');
+
+  // 根据当前阶段进入相应的大CD
+  if (t.stageIndex === 1 && t.stage1) {
+    // 第一阶段：进入回合CD
+    const multiplier = t.stage1.roundCdMultiplier || 1;
+    enterRoundBigCd(taskId, multiplier);
+  } else if (t.stageIndex === 2 || t.stageIndex === 3) {
+    // 第二、三阶段：进入回合CD
+    const multiplier = t.specialRound === 'a' ? 2 : (t.specialRound === 'b' ? 3 : 1);
+    enterRoundBigCd(taskId, multiplier);
+  }
+
+  // 重置空闲时间
+  t.idleWarningAt = null;
+  t.hardIdleToCdAt = null;
+
+  set(`fm:task:${taskId}`, t);
+}
+
+/**
+ * 获取当前搜索问答费用
+ * @param taskId 任务ID
+ * @returns 当前搜索费用
+ */
+export function getSearchQaCost(taskId: string): number {
+  initDefaults();
+  const t = getTask(taskId);
+  if (!t) return 100; // 默认100心币
+  return t.searchQaCost || 100;
+}
+
+/**
+ * 执行搜索问答并更新费用
+ * @param taskId 任务ID
+ * @returns 搜索结果和新费用
+ */
+export function performSearchQa(taskId: string): { ok: boolean; cost: number; nextCost: number; reason?: string } {
+  initDefaults();
+  const t = getTask(taskId);
+  if (!t) return { ok: false, cost: 0, nextCost: 0, reason: '任务不存在' };
+
+  const currentCost = t.searchQaCost || 100;
+
+  // 执行搜索（这里只更新费用，实际搜索逻辑在UI层处理）
+  t.searchQaCount = (t.searchQaCount || 0) + 1;
+
+  // 计算下次费用：当前费用 * 1.6
+  const nextCost = Math.round(currentCost * 1.6);
+  t.searchQaCost = nextCost;
+
+  set(`fm:task:${taskId}`, t);
+
+  console.log('[performSearchQa] 搜索问答执行:', {
+    count: t.searchQaCount,
+    currentCost,
+    nextCost
+  });
+
+  return { ok: true, cost: currentCost, nextCost };
+}
+
+/**
+ * 重置搜索问答费用（用于测试或特殊情况）
+ * @param taskId 任务ID
+ */
+export function resetSearchQaCost(taskId: string) {
+  initDefaults();
+  const t = getTask(taskId);
+  if (!t) return;
+
+  t.searchQaCost = 100;
+  t.searchQaCount = 0;
+
+  set(`fm:task:${taskId}`, t);
+  console.log('[resetSearchQaCost] 搜索问答费用已重置');
+}
+
+/**
+ * 激活图文特殊库权限
+ * @param taskId 任务ID
+ * @param content 特殊内容（可选，如果不提供则使用默认内容）
+ */
+export function activateImageTextSpecialPermission(taskId: string, content?: string) {
+  initDefaults();
+
+  const now = Date.now();
+  // 6-9天后随机刷新，转换为毫秒
+  const minDays = 6;
+  const maxDays = 9;
+  const randomDays = minDays + Math.random() * (maxDays - minDays);
+  const refreshAt = now + randomDays * 24 * 60 * 60 * 1000;
+
+  const permission: ImageTextSpecialPermission = {
+    enabled: true,
+    content: content || '这是图文模块的特殊内容',
+    activatedAt: now,
+    refreshAt,
+    taskId
+  };
+
+  // 使用全局key存储，不受模块前缀影响
+  try {
+    uni.setStorageSync('imageTextSpecialPermission', permission);
+    console.log('[activateImageTextSpecialPermission] 图文特殊库权限已激活:', {
+      taskId,
+      refreshAt: new Date(refreshAt).toLocaleString(),
+      refreshInDays: randomDays.toFixed(2)
+    });
+  } catch (e) {
+    console.error('[activateImageTextSpecialPermission] 激活失败:', e);
+  }
+}
+
+/**
+ * 获取图文特殊库权限
+ * @returns 权限信息，如果未激活则返回null
+ */
+export function getImageTextSpecialPermission(): ImageTextSpecialPermission | null {
+  try {
+    const permission = uni.getStorageSync('imageTextSpecialPermission');
+    if (!permission || !permission.enabled) {
+      return null;
+    }
+
+    // 检查是否需要刷新
+    const now = Date.now();
+    if (permission.refreshAt && now >= permission.refreshAt) {
+      console.log('[getImageTextSpecialPermission] 权限已过期，需要刷新');
+      // 刷新内容（这里简化处理，实际应该从服务器获取新内容）
+      refreshImageTextSpecialContent();
+      return uni.getStorageSync('imageTextSpecialPermission');
+    }
+
+    return permission;
+  } catch (e) {
+    console.error('[getImageTextSpecialPermission] 获取失败:', e);
+    return null;
+  }
+}
+
+/**
+ * 刷新图文特殊库内容
+ */
+export function refreshImageTextSpecialContent() {
+  try {
+    const permission = uni.getStorageSync('imageTextSpecialPermission');
+    if (!permission) return;
+
+    const now = Date.now();
+    // 设置下次刷新时间（6-9天后）
+    const minDays = 6;
+    const maxDays = 9;
+    const randomDays = minDays + Math.random() * (maxDays - minDays);
+    const refreshAt = now + randomDays * 24 * 60 * 60 * 1000;
+
+    permission.content = '这是刷新后的图文模块特殊内容';
+    permission.refreshAt = refreshAt;
+
+    uni.setStorageSync('imageTextSpecialPermission', permission);
+    console.log('[refreshImageTextSpecialContent] 图文特殊库内容已刷新:', {
+      refreshAt: new Date(refreshAt).toLocaleString(),
+      refreshInDays: randomDays.toFixed(2)
+    });
+  } catch (e) {
+    console.error('[refreshImageTextSpecialContent] 刷新失败:', e);
+  }
+}
+
+/**
+ * 取消图文特殊库权限
+ */
+export function deactivateImageTextSpecialPermission() {
+  try {
+    uni.removeStorageSync('imageTextSpecialPermission');
+    console.log('[deactivateImageTextSpecialPermission] 图文特殊库权限已取消');
+  } catch (e) {
+    console.error('[deactivateImageTextSpecialPermission] 取消失败:', e);
+  }
 }

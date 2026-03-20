@@ -107,8 +107,14 @@ const handleJump = (item: Task.List.Data) => {
     return;
   }
 
+  // 检查任务是否存在
+  if (!item.taskId) {
+    Toast('任务不存在');
+    return;
+  }
+
   let url = '';
-  let params = `taskId=${item.taskId}&taskName=${item.taskName}`;
+  let params = `taskId=${item.taskId}&taskName=${encodeURIComponent(item.taskName || '')}`;
   if (item.taskStatus === 20) {
     // 20-问题已提交
     url = `/pages/sub-page/custom/analysis?${params}`;
@@ -171,6 +177,16 @@ const fetchCreateTask = async (params: Pick<Task.Create.Body, 'taskName'>) => {
 };
 
 onShow(() => {
+  // 检查是否已登录
+  const token = uni.getStorageSync('token');
+  if (!token) {
+    console.log('[定制模块] 用户未登录，跳转到登录页');
+    uni.navigateTo({
+      url: '/pages/login/index',
+    });
+    return;
+  }
+
   getTaskList();
 });
 </script>

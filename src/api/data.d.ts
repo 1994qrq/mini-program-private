@@ -72,6 +72,14 @@ export namespace Common {
       remainingVirtual: number; // 虚拟币剩余数值
       userId: number;
       userLevel: number; // 用户vip等级
+      nickname?: string; // 用户昵称（可选，用于判断是否是新用户）
+      memberNumber?: string; // 会员编号
+    }
+  }
+
+  namespace UpdateNickname {
+    interface Body {
+      nickName: string; // 用户昵称
     }
   }
 
@@ -96,6 +104,29 @@ export namespace Common {
     interface Data {
       subtitles: string[]; // 副标题列表
       updateInterval: number; // 更新间隔（小时）
+    }
+  }
+
+  // 获取消息列表
+  namespace GetMessageList {
+    interface Data {
+      id: number;
+      moduleCode: string; // 模块代码
+      stageId: number; // 阶段ID
+      taskId: number; // 任务ID
+      msgType: number; // 消息类型
+      msgTitle: string; // 消息标题
+      msgContent: string; // 消息内容
+      extendParam: string; // 扩展参数（JSON字符串）
+      msgStatus: number; // 消息状态 0-未读 1-已读
+      createTime: string; // 创建时间
+    }
+  }
+
+  // 删除消息
+  namespace DeleteMessage {
+    interface Body {
+      id: number;
     }
   }
 }
