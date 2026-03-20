@@ -19,8 +19,11 @@
           <!-- 如果是会员，显示会员等级 -->
           <template v-else>
             <bc-vip :level="data.info?.userLevel" />
-            <view class="upgrade-tip">
-              <!-- 距离下一等级会员还差{{ data.info?.nextLevelGold || 0 }}个心币 -->
+            <view class="upgrade-tip" v-if="nextLevelLabel">
+              距离{{ nextLevelLabel }}还需{{ formatMoney(data.nextLevelVirtual) }}心币
+            </view>
+            <view class="upgrade-tip" v-if="nextLevelBenefits">
+              升级后可获得：{{ nextLevelBenefits }}
             </view>
           </template>
         </view>
@@ -84,11 +87,11 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, nextTick } from 'vue';
+import { reactive, ref, nextTick, computed } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import { convertToBase64 } from '@/utils/util';
 import api from '@/api';
-import { VIP_LEVEL_RULES } from '@/config/vip-level';
+import { VIP_LEVEL_RULES, getNextLevelVirtual, getLevelRule, formatVirtual } from '@/config/vip-level';
 
 const data = reactive<any>({
   bottom_bg: '',
@@ -103,34 +106,35 @@ const data = reactive<any>({
   ],
   current: null,
   currentPrice: null,
-  // 自定义相关
   isCustom: false,
   customAmount: '',
   customPrice: '',
-  // 协议
   agree: false,
   protocolArr: ['《会员协议》', '《隐私政策》'],
-  // 会员信息
   info: {},
-  // 升级为会员所需的最低心币数（VIP 1的要求）
   minRechargeForMember: VIP_LEVEL_RULES[1].requirement,
+  nextLevelVirtual: 0,
 });
 
-// 自定义金额输入框ref
 const customInputRef = ref();
 
-// 协议点击回调
+const nextLevelLabel = computed(() => {
+  const nextLevel = (data.info?.userLevel ?? 0) + 1;
+  const rule = getLevelRule(nextLevel);
+  return rule?.label || '';
+});
+
+const nextLevelBenefits = computed(() => {
+  const nextLevel = (data.info?.userLevel ?? 0) + 1;
+  const rule = getLevelRule(nextLevel);
+  return rule?.benefits || '';
+});
+
 const protocolClick = (tag: string) => {
   console.log('点击协议序列 = ' + tag);
 };
-// 格式化金额
-const formatMoney = (money: number): string => {
-  if (!money) return '0';
-  return money.toLocaleString('zh-CN', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0
-  });
-};
+
+const formatMoney = formatVirtual;
 // 自定义金额输入处理
 const handleCustomInput = (value: any) => {
   console.log('[自定义金额] 输入事件触发，原始值:', value);
@@ -224,12 +228,15 @@ const handlePay = async () => {
 /**
  * 接口相关
  */
-// 获取会员信息
 const getVipInfo = async () => {
   try {
     const res = await api.common.info();
     data.info = res.data;
     console.log('[充值页] 获取会员信息成功，当前等级:', data.info?.userLevel, '心币余额:', data.info?.remainingVirtual);
+
+    if (data.info?.userLevel !== undefined && data.info?.accumulateVirtual !== undefined) {
+      data.nextLevelVirtual = getNextLevelVirtual(data.info.userLevel, data.info.accumulateVirtual);
+    }
   } catch (error) {
     console.error('[充值页] 获取会员信息失败:', error);
   }
@@ -316,20 +323,18 @@ const fetchGetPrePayData = async () => {
         console.log('[充值] 等待2秒，让后端处理支付回调...');
         await new Promise(resolve => setTimeout(resolve, 2000));
 
-        // 支付成功后，多次刷新用户信息以确保获取到最新数据
         let retryCount = 0;
-        const maxRetries = 5; // 增加到5次重试
+        const maxRetries = 5;
         let userLevel = 0;
         let prevLevel = data.info?.userLevel || 0;
         let prevBalance = data.info?.remainingVirtual || 0;
-        let prevAccumulate = data.info?.accumulateMoney || 0;
+        let prevAccumulate = data.info?.accumulateVirtual || 0;
 
         console.log('[充值] 支付前状态:');
         console.log('[充值]   - 等级: VIP', prevLevel);
         console.log('[充值]   - 余额:', prevBalance);
-        console.log('[充值]   - 累计充值:', prevAccumulate, '元');
+        console.log('[充值]   - 累计充值:', prevAccumulate, '心币');
 
-        // 记录是否有数据更新
         let hasDataUpdated = false;
 
         while (retryCount < maxRetries) {
@@ -338,40 +343,35 @@ const fetchGetPrePayData = async () => {
 
           userLevel = data.info?.userLevel || 0;
           const currentBalance = data.info?.remainingVirtual || 0;
-          const currentAccumulate = data.info?.accumulateMoney || 0;
+          const currentAccumulate = data.info?.accumulateVirtual || 0;
 
           console.log('[充值] 刷新后状态:');
           console.log('[充值]   - 等级: VIP', userLevel, prevLevel !== userLevel ? `(变化: ${prevLevel} → ${userLevel})` : '(未变化)');
           console.log('[充值]   - 余额:', currentBalance, prevBalance !== currentBalance ? `(变化: ${prevBalance} → ${currentBalance})` : '(未变化)');
-          console.log('[充值]   - 累计充值:', currentAccumulate, '元', prevAccumulate !== currentAccumulate ? `(变化: ${prevAccumulate} → ${currentAccumulate})` : '(未变化)');
+          console.log('[充值]   - 累计充值:', currentAccumulate, '心币', prevAccumulate !== currentAccumulate ? `(变化: ${prevAccumulate} → ${currentAccumulate})` : '(未变化)');
 
-          // 检查是否有任何数据更新
           const hasAnyUpdate = userLevel !== prevLevel || currentBalance !== prevBalance || currentAccumulate !== prevAccumulate;
 
           if (hasAnyUpdate) {
             hasDataUpdated = true;
-            // 更新前一次的值，用于下次比较
             prevLevel = userLevel;
             prevBalance = currentBalance;
             prevAccumulate = currentAccumulate;
           }
 
           if (userLevel >= 1) {
-            // 已经升级为会员，退出循环
             console.log('[充值] ✓ 已升级为会员，退出刷新循环');
             break;
           }
 
           if (hasAnyUpdate) {
             console.log('[充值] ⚠️ 数据已更新但等级仍为0，可能是后端升级逻辑问题');
-            // 如果数据已更新但等级仍为0，再多等待一次看看是否会升级
             if (retryCount < maxRetries - 1) {
               console.log('[充值] 数据已更新，再等待2秒看是否会升级...');
               await new Promise(resolve => setTimeout(resolve, 2000));
             }
           } else {
             console.log('[充值] ⚠️ 数据未更新，后端可能还在处理中');
-            // 等待1秒后重试
             if (retryCount < maxRetries - 1) {
               console.log('[充值] 等待1秒后重试...');
               await new Promise(resolve => setTimeout(resolve, 1000));
@@ -383,7 +383,7 @@ const fetchGetPrePayData = async () => {
         console.log('[充值] ========== 刷新完成 ==========');
         console.log('[充值] 最终等级: VIP', userLevel);
         console.log('[充值] 最终余额:', data.info?.remainingVirtual || 0);
-        console.log('[充值] 最终累计:', data.info?.accumulateMoney || 0, '元');
+        console.log('[充值] 最终累计:', data.info?.accumulateVirtual || 0, '心币');
         console.log('[充值] 数据是否更新:', hasDataUpdated ? '是' : '否');
 
         // 设置刷新标志，让其他页面知道需要刷新
@@ -404,7 +404,7 @@ const fetchGetPrePayData = async () => {
           showDebugTip = true;
         }
 
-        if (userLevel < 1 && data.info?.accumulateMoney && data.info.accumulateMoney >= 10) {
+        if (userLevel < 1 && data.info?.accumulateVirtual && data.info.accumulateVirtual >= 1000) {
           console.log('[充值] ❌ 异常: 累计充值已达标但等级未提升');
           console.log('[充值] 建议: 请联系后端检查升级逻辑');
           showDebugTip = true;
@@ -550,13 +550,14 @@ onShow(() => {
       gap: 12rpx;
 
       .upgrade-tip {
-        font-size: 24rpx;           /* 原来是 10rpx，太小了，改为 24rpx 更清晰 */
+        font-size: 24rpx;
         color: #8B4513;
         font-weight: 300;
         margin-left: 58rpx;
         line-height: 1.4;
-        letter-spacing: 1rpx;       /* 增加字间距，提升可读性 */
-        opacity: 0.9;              /* 稍微降低透明度，避免过于突兀 */
+        letter-spacing: 1rpx;
+        opacity: 0.9;
+        margin-top: 4rpx;
       }
     }
     &-right {

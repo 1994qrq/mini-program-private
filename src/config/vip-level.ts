@@ -10,6 +10,7 @@ export interface VipLevelRule {
   requirement: number;  // 所需累计心币数量
   label: string;        // 等级标签
   description: string;  // 等级描述
+  benefits?: string;    // 等级权益说明
 }
 
 /**
@@ -21,49 +22,57 @@ export const VIP_LEVEL_RULES: VipLevelRule[] = [
     level: 0,
     requirement: 0,
     label: '游客/来宾',
-    description: '默认等级'
+    description: '默认等级',
+    benefits: '可访问免费模块'
   },
   {
     level: 1,
     requirement: 1000,
     label: 'vip',  // VIP1 显示为 "vip"
-    description: '累计充值 ≥ 1000心币'
+    description: '累计充值 ≥ 1000心币',
+    benefits: '开放陌生、不熟、熟悉模块'
   },
   {
     level: 2,
     requirement: 5000,
     label: '会员2',  // VIP2 显示为 "会员2"
-    description: '累计充值 ≥ 5000心币'
+    description: '累计充值 ≥ 5000心币',
+    benefits: '开放超熟模块'
   },
   {
     level: 3,
     requirement: 10000,
     label: '会员3',  // VIP3 显示为 "会员3"
-    description: '累计充值 ≥ 10000心币'
+    description: '累计充值 ≥ 10000心币',
+    benefits: '开放图文模块'
   },
   {
     level: 4,
     requirement: 50000,
     label: '会员4',  // VIP4 显示为 "会员4"
-    description: '累计充值 ≥ 50000心币'
+    description: '累计充值 ≥ 50000心币',
+    benefits: '开放问诊模块'
   },
   {
     level: 5,
     requirement: 100000,
     label: '会员5',  // VIP5 显示为 "会员5"
-    description: '累计充值 ≥ 100000心币'
+    description: '累计充值 ≥ 100000心币',
+    benefits: '开放定制模块'
   },
   {
     level: 6,
     requirement: 500000,
     label: '会员6',  // VIP6 显示为 "会员6"
-    description: '累计充值 ≥ 500000心币'
+    description: '累计充值 ≥ 500000心币',
+    benefits: '开放线下模块'
   },
   {
     level: 7,
     requirement: 1000000,
     label: '会员7',  // VIP7 显示为 "会员7"
-    description: '累计充值 ≥ 1000000心币'
+    description: '累计充值 ≥ 1000000心币',
+    benefits: '全部模块开放，尊享特权'
   }
 ];
 
