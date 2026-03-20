@@ -26,43 +26,43 @@ export const VIP_LEVEL_RULES: VipLevelRule[] = [
   {
     level: 1,
     requirement: 1000,
-    label: 'VIP 1',
+    label: 'vip',  // VIP1 显示为 "vip"
     description: '累计充值 ≥ 1000心币'
   },
   {
     level: 2,
     requirement: 5000,
-    label: 'VIP 2',
+    label: '会员2',  // VIP2 显示为 "会员2"
     description: '累计充值 ≥ 5000心币'
   },
   {
     level: 3,
     requirement: 10000,
-    label: 'VIP 3',
+    label: '会员3',  // VIP3 显示为 "会员3"
     description: '累计充值 ≥ 10000心币'
   },
   {
     level: 4,
     requirement: 50000,
-    label: 'VIP 4',
+    label: '会员4',  // VIP4 显示为 "会员4"
     description: '累计充值 ≥ 50000心币'
   },
   {
     level: 5,
     requirement: 100000,
-    label: 'VIP 5',
+    label: '会员5',  // VIP5 显示为 "会员5"
     description: '累计充值 ≥ 100000心币'
   },
   {
     level: 6,
     requirement: 500000,
-    label: 'VIP 6',
+    label: '会员6',  // VIP6 显示为 "会员6"
     description: '累计充值 ≥ 500000心币'
   },
   {
     level: 7,
     requirement: 1000000,
-    label: 'VIP 7',
+    label: '会员7',  // VIP7 显示为 "会员7"
     description: '累计充值 ≥ 1000000心币'
   }
 ];
