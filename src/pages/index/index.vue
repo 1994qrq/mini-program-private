@@ -153,44 +153,54 @@ const handleWenhao = () => {
 };
 
 const handleJump = (type: string, module?: string) => {
-  // 判断是否是免费模块
+  const token = uni.getStorageSync('token');
+  const isLoggedIn = !!token;
+  const userLevel = data.info?.userLevel || 0;
   const isFreeModule = module === '免费模块';
 
-  // 免费模块不需要登录，直接跳转
-  if (isFreeModule) {
-    console.log('[首页] 免费模块，无需登录检查');
-    if (type === 'step') {
-      uni.navigateTo({
-        url: '/pages/sub-page/stepTask/list?module=' + module,
+  console.log('[首页] 点击模块:', module || type, '登录状态:', isLoggedIn, '会员等级:', userLevel);
+
+  // 1️⃣ 游客（未登录）
+  if (!isLoggedIn) {
+    if (isFreeModule) {
+      // 游客点击免费模块 → 提示"登录可操作"
+      uni.showToast({
+        title: '登录可操作',
+        icon: 'none',
+        duration: 2000
+      });
+    } else {
+      // 游客点击其他模块 → 提示"会员开启"
+      uni.showToast({
+        title: '会员开启',
+        icon: 'none',
+        duration: 2000
       });
     }
     return;
   }
 
-  // 非免费模块，需要检查登录状态
-  const token = uni.getStorageSync('token');
-  if (!token) {
-    console.log('[首页] 用户未登录，跳转到登录页');
-    uni.navigateTo({
-      url: '/pages/login/index',
-    });
+  // 2️⃣ 来宾（已登录但未达到VIP1）
+  if (userLevel < 1) {
+    if (isFreeModule) {
+      // 来宾可以进入免费模块
+      uni.navigateTo({
+        url: '/pages/sub-page/stepTask/list?module=' + module,
+      });
+    } else {
+      // 来宾点击其他模块 → 提示"会员开启"
+      uni.showToast({
+        title: '会员开启',
+        icon: 'none',
+        duration: 2000
+      });
+    }
     return;
   }
 
-  // 已登录，检查会员等级权限
-  const userLevel = data.info?.userLevel || 0;
-  const isGuest = userLevel < 1;
-
-  console.log('[首页] 点击模块:', module || type, '当前会员等级:', userLevel, '是否游客:', isGuest);
-
-  // 如果是来宾（等级0），显示提示
-  if (isGuest) {
-    console.log('[首页] 游客无权限访问，显示提示');
-    showGuestTip();
-    return;
-  }
-
-  // 免费陌生不熟熟悉超熟
+  // 3️⃣ 会员（VIP1及以上）
+  // TODO: 这里需要根据模块和会员等级判断是否有权限
+  // 暂时先允许所有已登录会员访问所有模块
   if (type === 'step') {
     uni.navigateTo({
       url: '/pages/sub-page/stepTask/list?module=' + module,
