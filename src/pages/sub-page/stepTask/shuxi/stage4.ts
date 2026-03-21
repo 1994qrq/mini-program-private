@@ -143,8 +143,8 @@ const handleInviteSuccess = async (taskId: number) => {
     const s18Content = '恭喜您，邀约成功！请点击下方Go按钮继续';
 
     // 显示Go按钮（通过全局函数）
-    if (typeof (window as any).showGoButton === 'function') {
-      (window as any).showGoButton(s18Content);
+    if (typeof (uni as any).showGoButton === 'function') {
+      (uni as any).showGoButton(s18Content);
     } else {
       // 兜底：使用弹窗方式
       uni.showModal({

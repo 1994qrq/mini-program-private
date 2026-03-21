@@ -491,7 +491,7 @@ const handleGoButtonClick = async () => {
 };
 
 // 将showGoButton函数暴露给外部使用（如stage4.ts）
-(window as any).showGoButton = showGoButton;
+(uni as any).showGoButton = showGoButton;
 
 // 页面加载
 onLoad((options: any) => {

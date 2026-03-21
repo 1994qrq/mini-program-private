@@ -186,7 +186,13 @@ const isGuestUser = () => isLoggedIn() && getUserLevel() < 1;
 
 const getRequiredLevel = (module: string) => MODULE_PERMISSIONS[module] ?? 0;
 
+const isFreeModule = (module: string) => module === '免费模块';
+
 const canAccessModule = (module: string) => {
+  if (isFreeModule(module)) {
+    return true;
+  }
+
   if (!isLoggedIn()) {
     return false;
   }
@@ -196,12 +202,16 @@ const canAccessModule = (module: string) => {
 };
 
 const shouldShowMask = (module: string) => {
+  if (isFreeModule(module)) {
+    return false;
+  }
+
   if (!isLoggedIn()) {
     return true;
   }
 
   if (isGuestUser()) {
-    return getRequiredLevel(module) > 0;
+    return true;
   }
 
   return !canAccessModule(module);
@@ -214,20 +224,20 @@ const handleModuleIntro = (module: string) => {
 };
 
 const showModuleTip = (module?: string) => {
-  const isFreeModule = module === '免费模块';
+  if (!module || isFreeModule(module)) {
+    return;
+  }
 
   if (!isLoggedIn()) {
-    uni.showToast({
-      title: isFreeModule ? '登录可操作' : '会员开启',
-      icon: 'none',
-      duration: 2000,
+    uni.navigateTo({
+      url: '/pages/login/index',
     });
     return;
   }
 
-  if (isGuestUser()) {
+  if (getUserLevel() < 1) {
     uni.showToast({
-      title: isFreeModule ? '登录可操作' : '会员开启',
+      title: '需要开通会员',
       icon: 'none',
       duration: 2000,
     });

@@ -206,8 +206,13 @@ const handleJump = async (item: Task.List.Data) => {
     return;
   }
 
+  const currentModule = data.title || '';
+  const isFreeModule = currentModule.includes('免费');
+  const isSuperModule = currentModule.includes('超熟');
+  const isFamiliarModule = !isFreeModule && !isSuperModule;
+
   // 非熟悉模块：不熟 / 陌生 分别进入各自的回合页
-  if (data.title.includes('不熟') || data.title.includes('陌生')) {
+  if (currentModule.includes('不熟') || currentModule.includes('陌生')) {
     // “对方找倒计时”未结束时禁止点击（taskStatus=65）
     if (item.taskStatus === 65 && item.otherFindEndTime && !hasItTimeOut(item.otherFindEndTime)) {
       uni.showToast({ title: '对方找倒计时未结束，请稍后再试', icon: 'none', duration: 2000 });
@@ -220,7 +225,7 @@ const handleJump = async (item: Task.List.Data) => {
       return;
     }
     const name = item.taskName || '';
-    if (data.title.includes('不熟')) {
+    if (currentModule.includes('不熟')) {
       // 不熟模块：继续使用 round-new.vue
       uni.navigateTo({ url: `/pages/sub-page/stepTask/round-new?module=不熟模块&taskId=${item.taskId}&taskName=${encodeURIComponent(name)}` });
     } else {
@@ -230,9 +235,24 @@ const handleJump = async (item: Task.List.Data) => {
     return;
   }
 
-  // 以下为熟悉模块专属逻辑
-  fm.initFamiliarLocal();
+  if (isFreeModule) {
+    fm.initFamiliarLocal('free');
+  } else if (isSuperModule) {
+    fm.initFamiliarLocal('super');
+  } else {
+    fm.initFamiliarLocal('familiar');
+  }
+
   const t = fm.getTask(String(item.taskId));
+  if (isFreeModule && t && t.stageIndex === 0) {
+    const enterResult = fm.enterStage1(String(item.taskId));
+    if (enterResult.ok) {
+      uni.navigateTo({ url: `/pages/sub-page/stepTask/round?module=${currentModule}&taskId=${item.taskId}` });
+    } else {
+      uni.showToast({ title: enterResult.reason || '进入第一阶段失败', icon: 'none', duration: 2000 });
+    }
+    return;
+  }
   if (t && t.stageIndex === 0 && t.stageCdUnlockAt) {
     const now = Date.now();
     // 检查是否已经完成了问3（即S4倒计时）
@@ -241,7 +261,7 @@ const handleJump = async (item: Task.List.Data) => {
       const result = fm.enterStage1(String(item.taskId));
       if (result.ok) {
         uni.showToast({ title: '欢迎进入第一阶段！', icon: 'success', duration: 2000 });
-        setTimeout(() => { uni.navigateTo({ url: `/pages/sub-page/stepTask/round?module=熟悉模块&taskId=${item.taskId}` }); }, 2000);
+        setTimeout(() => { uni.navigateTo({ url: `/pages/sub-page/stepTask/round?module=${currentModule}&taskId=${item.taskId}` }); }, 2000);
       } else {
         uni.showToast({ title: '进入第一阶段失败', icon: 'error', duration: 2000 });
       }
@@ -289,12 +309,21 @@ const handleJump = async (item: Task.List.Data) => {
 
   // 根据本地状态决定路由：阶段0进问卷，其余进回合页
   let taskForRouting = t;
-  if (!taskForRouting) { fm.initFamiliarLocal(); taskForRouting = fm.getTask(String(item.taskId)); }
+  if (!taskForRouting) {
+    if (isFreeModule) {
+      fm.initFamiliarLocal('free');
+    } else if (isSuperModule) {
+      fm.initFamiliarLocal('super');
+    } else {
+      fm.initFamiliarLocal('familiar');
+    }
+    taskForRouting = fm.getTask(String(item.taskId));
+  }
   const name = item.taskName || '';
-  if (taskForRouting && taskForRouting.stageIndex === 0) {
-    uni.navigateTo({ url: `/pages/sub-page/stepTask/questionnaire?module=熟悉模块&taskId=${item.taskId}&taskName=${encodeURIComponent(name)}` });
+  if (taskForRouting && taskForRouting.stageIndex === 0 && isFamiliarModule) {
+    uni.navigateTo({ url: `/pages/sub-page/stepTask/questionnaire?module=${currentModule}&taskId=${item.taskId}&taskName=${encodeURIComponent(name)}` });
   } else {
-    uni.navigateTo({ url: `/pages/sub-page/stepTask/round?module=熟悉模块&taskId=${item.taskId}` });
+    uni.navigateTo({ url: `/pages/sub-page/stepTask/round?module=${currentModule}&taskId=${item.taskId}` });
   }
 };
 
@@ -453,7 +482,11 @@ const getTaskList = async (module?: any) => {
       lt = fm.listTasks();
       if (!lt || lt.length === 0) {
         const created = fm.createTask({ name: '测试订单', durationDays: 5 });
-        if (created.ok) { lt = fm.listTasks(); uni.showToast({ title: '已创建示例订单', icon: 'none' }); }
+        if (created.ok && created.task) {
+          fm.enterStage1(created.task.id);
+          lt = fm.listTasks();
+          uni.showToast({ title: '已创建示例订单', icon: 'none' });
+        }
       }
     } else if (title.includes('超熟')) {
       // 超熟模块使用独立存储
@@ -614,7 +647,7 @@ const fetchCreateTask = async (params: { taskName: string; durationDays: number;
 
 onShow(() => {
   // 免费模块不需要登录检查，其他模块需要
-  const isFreeModule = data.module === '免费模块';
+  const isFreeModule = data.title === '免费模块';
 
   if (!isFreeModule) {
     // 非免费模块，检查是否已登录

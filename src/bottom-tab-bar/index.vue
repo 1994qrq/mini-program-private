@@ -32,7 +32,7 @@ const props = defineProps({
   },
 });
 
-const { getAllBadges, tabBadges } = useTabBadge();
+const { getAllBadges, tabBadges, hideBadge } = useTabBadge();
 const data = reactive({
   selected: 0,
   color: '#1B1B1B',
@@ -93,10 +93,15 @@ watch(
 const switchTab = (index: number) => {
   const item = data.list[index];
   const url = item.pagePath;
+  const tabNameMap = ['task', 'describe', 'index', 'message', 'my'];
+  const tabName = tabNameMap[index];
+
+  if (tabName) {
+    hideBadge(tabName);
+  }
+
   uni.switchTab({ url });
   data.selected = index;
-  // 清除该tab的badge（可选，根据需求）
-  // item.badge = 0;
 };
 
 // 更新badge数量的方法
