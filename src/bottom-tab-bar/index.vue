@@ -96,6 +96,16 @@ const switchTab = (index: number) => {
   const tabNameMap = ['task', 'describe', 'index', 'message', 'my'];
   const tabName = tabNameMap[index];
 
+  // 检查是否已登录
+  const token = uni.getStorageSync('token');
+  if (!token) {
+    // 未登录，跳转到登录页
+    uni.navigateTo({
+      url: '/pages/login/index',
+    });
+    return;
+  }
+
   if (tabName) {
     hideBadge(tabName);
   }

@@ -1,4 +1,4 @@
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 
 // 全局的tab badge状态 - 默认每个tab显示2个红点
 const tabBadges = ref({
@@ -8,6 +8,11 @@ const tabBadges = ref({
   message: 2,   // 消息列表
   my: 2,        // 我的
 });
+
+// 检查是否已登录
+const isLoggedIn = () => {
+  return !!uni.getStorageSync('token');
+};
 
 // Tab索引映射
 const tabIndexMap = {
@@ -47,6 +52,17 @@ export function useTabBadge() {
 
   // 获取所有badge状态（用于tab-bar组件）
   const getAllBadges = () => {
+    // 如果未登录，所有badge都为0
+    if (!isLoggedIn()) {
+      return {
+        task: 0,
+        describe: 0,
+        index: 0,
+        message: 0,
+        my: 0,
+      };
+    }
+
     const badges = {};
     for (const [name, count] of Object.entries(tabBadges.value)) {
       badges[tabIndexMap[name]] = count;
