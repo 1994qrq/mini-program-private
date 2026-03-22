@@ -189,12 +189,12 @@ const getRequiredLevel = (module: string) => MODULE_PERMISSIONS[module] ?? 0;
 const isFreeModule = (module: string) => module === '免费模块';
 
 const canAccessModule = (module: string) => {
-  if (isFreeModule(module)) {
-    return true;
-  }
-
   if (!isLoggedIn()) {
     return false;
+  }
+
+  if (isFreeModule(module)) {
+    return true;
   }
 
   const requiredLevel = getRequiredLevel(module);
@@ -202,16 +202,12 @@ const canAccessModule = (module: string) => {
 };
 
 const shouldShowMask = (module: string) => {
-  if (isFreeModule(module)) {
-    return false;
-  }
-
   if (!isLoggedIn()) {
     return true;
   }
 
   if (isGuestUser()) {
-    return true;
+    return !isFreeModule(module);
   }
 
   return !canAccessModule(module);
@@ -224,7 +220,7 @@ const handleModuleIntro = (module: string) => {
 };
 
 const showModuleTip = (module?: string) => {
-  if (!module || isFreeModule(module)) {
+  if (!module) {
     return;
   }
 
