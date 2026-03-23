@@ -13,7 +13,7 @@
 						<text class="date font-bold">{{ item.endTime }}</text>
 					</view>
 					<view class="bottom">
-						<view class="btn" @click.stop.prevent="handleDelete(item.taskId)">删除</view>
+						<view class="btn" @click.stop.prevent="handleDelete(item.taskId, item.moduleType)">删除</view>
 						<view class="btn active" @click.stop.prevent="handleRenew(item.taskId)">充值</view>
 					</view>
 				</view>
@@ -250,18 +250,32 @@ const fetchTaskList = async () => {
 };
 
 // 删除任务
-const handleDelete = (taskId: string) => {
-	data.isDeleting = true; // 设置删除标志
+const handleDelete = (taskId: string, moduleType: TaskData['moduleType']) => {
+	data.isDeleting = true;
 	uni.showModal({
 		title: '提示',
 		content: '确认删除该任务吗？',
 		success: (res) => {
 			if (res.confirm) {
-				// 这里需要根据任务所属模块来删除
-				// 为了简化，暂时只删除熟悉模块的任务
-				// 实际应该先查找任务属于哪个模块，再调用对应删除方法
-				fm.initFamiliarLocal();
-				const deleted = fm.deleteTask(taskId);
+				let deleted = false;
+
+				if (moduleType === '熟悉') {
+					fm.initFamiliarLocal('familiar');
+					deleted = !!fm.deleteTask(taskId);
+				} else if (moduleType === '超熟') {
+					fm.initFamiliarLocal('super');
+					deleted = !!fm.deleteTask(taskId);
+				} else if (moduleType === '免费') {
+					fm.initFamiliarLocal('free');
+					deleted = !!fm.deleteTask(taskId);
+				} else if (moduleType === '不熟') {
+					um.initUmLocal();
+					deleted = !!um.deleteTask(taskId);
+				} else if (moduleType === '陌生') {
+					sm.initSmLocal();
+					deleted = !!sm.deleteTask(taskId);
+				}
+
 				if (deleted) {
 					uni.showToast({ title: '已删除', icon: 'none' });
 					fetchTaskList();
@@ -269,7 +283,7 @@ const handleDelete = (taskId: string) => {
 					uni.showToast({ title: '删除失败', icon: 'none' });
 				}
 			}
-			// 延迟重置删除标志，确保不会触发跳转
+
 			setTimeout(() => {
 				data.isDeleting = false;
 			}, 300);
