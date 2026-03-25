@@ -540,6 +540,13 @@ export function onDEnter(taskId: string) {
   t.dMode = true; t.listBadge = 'D'; t.listCountdownEndAt = null;
   set(`um:task:${taskId}`, t);
 }
+export function onDClick(taskId: string) {
+  initUmLocal();
+  const t = getTask(taskId); if (!t) return;
+  t.dMode = false;
+  set(`um:task:${taskId}`, t);
+  advancePastCurrentNode(taskId);
+}
 
 // Opponent find
 export function onOpponentFindClick(taskId: string, libId = 'B20') {
@@ -1342,13 +1349,12 @@ export function handlePromptAction(taskId: string, promptType: string, action: s
     }
     case 'halfprice_restart': {
       if (action === 'half_restart') {
-        // 半价重启：结束当前任务（后续可接入支付逻辑创建新任务）
         clearPrompt();
-        t.status = 'deleted';
-        t.listBadge = '任务已结束';
-        t.listCountdownEndAt = null;
+        const restartResult = halfRestartTask(taskId);
+        if (!restartResult.ok) {
+          return { ok: false, reason: restartResult.reason || '半价重启失败' };
+        }
       } else if (action === 'close_task') {
-        // 直接结束任务
         clearPrompt();
         t.status = 'deleted';
         t.listBadge = '任务已结束';
@@ -1362,9 +1368,10 @@ export function handlePromptAction(taskId: string, promptType: string, action: s
       // 第三阶段B11引导后：半价重启 或 结束任务
       if (action === 'half_restart') {
         clearPrompt();
-        t.status = 'deleted';
-        t.listBadge = '任务已结束';
-        t.listCountdownEndAt = null;
+        const restartResult = halfRestartTask(taskId);
+        if (!restartResult.ok) {
+          return { ok: false, reason: restartResult.reason || '半价重启失败' };
+        }
       } else if (action === 'close_task') {
         clearPrompt();
         t.status = 'deleted';
@@ -1382,6 +1389,33 @@ export function handlePromptAction(taskId: string, promptType: string, action: s
   }
 
   return { ok: true };
+}
+// 真正执行半价重启：创建一个新任务并结束旧任务
+function halfRestartTask(taskId: string): { ok: boolean; reason?: string; newTaskId?: string } {
+  initUmLocal();
+  const t = getTask(taskId);
+  if (!t) return { ok: false, reason: '任务不存在' };
+
+  const res = createTask({
+    name: t.name,
+    durationDays: t.durationDays,
+  });
+
+  if (!res.ok || !res.task) {
+    return { ok: false, reason: res.reason || '创建新任务失败' };
+  }
+
+  t.status = 'deleted';
+  t.listBadge = '任务已结束';
+  t.listCountdownEndAt = null;
+  t.lastActionAt = Date.now();
+  set(`um:task:${taskId}`, t);
+
+  const ids: string[] = get('um:tasks') || [];
+  set('um:tasks', ids.filter((i) => i !== taskId));
+
+  console.log('[um.halfRestartTask] 半价重启成功:', { oldTaskId: taskId, newTaskId: res.task.id });
+  return { ok: true, newTaskId: res.task.id };
 }
 
 

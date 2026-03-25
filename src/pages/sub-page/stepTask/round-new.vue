@@ -217,6 +217,8 @@ const taskName = ref('');
 const moduleTitle = ref('');
 const task = ref<any>(null);
 const userVipLevel = ref(1); // 用户VIP等级，默认VIP1
+const remainingVirtual = ref(0);
+const currentSearchCost = ref(100);
 
 // 视图状态
 const currentView = ref<'content' | 'z' | 'd' | 'big_cd' | 'stage_cd' | 'tag_select'>('content');
@@ -354,10 +356,12 @@ const getUserVipLevel = async () => {
   try {
     const res = await api.common.info();
     userVipLevel.value = res.data?.userLevel || 1;
-    console.log('[round-new] 用户VIP等级:', userVipLevel.value);
+    remainingVirtual.value = res.data?.remainingVirtual || 0;
+    console.log('[round-new] 用户VIP等级:', userVipLevel.value, '心币余额:', remainingVirtual.value);
   } catch (error) {
     console.error('[round-new] 获取用户VIP等级失败:', error);
     userVipLevel.value = 1; // 失败时默认VIP1
+    remainingVirtual.value = 0;
   }
 };
 
@@ -931,7 +935,10 @@ const handleZClick = () => {
 // 处理D点击
 const handleDClick = () => {
   console.log('[handleDClick] 点击D按钮');
-  // TODO: 实现D点击逻辑
+  const isUm = moduleTitle.value.includes('不熟');
+  isUm ? um.onDClick(taskId.value) : sm.onDClick(taskId.value);
+  loadTaskData();
+  uni.showToast({ title: '已进入下一条内容', icon: 'none' });
 };
 
 // 处理标签选择
@@ -978,6 +985,35 @@ const handleSearch = () => {
     return;
   }
 
+  if (remainingVirtual.value < currentSearchCost.value) {
+    uni.showModal({
+      title: '心币不足',
+      content: `本次搜索需要 ${currentSearchCost.value} 心币，当前余额不足，请先充值。`,
+      confirmText: '去充值',
+      cancelText: '取消',
+      success: (res) => {
+        if (res.confirm) {
+          uni.navigateTo({ url: '/pages/recharge/index' });
+        }
+      }
+    });
+    return;
+  }
+
+  uni.showModal({
+    title: '搜索问答',
+    content: `本次搜索需要消耗 ${currentSearchCost.value} 心币，是否继续？`,
+    confirmText: '确定',
+    cancelText: '取消',
+    success: (res) => {
+      if (res.confirm) {
+        executeSearch(keyword);
+      }
+    }
+  });
+};
+
+const executeSearch = (keyword: string) => {
   // 从本地库搜索
   const local = getAllContentLibraryData();
   const data = local?.data as any;
@@ -1009,6 +1045,15 @@ const handleSearch = () => {
 
   searchResults.value = results;
   searchDialog.value?.open();
+
+  const nextCost = Math.round(currentSearchCost.value * 1.6);
+  uni.showToast({
+    title: `搜索完成，消耗 ${currentSearchCost.value} 心币`,
+    icon: 'success'
+  });
+  remainingVirtual.value = Math.max(0, remainingVirtual.value - currentSearchCost.value);
+  currentSearchCost.value = nextCost;
+  searchKeyword.value = '';
 };
 
 // 问号说明
