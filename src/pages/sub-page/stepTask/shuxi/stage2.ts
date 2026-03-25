@@ -20,7 +20,8 @@ import {
   enterRoundBigCd,
   enterStageCd,
   checkStage2RoundTransition,
-  finishStage2Round as finishStage2RoundLocal
+  finishStage2Round as finishStage2RoundLocal,
+  finishTask
 } from '@/utils/familiar-local';
 
 const moduleCode = 'familiar_module';
@@ -139,6 +140,7 @@ const stage2RoundEnd = async (taskId: number) => {
                   },
                   () => {
                     console.log('S14确认后，任务结束，跳转到列表页');
+                    finishTask(String(taskId));
                     uni.redirectTo({ url: '/pages/sub-page/stepTask/list?module=熟悉模块' });
                   }
                 );
@@ -176,6 +178,7 @@ const stage2RoundEnd = async (taskId: number) => {
         },
         () => {
           console.log('S14确认后，任务结束，跳转到列表页');
+          finishTask(String(taskId));
           uni.redirectTo({ url: '/pages/sub-page/stepTask/list?module=熟悉模块' });
         }
       );

@@ -39,7 +39,7 @@
 import { reactive, ref } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 // 接口
-import { initFamiliarLocal, getTask, saveQuestionnaireAnswer, submitQuestionnaire, deleteTask } from '@/utils/familiar-local';
+import { initFamiliarLocal, getTask, saveQuestionnaireAnswer, deleteTask, handleAsk1, handleAsk2 } from '@/utils/familiar-local';
 import { getCountdownTimeMs } from '@/config';
 import type { Task } from '@/api/data';
 // 工具
@@ -48,7 +48,6 @@ import { ensureQuestionnaireMock } from '@/utils/fm-questionnaire-mock';
 import { taskModule } from '@/utils/data';
 import type { taskModuleKey } from '@/utils/data';
 // 字典
-import { shuxiModule } from './shuxi/stage0';
 
 const data = reactive<any>({
   prevPageQuery: {}, // 上一个页面带过来的参数
@@ -184,67 +183,68 @@ const fetchModuleQuestionList = async () => {
   }
 };
 
-// 问1/问2/问3交互流程（使用真实用户交互）
-const runAskFlow = async (taskId: string, scoreGreaterThanX: boolean): Promise<void> => {
-  console.log('[runAskFlow] 开始问1/问2/问3流程，taskId:', taskId, 'scoreGreaterThanX:', scoreGreaterThanX);
-  
-  // 问1
+// 问1/问2交互流程（统一复用 familiar-local 阶段0能力）
+const runAskFlow = async (taskId: string): Promise<void> => {
+  console.log('[runAskFlow] 开始阶段0流程，taskId:', taskId);
+
   const ask1 = await showQuestion('问1');
   console.log('[runAskFlow] 问1选择:', ask1);
-  
-  if (ask1 === '否') {
-    // 显示提示板S1
-    await showTipsBoard('S1', taskId);
-    // 重新选择问1
-    return runAskFlow(taskId, scoreGreaterThanX);
-  }
-  
-  // 如果得分<X，问1选择"是"后分流到其他模块
-  if (!scoreGreaterThanX) {
-    console.log('[runAskFlow] 得分<X，分流到不熟模块');
-    uni.showToast({ title: '将进入不熟模块', icon: 'none', duration: 2000 });
-    setTimeout(() => {
-      uni.navigateBack();
-    }, 2000);
+  const ask1Result = handleAsk1(taskId, ask1);
+  console.log('[runAskFlow] handleAsk1 结果:', ask1Result);
+
+  if (!ask1Result.ok) {
+    uni.showToast({ title: ask1Result.reason || '处理失败', icon: 'none', duration: 2000 });
     return;
   }
-  
-  // 问2
+
+  if (ask1Result.action === 'showPromptS1') {
+    await showTipsBoard('S1', taskId);
+    return runAskFlow(taskId);
+  }
+
+  if (ask1Result.action === 'routeToUnfamiliar') {
+    uni.showToast({ title: '将进入不熟模块', icon: 'none', duration: 2000 });
+    setTimeout(() => {
+      uni.redirectTo({ url: '/pages/sub-page/stepTask/list?module=不熟模块' });
+    }, 1500);
+    return;
+  }
+
+  if (ask1Result.action === 'routeToStranger') {
+    uni.showToast({ title: '将进入陌生模块', icon: 'none', duration: 2000 });
+    setTimeout(() => {
+      uni.redirectTo({ url: '/pages/sub-page/stepTask/list?module=陌生模块' });
+    }, 1500);
+    return;
+  }
+
   const ask2 = await showQuestion('问2');
   console.log('[runAskFlow] 问2选择:', ask2);
-  
-  if (ask2 === '否') {
-    // 显示提示板S3
-    await showTipsBoard('S3', taskId);
-    // 重新选择问2
-    return runAskFlow(taskId, scoreGreaterThanX);
-  }
-  
-  // 显示提示板S2，并设置9-10天倒计时
-  await showTipsBoard('S2', taskId);
-  const days1 = Math.floor(9 + Math.random() * 2); // 9-10天
-  const unlockAt1 = Date.now() + getCountdownTimeMs(days1 * 24 * 60 * 60 * 1000);
-  const t1 = getTask(taskId);
-  if (t1) {
-    t1.listBadge = '下次聊天开启倒计时';
-    t1.listCountdownEndAt = unlockAt1;
-    t1.stageCdUnlockAt = unlockAt1;
-    uni.setStorageSync(`fm:task:${taskId}`, t1);
-  }
-  console.log('[runAskFlow] S2倒计时设置:', days1, '天，结束时间:', new Date(unlockAt1).toLocaleString());
-  
-  // 提示用户倒计时已设置，并返回列表
-  uni.showToast({
-    title: `已设置${days1}天倒计时，请等待倒计时结束后继续`,
-    icon: 'none',
-    duration: 3000
-  });
+  const ask2Result = handleAsk2(taskId, ask2);
+  console.log('[runAskFlow] handleAsk2 结果:', ask2Result);
 
-  setTimeout(() => {
-    uni.redirectTo({ url: '/pages/sub-page/stepTask/list?module=熟悉模块' });
-  }, 3000);
-  
-  // 注意：问3需要在倒计时结束后在列表页触发
+  if (!ask2Result.ok) {
+    uni.showToast({ title: ask2Result.reason || '处理失败', icon: 'none', duration: 2000 });
+    return;
+  }
+
+  if (ask2Result.action === 'showPromptS3') {
+    await showTipsBoard('S3', taskId);
+    return runAskFlow(taskId);
+  }
+
+  if (ask2Result.action === 'showPromptS2AndStartCountdown') {
+    await showTipsBoard('S2', taskId);
+    uni.showToast({
+      title: '已设置倒计时，请等待倒计时结束后继续',
+      icon: 'none',
+      duration: 3000
+    });
+
+    setTimeout(() => {
+      uni.redirectTo({ url: '/pages/sub-page/stepTask/list?module=熟悉模块' });
+    }, 3000);
+  }
 };
 
 // 显示问题对话框
@@ -359,22 +359,20 @@ const submitQuestion = async (params: Task.SubmitQuestion.Body) => {
 
     // 执行真实的问1/问2/问3交互流程
     if (data.prevPageQuery.module === '熟悉模块') {
-      console.log('[Questionnaire][链路] 开始问1/问2/问3交互流程，得分:', totalScore, '阈值:', thresholdX);
-      const scoreGreaterThanX = totalScore >= thresholdX;
-      
+      console.log('[Questionnaire][链路] 开始问1/问2流程，得分:', totalScore, '阈值:', thresholdX);
+
       // 初始化任务状态
       const t = getTask(taskId);
       if (t) {
-        t.stageIndex = 0; 
-        t.roundIndex = null; 
-        t.stepIndex = 0;
+        t.stageIndex = 0;
+        t.roundIndex = null;
+        t.stepIndex = 1;
         t.askFlow = { ...(t.askFlow || {}) };
         t.prompts = { ...(t.prompts || {}) };
         uni.setStorageSync(`fm:task:${taskId}`, t);
       }
-      
-      // 调用真实的问1/问2/问3流程
-      runAskFlow(taskId, scoreGreaterThanX);
+
+      runAskFlow(taskId);
     } else {
       // 其他模块直接返回
       uni.showToast({ title: '问卷提交成功', icon: 'success' });

@@ -76,6 +76,7 @@ import { reactive, ref, computed, onUnmounted } from 'vue';
 import api from '@/api';
 import type { Four, Task } from '@/api/data';
 import * as fm from '@/utils/familiar-local';
+import { checkStage0Countdown, handleAsk3 } from '@/utils/familiar-local';
 import * as um from '@/utils/unfamiliar-local';
 import * as sm from '@/utils/stranger-local';
 import { getCountdownTimeMs } from '@/config';
@@ -83,7 +84,6 @@ import { getCountdownTimeMs } from '@/config';
 import { taskModule } from '@/utils/data';
 import type { taskModuleKey } from '@/utils/data';
 import { hasItTimeOut, Toast, convertToBase64 } from '@/utils/util';
-import { question3 } from './shuxi/stage0';
 
 const data = reactive<any>({
   title: '',
@@ -255,8 +255,20 @@ const handleJump = async (item: Task.List.Data) => {
   }
   if (t && t.stageIndex === 0 && t.stageCdUnlockAt) {
     const now = Date.now();
-    // 检查是否已经完成了问3（即S4倒计时）
-    if (t.askFlow?.ask3 === '是' && now >= t.stageCdUnlockAt) {
+    if (now < t.stageCdUnlockAt) {
+      uni.showToast({ title: '倒计时未结束，请耐心等待', icon: 'none', duration: 2000 });
+      return;
+    }
+
+    const stage0Result = checkStage0Countdown(String(item.taskId));
+    console.log('[handleJump] stage0 倒计时检查结果:', stage0Result);
+
+    if (stage0Result.action === 'showAsk3') {
+      await handleQuestion3(String(item.taskId));
+      return;
+    }
+
+    if (stage0Result.action === 'enterStage1') {
       console.log('[handleJump] S4倒计时结束，进入阶段1');
       const result = fm.enterStage1(String(item.taskId));
       if (result.ok) {
@@ -267,31 +279,16 @@ const handleJump = async (item: Task.List.Data) => {
       }
       return;
     }
-    // 检查是否尚未完成问3（即S2倒计时）
-    if (!t.askFlow?.ask3 && now >= t.stageCdUnlockAt) {
-      console.log('[handleJump] S2倒计时结束，触发问3');
-      await handleQuestion3(String(item.taskId));
-      return;
-    }
-    // 倒计时未结束
-    if (now < t.stageCdUnlockAt) {
-      uni.showToast({ title: '倒计时未结束，请耐心等待', icon: 'none', duration: 2000 });
-      return;
-    }
   }
 
-  // familiar_s2（阶段0的问答流程）需要等大CD结束（旧逻辑兼容）
+  // 旧的 familiar_s2 标记也统一走本地阶段0能力
   if (item.stepType === 'familiar_s2') {
     const _hasItTimeOut = hasItTimeOut(item?.endTime);
     if (!_hasItTimeOut) {
       uni.showToast({ title: '倒计时未结束，请耐心等待', icon: 'none', duration: 2000 });
       return;
     }
-    await question3({
-      taskId: item.taskId,
-      specialStepId: item.specialStepId,
-      onNoSelected: () => { console.log('问3选择了"否"，刷新列表'); getTaskList(); }
-    });
+    await handleQuestion3(String(item.taskId));
     return;
   }
 
@@ -339,7 +336,6 @@ const onSwipeClick = () => {
 
 // 处理问3逻辑
 const handleQuestion3 = async (taskId: string) => {
-  // 显示问3对话框
   const result = await new Promise<'是' | '否'>((resolve) => {
     uni.showModal({
       title: '温馨提示',
@@ -351,97 +347,65 @@ const handleQuestion3 = async (taskId: string) => {
       }
     });
   });
-  
+
   console.log('[handleQuestion3] 用户选择:', result);
 
   fm.initFamiliarLocal();
-  const t = fm.getTask(taskId);
-  if (!t) return;
+  const ask3Result = handleAsk3(taskId, result);
+  console.log('[handleQuestion3] handleAsk3 结果:', ask3Result);
 
-  // 保存选择
-  t.askFlow = { ...(t.askFlow || {}), ask3: result };
-  uni.setStorageSync(`fm:task:${taskId}`, t);
-  
-  if (result === '是') {
-    // 显示提示板S4
+  if (!ask3Result.ok) {
+    uni.showToast({ title: ask3Result.reason || '处理失败', icon: 'none', duration: 2000 });
+    return;
+  }
+
+  if (ask3Result.action === 'showPromptS4AndStartCountdown') {
     await new Promise<void>((resolve) => {
       uni.showModal({
         title: '温馨提示',
         content: '很好！接下来将进入正式阶段，请继续保持',
         showCancel: false,
         confirmText: '确定',
-        success: () => {
-          resolve();
-        }
+        success: () => resolve()
       });
     });
 
-    // 保存S4提示板状态
-    const t2 = fm.getTask(taskId);
-    if (t2) {
-      t2.prompts = { ...(t2.prompts || {}), S4: { shown: true, at: Date.now() } };
-      uni.setStorageSync(`fm:task:${taskId}`, t2);
+    const t = fm.getTask(taskId);
+    if (t) {
+      t.prompts = { ...(t.prompts || {}), S4: { shown: true, at: Date.now() } };
+      uni.setStorageSync(`fm:task:${taskId}`, t);
     }
 
-    // 设置6-9天倒计时（进入阶段1前的倒计时）
-    const days = Math.floor(6 + Math.random() * 4); // 6-9天
-    const unlockAt = Date.now() + getCountdownTimeMs(days * 24 * 60 * 60 * 1000);
-    const t3 = fm.getTask(taskId);
-    if (t3) {
-      t3.listBadge = '下次聊天开启倒计时';
-      t3.listCountdownEndAt = unlockAt;
-      t3.stageCdUnlockAt = unlockAt;
-      uni.setStorageSync(`fm:task:${taskId}`, t3);
-    }
-    
-    console.log('[handleQuestion3] S4倒计时设置:', days, '天，结束时间:', new Date(unlockAt).toLocaleString());
-    
-    // 刷新列表显示
     getTaskList();
-    
+
     uni.showToast({
-      title: `已设置${days}天倒计时，到期后进入第一阶段`,
+      title: `已设置${ask3Result.countdownDays || 0}天倒计时，到期后进入第一阶段`,
       icon: 'none',
       duration: 3000
     });
-  } else {
-    // 显示提示板S3
+    return;
+  }
+
+  if (ask3Result.action === 'showPromptS3') {
     await new Promise<void>((resolve) => {
       uni.showModal({
         title: '温馨提示',
         content: '请您做好准备后再开始',
         showCancel: false,
         confirmText: '确定',
-        success: () => {
-          resolve();
-        }
+        success: () => resolve()
       });
     });
 
-    // 保存S3提示板状态
-    const t2 = fm.getTask(taskId);
-    if (t2) {
-      t2.prompts = { ...(t2.prompts || {}), S3: { shown: true, at: Date.now() } };
-      uni.setStorageSync(`fm:task:${taskId}`, t2);
+    const t = fm.getTask(taskId);
+    if (t) {
+      t.prompts = { ...(t.prompts || {}), S3: { shown: true, at: Date.now() } };
+      t.askFlow = { ...(t.askFlow || {}), ask3: undefined };
+      uni.setStorageSync(`fm:task:${taskId}`, t);
     }
 
-    // 重新设置9-10天倒计时（回到问2）
-    const days = Math.floor(9 + Math.random() * 2); // 9-10天
-    const unlockAt = Date.now() + getCountdownTimeMs(days * 24 * 60 * 60 * 1000);
-    const t3 = fm.getTask(taskId);
-    if (t3) {
-      t3.listBadge = '下次聊天开启倒计时';
-      t3.listCountdownEndAt = unlockAt;
-      t3.stageCdUnlockAt = unlockAt;
-      t3.askFlow = { ...(t3.askFlow || {}), ask3: undefined }; // 清除ask3选择
-      uni.setStorageSync(`fm:task:${taskId}`, t3);
-    }
-    
-    console.log('[handleQuestion3] S3触发，重新设置倒计时:', days, '天');
-    
-    // 刷新列表显示
     getTaskList();
-    
+
     uni.showToast({
       title: '请准备好后再次尝试',
       icon: 'none',

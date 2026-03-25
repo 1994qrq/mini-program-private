@@ -16,6 +16,7 @@
 import { getHint, savePoint, getTaskDetail, getRoundIntegral } from '@/utils/api';
 // 工具
 import { hasItTimeOut } from '@/utils/util';
+import { finishTask } from '@/utils/familiar-local';
 
 const moduleCode = 'familiar_module';
 
@@ -181,7 +182,7 @@ const stage1RoundEnd = async (taskId: number) => {
                   },
                   () => {
                     console.log('S9确认后，任务结束，跳转到列表页');
-                    // TODO: 调用后端接口删除任务
+                    finishTask(String(taskId));
                     uni.redirectTo({ url: '/pages/sub-page/stepTask/list?module=熟悉模块' });
                   }
                 );
