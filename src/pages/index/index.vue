@@ -30,7 +30,6 @@
           @click="() => handleJump('step', item.label)">
           <md-icon type="bg" height="210" width="146" :name="'home/' + item.key"></md-icon>
           <view class="star-btn" @click.stop="handleModuleIntro(item.label)">★</view>
-          <view v-if="shouldShowMask(item.label)" class="module-mask"></view>
         </div>
       </div>
 
@@ -44,7 +43,6 @@
           @click="() => handleJump('imageText')">
           <md-icon type="bg" name="home/ao" width="176" height="316"></md-icon>
           <view class="star-btn" @click.stop="handleModuleIntro('图文模块')">★</view>
-          <view v-if="shouldShowMask('图文模块')" class="module-mask"></view>
         </div>
         <div class="four">
           <div
@@ -55,7 +53,6 @@
             @click="() => handleJump('wenzhen')">
             <md-icon type="bg" name="home/wenzhen" width="236" height="140"></md-icon>
             <view class="star-btn" @click.stop="handleModuleIntro('问诊模块')">★</view>
-            <view v-if="shouldShowMask('问诊模块')" class="module-mask"></view>
           </div>
           <div
             class="module-card item flex-c"
@@ -65,7 +62,6 @@
             @click="() => handleJump('step', '超熟模块')">
             <md-icon type="bg" name="home/chaoshu" width="212" height="164"></md-icon>
             <view class="star-btn" @click.stop="handleModuleIntro('超熟模块')">★</view>
-            <view v-if="shouldShowMask('超熟模块')" class="module-mask"></view>
           </div>
           <div
             class="module-card item flex-c"
@@ -75,7 +71,6 @@
             @click="() => handleJump('custom')">
             <md-icon type="bg" name="home/dingzhi" width="236" height="140"></md-icon>
             <view class="star-btn" @click.stop="handleModuleIntro('定制模块')">★</view>
-            <view v-if="shouldShowMask('定制模块')" class="module-mask"></view>
           </div>
           <div
             class="module-card item flex-c"
@@ -85,7 +80,6 @@
             @click="() => handleJump('key')">
             <md-icon type="bg" name="home/key" width="200" height="120"></md-icon>
             <view class="star-btn" @click.stop="handleModuleIntro('线下模块')">★</view>
-            <view v-if="shouldShowMask('线下模块')" class="module-mask"></view>
           </div>
         </div>
       </div>
@@ -97,7 +91,6 @@
         @click="() => handleJump('offline')">
         <md-icon type="bg" name="home/offline" width="100%" height="156" imageMode="scaleToFill"></md-icon>
         <view class="star-btn" @click.stop="handleModuleIntro('线下模块')">★</view>
-        <view v-if="shouldShowMask('线下模块')" class="module-mask"></view>
       </div>
       <div class="offline-tip">——据说 每颗星都有自己的小秘密</div>
     </div>
@@ -199,18 +192,6 @@ const canAccessModule = (module: string) => {
 
   const requiredLevel = getRequiredLevel(module);
   return getUserLevel() >= requiredLevel;
-};
-
-const shouldShowMask = (module: string) => {
-  if (!isLoggedIn()) {
-    return true;
-  }
-
-  if (isGuestUser()) {
-    return !isFreeModule(module);
-  }
-
-  return !canAccessModule(module);
 };
 
 const handleModuleIntro = (module: string) => {
@@ -426,13 +407,6 @@ onShow(() => {
     .module-card {
       position: relative;
       overflow: hidden;
-    }
-    .module-mask {
-      position: absolute;
-      inset: 0;
-      background: rgba(80, 80, 80, 0.45);
-      z-index: 2;
-      pointer-events: none;
     }
     .star-btn {
       position: absolute;
