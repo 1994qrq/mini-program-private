@@ -714,6 +714,21 @@ export async function getCurrentChainContent(taskId: string): Promise<{ contentL
           else if (round === 3) nextLeavingId = 'B3';
           else if (round === 4) nextLeavingId = 'B2';
         } else if (stage === 2) {
+          // 第二阶段特殊库 B2.5 完成后直接进入下一阶段CD
+          if (t.currentLibChain!.libId === 'B2.5') {
+            const nextStage = (t as any).afterSpecialLibNextStage;
+            if (nextStage) {
+              delete (t as any).afterSpecialLibNextStage;
+              set(`um:task:${taskId}`, t);
+              enterStageCdToNextStage(taskId, nextStage);
+              const t2 = getTask(taskId);
+              if (t2) {
+                (t as any).currentLibChain = t2.currentLibChain;
+                (t as any).stageCdUnlockAt = t2.stageCdUnlockAt;
+              }
+              return true;
+            }
+          }
           // 第二阶段离库固定 B3
           nextLeavingId = 'B3';
         } else if (stage === 3) {
@@ -1148,10 +1163,22 @@ function handleStage2Completion(taskId: string) {
   console.log('[handleStage2Completion] 第二阶段完成，分数:', t.stageScore, '阈值X:', X);
 
   if (t.stageScore > X) {
-    // 分数 > X：回复特殊库B2.5，所有消息回复给客户之后，则进入阶段间CD，CD时间结束，进入第三阶段
-    console.log('[handleStage2Completion] 分数 > X，回复特殊库B2.5，进入阶段间CD');
-    // TODO: 实现特殊库B2.5的逻辑
-    enterStageCdToNextStage(taskId, 3);
+    // 分数 > X：回复特殊库B2.5，所有消息回复给客户之后，再进入阶段间CD并进入第三阶段
+    console.log('[handleStage2Completion] 分数 > X，进入特殊库B2.5');
+    const libs: Libs = get('um:libs');
+    const chain = pickChain(libs.content, 'B2.5');
+    if (chain) {
+      setCurrentChain(t, 'content', 'B2.5', chain);
+      t.waitingForPrompt = false;
+      t.promptType = null;
+      (t as any).afterSpecialLibNextStage = 3;
+      t.listBadge = '聊天任务进行中';
+      t.listCountdownEndAt = null;
+      t.lastActionAt = Date.now();
+      set(`um:task:${taskId}`, t);
+    } else {
+      enterStageCdToNextStage(taskId, 3);
+    }
   } else {
     // 分数 ≤ X：弹出提示板B9询问用户是否坚持
     console.log('[handleStage2Completion] 分数 ≤ X，弹出提示板B9');
