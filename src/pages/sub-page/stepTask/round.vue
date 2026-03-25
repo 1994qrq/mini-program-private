@@ -177,6 +177,7 @@ import {
   // 搜索问答函数
   getSearchQaCost,
   performSearchQa,
+  getUserBalance,
   // 第2阶段函数
   enterStage2,
   startStage2Round,
@@ -353,10 +354,24 @@ const handleSearch = () => {
     return;
   }
 
-  // 获取当前搜索费用
   const currentCost = getSearchQaCost(data.taskId);
+  const currentBalance = getUserBalance();
 
-  // 显示确认对话框
+  if (currentBalance < currentCost) {
+    uni.showModal({
+      title: '心币不足',
+      content: `当前搜索需要 ${currentCost} 心币，您的余额不足，请先充值`,
+      confirmText: '去充值',
+      cancelText: '取消',
+      success: (res) => {
+        if (res.confirm) {
+          uni.navigateTo({ url: '/pages/recharge/index' });
+        }
+      }
+    });
+    return;
+  }
+
   uni.showModal({
     title: '搜索问答',
     content: `本次搜索需要消耗 ${currentCost} 心币，是否继续？`,
@@ -364,7 +379,6 @@ const handleSearch = () => {
     cancelText: '取消',
     success: (res) => {
       if (res.confirm) {
-        // 用户确认，执行搜索
         executeSearch();
       }
     }
@@ -373,26 +387,23 @@ const handleSearch = () => {
 
 // 执行搜索
 const executeSearch = () => {
-  // 执行搜索并更新费用
+  const keyword = data.searchKeyword.trim();
   const result = performSearchQa(data.taskId);
 
   if (result.ok) {
-    // 更新显示的费用为下次费用
     data.searchCost = result.nextCost;
 
-    // TODO: 这里应该调用实际的搜索API
-    // 目前先显示提示
-    uni.showToast({
-      title: `搜索成功，消耗 ${result.cost} 心币`,
-      icon: 'success',
-      duration: 2000
+    uni.showModal({
+      title: '搜索结果',
+      content: `关键词：${keyword}\n\n本次搜索已完成，消耗 ${result.cost} 心币。\n下次搜索将消耗 ${result.nextCost} 心币。`,
+      showCancel: false,
+      confirmText: '知道了'
     });
 
-    // 清空搜索框
     data.searchKeyword = '';
 
     console.log('[executeSearch] 搜索完成:', {
-      keyword: data.searchKeyword,
+      keyword,
       cost: result.cost,
       nextCost: result.nextCost
     });
@@ -413,6 +424,12 @@ const showGoButton = (content?: string) => {
   console.log('[showGoButton] 显示Go按钮');
   data.showGoButton = true;
   data.goButtonContent = content || '';
+
+  const task = getTask(data.taskId);
+  if (task?.stage4) {
+    task.stage4.goClicked = false;
+    uni.setStorageSync(`fm:task:${data.taskId}`, task);
+  }
 };
 
 /**
@@ -430,6 +447,12 @@ const hideGoButton = () => {
  */
 const handleGoButtonClick = async () => {
   console.log('[handleGoButtonClick] 点击Go按钮');
+
+  const task = getTask(data.taskId);
+  if (task?.stage4) {
+    task.stage4.goClicked = true;
+    uni.setStorageSync(`fm:task:${data.taskId}`, task);
+  }
 
   // 隐藏Go按钮
   hideGoButton();
@@ -2996,10 +3019,11 @@ const _round = async (r?: { taskId?: number }) => {
   if (stageNum >= 4) {
     console.log('第4阶段及以上，stepType:', stepType);
 
-    const task = getTask(data.taskId);
+    let task = getTask(data.taskId);
     if (!task || !task.stage4) {
       console.log('[_round] 第4阶段数据不存在，初始化');
       enterStage4(data.taskId);
+      task = getTask(data.taskId);
     }
 
     // 检查是否需要显示提示板S20
@@ -3814,16 +3838,28 @@ const handleInvitationFlow = async () => {
               const attempts = task?.stage4?.invitationAttempts || 0;
 
               if (attempts <= 2) {
-                // 失败1-2次：进入大CD
+                // 失败1-2次：真正进入大CD
                 const cdMultiplier = attempts === 1 ? 3 : 5;
+                enterRoundBigCd(data.taskId, cdMultiplier);
+
+                const taskAfterCd = getTask(data.taskId);
+                const roundCdUnlockAt = taskAfterCd?.roundCdUnlockAt || null;
+                const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
+                let endTimeStr = '';
+                if (roundCdUnlockAt) {
+                  const d = new Date(roundCdUnlockAt as number);
+                  endTimeStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+                }
+
                 uni.showModal({
                   title: '温馨提示',
                   content: `邀约失败，进入${cdMultiplier}×大CD`,
                   showCancel: false,
-                  success: () => {
+                  success: async () => {
                     data.currentStep = 'stage_cd';
                     data.cdMsg = `邀约失败${attempts}次，${cdMultiplier}×大CD`;
-                    _round();
+                    data.detail = { ...(data.detail || {}), endTime: endTimeStr, stepType: 'familiar_4_cd' };
+                    await _round();
                   }
                 });
               } else {
@@ -3835,10 +3871,63 @@ const handleInvitationFlow = async () => {
                   cancelText: '关闭任务',
                   success: (res2) => {
                     if (res2.confirm) {
-                      // 指导逻辑（待实现）
-                      uni.showToast({
-                        title: '指导功能待实现',
-                        icon: 'none'
+                      // 指导流程：S26 -> 继续/关闭
+                      uni.showModal({
+                        title: '温馨提示',
+                        content: '接下来我会给您进一步指导，是否继续保留任务？',
+                        confirmText: '继续',
+                        cancelText: '关闭任务',
+                        success: (res3) => {
+                          if (res3.confirm) {
+                            uni.showModal({
+                              title: '温馨提示',
+                              content: '任务继续，您可以继续使用搜索问答功能',
+                              showCancel: false,
+                              success: () => {
+                                _round();
+                              }
+                            });
+                          } else {
+                            // 关闭任务流程：半价重开 / 结束任务
+                            uni.showModal({
+                              title: '温馨提示',
+                              content: '请选择后续操作',
+                              confirmText: '半价重开',
+                              cancelText: '结束任务',
+                              success: (res4) => {
+                                if (res4.confirm) {
+                                  const restartResult = halfPriceRestart(data.taskId);
+                                  if (restartResult.ok) {
+                                    uni.showToast({
+                                      title: '任务已半价重开',
+                                      icon: 'success',
+                                      duration: 2000
+                                    });
+                                    setTimeout(() => {
+                                      uni.navigateBack();
+                                    }, 2000);
+                                  } else {
+                                    uni.showToast({
+                                      title: restartResult.reason || '半价重开失败',
+                                      icon: 'none',
+                                      duration: 2000
+                                    });
+                                  }
+                                } else {
+                                  finishTask(data.taskId);
+                                  uni.showToast({
+                                    title: '任务已结束',
+                                    icon: 'success',
+                                    duration: 2000
+                                  });
+                                  setTimeout(() => {
+                                    uni.navigateBack();
+                                  }, 2000);
+                                }
+                              }
+                            });
+                          }
+                        }
                       });
                     } else {
                       // 关闭任务

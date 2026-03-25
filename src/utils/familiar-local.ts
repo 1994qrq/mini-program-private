@@ -2572,6 +2572,7 @@ export function finishMultiChat(taskId: string) {
   // 返回第四阶段
   t.stageIndex = 4;
   t.roundIndex = null;
+  t.stage4.returnedFromStage3 = false;
 
   console.log('[finishMultiChat] 多聊一次结束，返回第四阶段');
 

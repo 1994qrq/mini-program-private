@@ -25,8 +25,7 @@ import {
   finishTask,
   getTask
 } from '@/utils/familiar-local';
-// 第四阶段UI
-import enterStage4UI, { handleMultiChatComplete } from './stage4';
+import { handleMultiChatComplete } from './stage4';
 
 const moduleCode = 'familiar_module';
 
@@ -89,9 +88,7 @@ const stage3RoundEnd = async (taskId: number) => {
       // 得分足够或特殊回合得分超过，直接进入第四阶段
       console.log('得分足够，直接进入第四阶段（无阶段CD）');
       // enterStage4已经在checkStage3RoundTransition中调用
-
-      // 调用第四阶段UI初始化函数，显示S20提示板
-      await enterStage4UI(taskId);
+      // 第四阶段UI由 round.vue 统一承接，避免双实现冲突
       break;
 
     case 'showPromptS15':

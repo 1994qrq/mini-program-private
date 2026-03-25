@@ -40,15 +40,9 @@ import { reactive, ref } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 // 接口
 import { initFamiliarLocal, getTask, saveQuestionnaireAnswer, deleteTask, handleAsk1, handleAsk2 } from '@/utils/familiar-local';
-import { getCountdownTimeMs } from '@/config';
 import type { Task } from '@/api/data';
-// 工具
 import { getDataBy2D } from '@/utils/util';
 import { ensureQuestionnaireMock } from '@/utils/fm-questionnaire-mock';
-import { taskModule } from '@/utils/data';
-import type { taskModuleKey } from '@/utils/data';
-// 字典
-
 const data = reactive<any>({
   prevPageQuery: {}, // 上一个页面带过来的参数
   statusBarHeight: uni.getWindowInfo().statusBarHeight + 'px',
