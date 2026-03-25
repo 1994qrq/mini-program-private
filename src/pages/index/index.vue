@@ -206,15 +206,25 @@ const showModuleTip = (module?: string) => {
   }
 
   if (!isLoggedIn()) {
-    uni.navigateTo({
-      url: '/pages/login/index',
-    });
+    if (isFreeModule(module)) {
+      uni.showToast({
+        title: '登录可操作',
+        icon: 'none',
+        duration: 2000,
+      });
+    } else {
+      uni.showToast({
+        title: '会员开启',
+        icon: 'none',
+        duration: 2000,
+      });
+    }
     return;
   }
 
   if (getUserLevel() < 1) {
     uni.showToast({
-      title: '需要开通会员',
+      title: isFreeModule(module) ? '登录可操作' : '会员开启',
       icon: 'none',
       duration: 2000,
     });
