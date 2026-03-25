@@ -346,6 +346,7 @@ export function finishCurrentLibNode(taskId: string) { initSmLocal(); const t = 
 
 export function onZEnter(taskId: string) { initSmLocal(); const t = getTask(taskId); if (!t) return; const settings: Settings = get('sm:settings'); const range = settings.cd.zDurationByStage[t.stageIndex] || { minMs: 10000, maxMs: 20000 }; const dur = randInt(range.minMs, range.maxMs); t.zUnlockAt = Date.now() + dur; t.listBadge = 'Z倒计时'; t.listCountdownEndAt = t.zUnlockAt; set(`sm:task:${taskId}`, t) }
 export function onDEnter(taskId: string) { initSmLocal(); const t = getTask(taskId); if (!t) return; t.dMode = true; t.listBadge = 'D'; t.listCountdownEndAt = null; set(`sm:task:${taskId}`, t) }
+export function onDClick(taskId: string) { initSmLocal(); const t = getTask(taskId); if (!t) return; t.dMode = false; set(`sm:task:${taskId}`, t); advancePastCurrentNode(taskId) }
 
 export function onOpponentFindClick(taskId: string, libId = 'M20') { initSmLocal(); const t = getTask(taskId); if (!t) return; const libs: Libs = get('sm:libs'); const op = pickChain(libs.opponent, libId); if (op) setCurrentChain(t, 'opponent', libId, op); const settings: Settings = get('sm:settings'); t.opponentFindUsedInRound = true; t.opponentFindUnlockAt = Date.now(); t.opponentFindCopyUnlockAt = Date.now() + settings.cd.opponentFindCopyEnableMs; t.listBadge = '聊天任务进行中'; t.listCountdownEndAt = null; set(`sm:task:${taskId}`, t) }
 
@@ -1123,6 +1124,34 @@ function enterStage4FailCountdown(taskId: string, failCount: number) {
 }
 
 // 处理提示板点击（陌生模块）
+// 真正执行半价重启：创建一个新任务并结束旧任务
+function halfRestartTask(taskId: string): { ok: boolean; reason?: string; newTaskId?: string } {
+  initSmLocal();
+  const t = getTask(taskId);
+  if (!t) return { ok: false, reason: '任务不存在' };
+
+  const res = createTask({
+    name: t.name,
+    durationDays: t.durationDays,
+  });
+
+  if (!res.ok || !res.task) {
+    return { ok: false, reason: res.reason || '创建新任务失败' };
+  }
+
+  t.status = 'deleted';
+  t.listBadge = '任务已结束';
+  t.listCountdownEndAt = null;
+  t.lastActionAt = Date.now();
+  set(`sm:task:${taskId}`, t);
+
+  const ids: string[] = get('sm:tasks') || [];
+  set('sm:tasks', ids.filter((i) => i !== taskId));
+
+  console.log('[sm.halfRestartTask] 半价重启成功:', { oldTaskId: taskId, newTaskId: res.task.id });
+  return { ok: true, newTaskId: res.task.id };
+}
+
 export function handlePromptAction(taskId: string, promptType: string, action: string) {
   initSmLocal();
   const t = getTask(taskId);
@@ -1300,12 +1329,12 @@ export function handlePromptAction(taskId: string, promptType: string, action: s
       break;
     }
     case 'stage4_halfprice_m13': {
-      // 暂未实现半价重开，先提供结束/返回选项
       if (action === 'half_restart') {
         clearPrompt();
-        t.status = 'deleted';
-        t.listBadge = '任务已结束';
-        t.listCountdownEndAt = null;
+        const restartResult = halfRestartTask(taskId);
+        if (!restartResult.ok) {
+          return { ok: false, reason: restartResult.reason || '半价重启失败' };
+        }
       } else if (action === 'close_task') {
         clearPrompt();
         t.status = 'deleted';

@@ -158,6 +158,8 @@ const taskId = ref('');
 const taskName = ref('');
 const task = ref<any>(null);
 const userVipLevel = ref(1); // 用户VIP等级，默认VIP1
+const remainingVirtual = ref(0);
+const currentSearchCost = ref(100);
 
 const currentView = ref<'content' | 'z' | 'd' | 'big_cd' | 'stage_cd'>('content');
 const contentList = ref<any[]>([]);
@@ -312,10 +314,12 @@ const getUserVipLevel = async () => {
   try {
     const res = await api.common.info();
     userVipLevel.value = res.data?.userLevel || 1;
-    console.log('[round-stranger] 用户VIP等级:', userVipLevel.value);
+    remainingVirtual.value = res.data?.remainingVirtual || 0;
+    console.log('[round-stranger] 用户VIP等级:', userVipLevel.value, '心币余额:', remainingVirtual.value);
   } catch (error) {
     console.error('[round-stranger] 获取VIP等级失败:', error);
     userVipLevel.value = 1; // 失败时默认VIP1
+    remainingVirtual.value = 0;
   }
 };
 
@@ -462,8 +466,11 @@ const loadCurrentContent = async () => {
   console.log('[stranger] loadCurrentContent sign:', sign, 'contentList:', res.contentList);
 
   if (sign === 'D') {
-    // 当前版本先直接跳过 D 节点，后续再补充 D 模式交互
-    sm.finishCurrentLibNode(taskId.value);
+    console.log('[stranger] enter D mode');
+    const tNow = sm.getTask(taskId.value);
+    if (!tNow?.dMode) {
+      sm.onDEnter(taskId.value);
+    }
     loadTaskData();
     return;
   }
@@ -674,6 +681,8 @@ const handleCopy = (item: any, index?: number) => {
       const now = Date.now();
       const tZ = sm.getTask(taskId.value);
       if (!tZ?.zUnlockAt || now >= tZ.zUnlockAt) sm.onZEnter(taskId.value);
+    } else if (lastSign.value === 'D') {
+      sm.onDEnter(taskId.value);
     } else if (isFriendGreeting) {
       sm.completeFriendGreetingCopy(taskId.value);
     } else {
@@ -693,7 +702,9 @@ const handleZClick = () => {
 };
 
 const handleDClick = () => {
-  uni.showToast({ title: 'D 模式开发中', icon: 'none' });
+  sm.onDClick(taskId.value);
+  loadTaskData();
+  uni.showToast({ title: '已进入下一条内容', icon: 'none' });
 };
 
 const onCdTimeup = () => {
@@ -777,6 +788,35 @@ const handleSearch = () => {
     return;
   }
 
+  if (remainingVirtual.value < currentSearchCost.value) {
+    uni.showModal({
+      title: '心币不足',
+      content: `本次搜索需要 ${currentSearchCost.value} 心币，当前余额不足，请先充值。`,
+      confirmText: '去充值',
+      cancelText: '取消',
+      success: (res) => {
+        if (res.confirm) {
+          uni.navigateTo({ url: '/pages/recharge/index' });
+        }
+      }
+    });
+    return;
+  }
+
+  uni.showModal({
+    title: '搜索问答',
+    content: `本次搜索需要消耗 ${currentSearchCost.value} 心币，是否继续？`,
+    confirmText: '确定',
+    cancelText: '取消',
+    success: (res) => {
+      if (res.confirm) {
+        executeSearch(keyword);
+      }
+    }
+  });
+};
+
+const executeSearch = (keyword: string) => {
   // 从本地库搜索
   const local = getAllContentLibraryData();
   const data = local?.data as any;
@@ -808,6 +848,15 @@ const handleSearch = () => {
 
   searchResults.value = results;
   searchDialog.value?.open();
+
+  const nextCost = Math.round(currentSearchCost.value * 1.6);
+  uni.showToast({
+    title: `搜索完成，消耗 ${currentSearchCost.value} 心币`,
+    icon: 'success'
+  });
+  remainingVirtual.value = Math.max(0, remainingVirtual.value - currentSearchCost.value);
+  currentSearchCost.value = nextCost;
+  searchKeyword.value = '';
 };
 
 const handleCloseSearchDialog = () => {
