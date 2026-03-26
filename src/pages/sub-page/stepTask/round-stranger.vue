@@ -102,14 +102,14 @@
       <view class="prompt-content">
         <view class="prompt-text">{{ promptText }}</view>
         <view class="prompt-buttons">
-          <view
+          <button
             v-for="btn in promptButtons"
             :key="btn.key"
             class="prompt-btn"
-            @click="handlePromptClick(btn.key)"
+            @tap="handlePromptClick(btn.key)"
           >
             {{ btn.label }}
-          </view>
+          </button>
         </view>
       </view>
     </md-dialog>
@@ -771,6 +771,7 @@ const showGenericPrompt = () => {
 };
 
 const handlePromptClick = (key: string) => {
+  console.log('[round-stranger] handlePromptClick:', { key, promptType: task.value?.promptType, taskId: taskId.value });
   const type = task.value?.promptType || 'friend_added';
   if (type === 'stage4_invitation_m8' && key === 'no_choice') {
     uni.showToast({ title: '请了解对方需求后尽快选择', icon: 'none' });
@@ -1121,6 +1122,13 @@ const handleCopySearch = (item: any, index: number) => {
       border-radius: 8rpx;
       font-size: 28rpx;
       text-align: center;
+      line-height: 1.4;
+      margin: 0;
+      border: none;
+    }
+
+    .prompt-btn::after {
+      border: none;
     }
   }
 }

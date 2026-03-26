@@ -120,6 +120,9 @@ export function initUmLocal() {
     set('um:settings', settings);
     console.log('[initUmLocal] 配置已更新到版本', SETTINGS_VERSION);
   }
+
+  // 确保本地库已初始化，避免 friend_added 等链路读取 libs 时报空
+  _initUmLibs();
 }
 
 // 从后台更新大CD时间
@@ -1484,6 +1487,10 @@ export function confirmFriendAdded(taskId: string, added: boolean) {
   if (!t) return { ok: false, reason: '任务不存在' };
 
   const libs: Libs = get('um:libs');
+  if (!libs?.opening) {
+    console.error('[um.confirmFriendAdded] 本地库未初始化');
+    return { ok: false, reason: '本地内容库未初始化' };
+  }
 
   if (added) {
     // 用户选择"是"：回合数+1，进入第一回合，加载开库B1

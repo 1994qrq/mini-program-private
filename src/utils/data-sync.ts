@@ -10,15 +10,26 @@ const UPLOAD_PATH = '/admin-api/infra/user-file/upload';
 const DOWNLOAD_PATH_PREFIX = '/admin-api/infra/file/1/get/';
 const BACKUP_FILE_NAME = 'local_data_backup.json';
 const DEBOUNCE_MS = 3000; // 3秒防抖
+const MAX_UPLOAD_BYTES = 800 * 1024; // 小程序端同步文件大小保护阈值
 
 // 需要同步的存储键前缀
 const SYNC_PREFIXES = [
   'fm:', 'super:', 'free:', 'um:', 'sm:',
-  'familiar_', 'content_library_data',
+  'familiar_',
 ];
 
 // 排除的键（系统级，不需要同步）
-const EXCLUDE_KEYS = ['token', 'disclaimer_agreed'];
+// content_library_data 体积过大，且可通过接口重新同步，不参与云端备份
+const EXCLUDE_KEYS = [
+  'token',
+  'disclaimer_agreed',
+  'content_library_data',
+  'fm:libs',
+  'super:libs',
+  'free:libs',
+  'um:libs',
+  'sm:libs',
+];
 
 let _debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let _userId: number | null = null;
@@ -131,13 +142,34 @@ async function uploadData(): Promise<boolean> {
     }
 
     const allData = collectAllData();
+    const keys = Object.keys(allData);
     const jsonStr = JSON.stringify(allData);
-    console.log('[DataSync] 准备上传，数据大小:', jsonStr.length, '字节');
+    console.log('[DataSync] 准备上传，键数量:', keys.length, '数据大小:', jsonStr.length, '字节');
+
+    if (jsonStr.length > MAX_UPLOAD_BYTES) {
+      console.warn('[DataSync] 同步数据过大，跳过本次上传', {
+        size: jsonStr.length,
+        limit: MAX_UPLOAD_BYTES,
+        keys,
+      });
+      return false;
+    }
 
     // 写入临时文件
     const fs = uni.getFileSystemManager();
     const tempPath = `${uni.env.USER_DATA_PATH}/${BACKUP_FILE_NAME}`;
-    fs.writeFileSync(tempPath, jsonStr, 'utf-8');
+
+    try {
+      // 先删除旧备份文件，尽量释放 USER_DATA_PATH 配额
+      fs.unlinkSync(tempPath);
+    } catch {}
+
+    try {
+      fs.writeFileSync(tempPath, jsonStr, 'utf-8');
+    } catch (err) {
+      console.warn('[DataSync] 写入临时同步文件失败，跳过本次上传', err);
+      return false;
+    }
 
     // 上传文件
     return new Promise<boolean>((resolve) => {
@@ -169,7 +201,7 @@ async function uploadData(): Promise<boolean> {
       });
     });
   } catch (e) {
-    console.error('[DataSync] 上传异常:', e);
+    console.warn('[DataSync] 上传异常，已跳过本次同步:', e);
     return false;
   } finally {
     _uploading = false;
@@ -242,6 +274,13 @@ export function triggerSync(): void {
 
   // 未登录不同步
   if (!uni.getStorageSync('token')) return;
+
+  // 微信小程序端 USER_DATA_PATH 容量很小，当前同步方案依赖临时写文件，容易触发存储配额异常。
+  // 先在小程序端关闭自动上传，保留本地存储与启动恢复逻辑，避免每次业务操作都刷错误日志。
+  // 后续如需支持小程序端云同步，建议改为分片/接口直传而不是本地临时文件上传。
+  // #ifdef MP-WEIXIN
+  return;
+  // #endif
 
   if (_debounceTimer) clearTimeout(_debounceTimer);
   _debounceTimer = setTimeout(() => {

@@ -47,7 +47,7 @@ function get<T = any>(k: string): T { return uni.getStorageSync(k) as T }
 function set(k: string, v: any) { uni.setStorageSync(k, v); triggerSync(); }
 
 // 当前配置版本号
-const SETTINGS_VERSION = 3;
+const SETTINGS_VERSION = 4;
 
 export function initSmLocal() {
   const existingSettings: Settings | null = get('sm:settings');
@@ -303,8 +303,18 @@ export function createTask(payload: { name: string; durationDays: number; userVi
   const settings: Settings = get('sm:settings');
 
   // 根据用户VIP等级设置问答搜索上限
-  const vipConfig = settings.vip.levels.find(l => l.level === userVipLevel);
-  const qaMaxItems = vipConfig ? vipConfig.qaMaxItems : settings.vip.levels[0].qaMaxItems;
+  const vipLevels = settings?.vip?.levels || [
+    { level: 0, qaMaxItems: 2 },
+    { level: 1, qaMaxItems: 3 },
+    { level: 2, qaMaxItems: 4 },
+    { level: 3, qaMaxItems: 5 },
+    { level: 4, qaMaxItems: 6 },
+    { level: 5, qaMaxItems: 7 },
+    { level: 6, qaMaxItems: 8 },
+    { level: 7, qaMaxItems: 10 },
+  ];
+  const vipConfig = vipLevels.find(l => l.level === userVipLevel);
+  const qaMaxItems = vipConfig ? vipConfig.qaMaxItems : vipLevels[0].qaMaxItems;
 
   const task: Task = {
     id,
