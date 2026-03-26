@@ -129,8 +129,15 @@
           :key="index"
           class="search-result-item"
         >
-          <view class="result-title">{{ item.title }}</view>
-          <view class="result-content">{{ item.content }}</view>
+          <view class="result-head">
+            <view class="result-title">{{ item.title }}</view>
+            <view class="result-source">{{ item.sourceLabel }}</view>
+          </view>
+          <view class="result-content">
+            <text>{{ item.contentParts?.before || '' }}</text>
+            <text class="result-highlight">{{ item.contentParts?.match || '' }}</text>
+            <text>{{ item.contentParts?.after || '' }}</text>
+          </view>
           <view
             class="copy-btn"
             :class="{ disabled: searchCopyDisabled }"
@@ -141,7 +148,7 @@
         </view>
       </view>
       <view v-else class="empty-state">
-        <text>未找到相关内容</text>
+        <text>{{ searchEmptyText }}</text>
       </view>
     </md-dialog>
   </md-page>
@@ -150,6 +157,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
+import api from '@/api';
 import * as sm from '@/utils/stranger-local';
 import { getPlaceholder } from '@/utils/placeholder-manager';
 import { getAllContentLibraryData } from '@/utils/content-library-sync';
@@ -202,6 +210,7 @@ const stepLabel = computed(() => {
 const showSearch = ref(true);
 const searchKeyword = ref('');
 const searchResults = ref<any[]>([]);
+const searchEmptyText = ref('未找到相关内容');
 const searchPlaceholder = ref('请输入对方的问题'); // 动态placeholder
 
 // 加载动态placeholder
@@ -333,6 +342,8 @@ const loadTaskData = () => {
     setTimeout(() => uni.navigateBack(), 2000);
     return;
   }
+
+  currentSearchCost.value = task.value.searchQaCost || 100;
 
   if (task.value.status === 'deleted') {
     uni.showToast({ title: '任务已结束', icon: 'none' });
@@ -817,46 +828,182 @@ const handleSearch = () => {
 };
 
 const executeSearch = (keyword: string) => {
+  const searchState = sm.performSearchQa(taskId.value);
+  if (!searchState.ok) {
+    uni.showToast({ title: searchState.reason || '搜索失败', icon: 'none' });
+    return;
+  }
+
   // 从本地库搜索
   const local = getAllContentLibraryData();
   const data = local?.data as any;
-  const results: Array<{ title: string; content: string }> = [];
+  const results: Array<{
+    title: string;
+    content: string;
+    key: string;
+    sourceLabel: string;
+    contentParts: { before: string; match: string; after: string };
+    matchScore: number;
+    matchIndex: number;
+  }> = [];
+  const seen = new Set<string>();
+  const copiedSearchKeys = new Set(task.value?.copiedSearchKeys || []);
+  const qaMaxItems = Math.max(1, Number(task.value?.qaVipMaxItems || 0));
+  const normalizedKeyword = String(keyword).trim();
+  const normalizedKeywordLower = normalizedKeyword.toLowerCase();
+  const compactKeyword = normalizedKeywordLower.replace(/\s+/g, '');
 
-  const pushMatch = (title: string, text: string) => {
+  const findMatchMeta = (text: string) => {
+    const lowerText = text.toLowerCase();
+    const directIndex = lowerText.indexOf(normalizedKeywordLower);
+    if (directIndex >= 0) {
+      return {
+        matched: true,
+        matchIndex: directIndex,
+        highlightStart: directIndex,
+        highlightLength: normalizedKeyword.length,
+      };
+    }
+
+    const compactText = lowerText.replace(/\s+/g, '');
+    const compactIndex = compactText.indexOf(compactKeyword);
+    if (compactKeyword && compactIndex >= 0) {
+      let compactCursor = 0;
+      let start = -1;
+      let end = -1;
+      for (let i = 0; i < text.length; i++) {
+        if (/\s/.test(text[i])) continue;
+        if (compactCursor === compactIndex && start === -1) start = i;
+        if (compactCursor === compactIndex + compactKeyword.length - 1) {
+          end = i;
+          break;
+        }
+        compactCursor += 1;
+      }
+      if (start >= 0 && end >= start) {
+        return {
+          matched: true,
+          matchIndex: start,
+          highlightStart: start,
+          highlightLength: end - start + 1,
+        };
+      }
+    }
+
+    return {
+      matched: false,
+      matchIndex: -1,
+      highlightStart: -1,
+      highlightLength: 0,
+    };
+  };
+
+  const buildHighlightParts = (text: string, highlightStart: number, highlightLength: number) => {
+    if (highlightStart < 0 || highlightLength <= 0) {
+      return { before: text, match: '', after: '' };
+    }
+    return {
+      before: text.slice(0, highlightStart),
+      match: text.slice(highlightStart, highlightStart + highlightLength),
+      after: text.slice(highlightStart + highlightLength),
+    };
+  };
+
+  const pushMatch = (title: string, text: string, sourceLabel: string, matchScore = 1) => {
     if (!text) return;
-    if (text.includes(keyword)) {
-      results.push({ title, content: text });
+    const normalized = String(text).trim();
+    const key = `${title}::${normalized}`;
+    const matchMeta = findMatchMeta(normalized);
+    if (copiedSearchKeys.has(key)) return;
+    if (matchMeta.matched && !seen.has(key)) {
+      seen.add(key);
+      results.push({
+        title,
+        content: normalized,
+        key,
+        sourceLabel,
+        contentParts: buildHighlightParts(normalized, matchMeta.highlightStart, matchMeta.highlightLength),
+        matchScore,
+        matchIndex: matchMeta.matchIndex,
+      });
     }
   };
 
   if (data) {
-    const walkLibraries = (libs: Record<string, any>) => {
+    const walkLibraries = (libs: Record<string, any>, sourceLabel: string) => {
       Object.values(libs || {}).forEach((lib: any) => {
         const title = lib?.libraryName || lib?.libraryId || '内容库';
         const contents = lib?.contents || [];
         contents.forEach((node: any) => {
-          pushMatch(title, node?.text || '');
+          const titleMatch = findMatchMeta(title).matched;
+          const score = titleMatch ? 3 : 1;
+          pushMatch(title, node?.text || '', sourceLabel, score);
         });
       });
     };
 
-    walkLibraries(data.contentLibraries);
-    walkLibraries(data.leaveLibraries);
-    walkLibraries(data.proactiveLibraries);
-    // qaLibraries 的 items 结构暂未解析，先跳过
+    const walkQaLibraries = (libs: Record<string, any>) => {
+      const currentStage = Number(task.value?.stageIndex || 1);
+      Object.values(libs || {})
+        .filter((lib: any) => Number(lib?.stage || 0) === currentStage)
+        .forEach((lib: any) => {
+          const title = lib?.libraryName || lib?.libraryId || '问答库';
+          const items = lib?.items || [];
+          items.forEach((item: any) => {
+            const keywords = Array.isArray(item?.keywords) ? item.keywords : [];
+            const answers = Array.isArray(item?.answers) ? item.answers : [];
+            const keywordMatched = keywords.some((it: string) => findMatchMeta(String(it || '')).matched);
+
+            if (keywordMatched) {
+              answers.forEach((answer: any) => {
+                pushMatch(title, answer?.text || '', '问答库', 4);
+              });
+              return;
+            }
+
+            answers.forEach((answer: any) => {
+              const titleMatch = findMatchMeta(title).matched;
+              const score = titleMatch ? 3 : 1;
+              pushMatch(title, answer?.text || '', '问答库', score);
+            });
+          });
+        });
+    };
+
+    walkLibraries(data.contentLibraries, '内容库');
+    walkLibraries(data.leaveLibraries, '离库');
+    walkLibraries(data.proactiveLibraries, '对方找');
+    walkQaLibraries(data.qaLibraries);
   }
 
-  searchResults.value = results;
+  results.sort((a, b) => {
+    if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
+    if (a.matchIndex !== b.matchIndex) return a.matchIndex - b.matchIndex;
+    return a.content.length - b.content.length;
+  });
+
+  searchResults.value = results.slice(0, qaMaxItems);
   searchDialog.value?.open();
 
-  const nextCost = Math.round(currentSearchCost.value * 1.6);
+  const hasCopiedHistory = copiedSearchKeys.size > 0;
+  if (searchResults.value.length === 0) {
+    searchEmptyText.value = hasCopiedHistory
+      ? '当前阶段暂无新的匹配内容，可能已被你复制过，建议更换关键词再试。'
+      : '当前阶段暂无匹配内容，建议更换关键词再试。';
+  } else {
+    searchEmptyText.value = '未找到相关内容';
+  }
+
+  remainingVirtual.value = Math.max(0, remainingVirtual.value - searchState.cost);
+  currentSearchCost.value = searchState.nextCost;
+  searchKeyword.value = '';
+
+  const limitTip = results.length >= qaMaxItems ? `，本次最多展示 ${qaMaxItems} 条` : '';
+  const emptyTip = searchResults.value.length === 0 ? '，当前阶段暂无可展示结果' : '';
   uni.showToast({
-    title: `搜索完成，消耗 ${currentSearchCost.value} 心币`,
+    title: `搜索完成，消耗 ${searchState.cost} 心币${limitTip}${emptyTip}`,
     icon: 'success'
   });
-  remainingVirtual.value = Math.max(0, remainingVirtual.value - currentSearchCost.value);
-  currentSearchCost.value = nextCost;
-  searchKeyword.value = '';
 };
 
 const handleCloseSearchDialog = () => {
@@ -870,8 +1017,12 @@ const handleCopySearch = (item: any, index: number) => {
   uni.setClipboardData({
     data: item.content,
     success: () => {
+      if (item?.key) {
+        sm.markSearchResultCopied(taskId.value, item.key);
+      }
       uni.showToast({ title: '已复制', icon: 'success' });
       searchCopyDisabled.value = true;
+      searchResults.value = searchResults.value.filter((it: any) => it?.key !== item?.key);
       setTimeout(() => {
         searchCopyDisabled.value = false;
       }, 3000);
@@ -1019,11 +1170,28 @@ const handleCopySearch = (item: any, index: number) => {
     border-bottom: none;
   }
 
+  .result-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16rpx;
+    margin-bottom: 10rpx;
+  }
+
   .result-title {
     font-size: 28rpx;
     font-weight: bold;
     color: #333;
-    margin-bottom: 10rpx;
+  }
+
+  .result-source {
+    flex-shrink: 0;
+    padding: 4rpx 14rpx;
+    border-radius: 999rpx;
+    background: #f1ebff;
+    color: #7A59ED;
+    font-size: 22rpx;
+    line-height: 1.4;
   }
 
   .result-content {
@@ -1031,6 +1199,15 @@ const handleCopySearch = (item: any, index: number) => {
     color: #666;
     line-height: 1.5;
     margin-bottom: 20rpx;
+    word-break: break-all;
+  }
+
+  .result-highlight {
+    color: #7A59ED;
+    font-weight: 700;
+    background: rgba(122, 89, 237, 0.12);
+    padding: 0 4rpx;
+    border-radius: 6rpx;
   }
 
   .copy-btn {

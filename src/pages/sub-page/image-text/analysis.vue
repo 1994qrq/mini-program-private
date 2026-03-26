@@ -32,27 +32,7 @@ import api from '@/api';
 
 const data = reactive<any>({
   prevPageQuery: {}, // 上一个页面携带过来的参数
-  list: [
-    {
-      title: '图文说明',
-      content: '这是图文模块的文字说明，这是图文模块的文字说明，这是图文模块的文字说明，这是图文模块的文字说明！',
-      type: 'text',
-    },
-    {
-      title: '图文内容一',
-      type: 'img_text',
-      content:
-        '这段话是根据您的情况描述所得出的情况描述的结论，这段话是根据您的情况描述所得出的情况描述的结论，这段话是根据您的情况描述所得出的情况描述的结论，',
-      imgs: 3,
-    },
-    {
-      title: '图文内容二',
-      type: 'img_text',
-      content:
-        '这段话是根据您的情况描述所得出的情况描述的结论，这段话是根据您的情况描述所得出的情况描述的结论，这段话是根据您的情况描述所得出的情况描述的结论，',
-      imgs: 3,
-    },
-  ],
+  list: [],
   time: '',
   bottomTime: '',
   continuedTimeValue: '', // 选中的续时项
@@ -71,8 +51,16 @@ const countDownTimeup = () => {
  * 图文处理
  */
 
-const handleSelRowImg = (num: number) => {
-  data.selectedNum = num;
+const handleSelRowImg = async (selectedKey: number) => {
+  if (!selectedKey) return;
+  try {
+    await api.task.updateReplyIsUsed({ replyId: selectedKey });
+    data.selectedNum = selectedKey;
+    uni.showToast({ title: '已选中', icon: 'success' });
+  } catch (error) {
+    console.error('[图文分析] 选中答案上报失败:', error);
+    uni.showToast({ title: '选中失败，请稍后重试', icon: 'none' });
+  }
 };
 
 /**
@@ -98,7 +86,7 @@ const handleOk = () => {
 };
 
 // 弹窗确认回调
-const handleConfirm = () => {
+const handleConfirm = async () => {
   console.log('[图文分析] 确认续时，选中的周期:', data.continuedTimeValue);
 
   if (!data.continuedTimeValue) {
@@ -110,19 +98,29 @@ const handleConfirm = () => {
     return;
   }
 
-  // TODO: 调用续时接口
-  console.log('[图文分析] 调用续时接口，参数:', {
-    taskId: data.prevPageQuery?.taskId,
-    time: data.continuedTimeValue
-  });
+  try {
+    await api.task.renewTime({
+      taskId: data.prevPageQuery?.taskId,
+      time: data.continuedTimeValue,
+    });
 
-  uni.showToast({
-    title: '续时功能开发中',
-    icon: 'none',
-    duration: 2000
-  });
+    uni.showToast({
+      title: '续时成功',
+      icon: 'success',
+      duration: 2000
+    });
 
-  popup.value!.close();
+    data.continuedTimeValue = '';
+    popup.value!.close();
+    await getQuestionAnswerList(data.prevPageQuery?.taskId);
+  } catch (error) {
+    console.error('[图文分析] 续时失败:', error);
+    uni.showToast({
+      title: '续时失败，请稍后重试',
+      icon: 'none',
+      duration: 2000
+    });
+  }
 };
 
 const handleCancel = () => {
@@ -153,8 +151,8 @@ const getQuestionAnswerList = async (taskId?: string) => {
       }));
       console.log('[图文分析] 内容列表已设置，长度:', data.list.length);
     } else {
-      console.warn('[图文分析] contentList 为空或不是数组，保持默认列表');
-      // 保持默认的模拟数据
+      console.warn('[图文分析] contentList 为空或不是数组，清空列表');
+      data.list = [];
     }
 
     data.time = res.data.functionEndTime;
@@ -172,6 +170,10 @@ const getQuestionAnswerList = async (taskId?: string) => {
     }
   } catch (error) {
     console.error('[图文分析] 获取问题答案列表失败:', error);
+    data.list = [];
+    data.time = '';
+    data.bottomTime = '';
+    uni.showToast({ title: '获取图文结果失败', icon: 'none' });
   }
 };
 

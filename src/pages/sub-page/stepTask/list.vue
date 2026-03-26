@@ -549,7 +549,17 @@ const fetchCreateTask = async (params: { taskName: string; durationDays: number;
       }
     } else if (title.includes('陌生')) {
       sm.initSmLocal();
-      const res = sm.createTask({ name, durationDays: params.durationDays });
+      // 获取用户VIP等级
+      let userVipLevel = 1;
+      try {
+        const userInfo = await api.common.info();
+        userVipLevel = userInfo.data?.userLevel || 1;
+        console.log('[创建陌生任务] 用户VIP等级:', userVipLevel);
+      } catch (error) {
+        console.error('[创建陌生任务] 获取VIP等级失败:', error);
+      }
+
+      const res = sm.createTask({ name, durationDays: params.durationDays, userVipLevel });
       if (res.ok && res.task) {
         // 陌生模块使用专用页面 round-stranger.vue
         uni.navigateTo({ url: `/pages/sub-page/stepTask/round-stranger?taskId=${res.task.id}&taskName=${encodeURIComponent(params?.taskName || '')}&module=陌生模块` });

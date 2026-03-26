@@ -20,6 +20,9 @@ export interface Task {
   currentLibChain: CurrentLibChain | null; opponentFindUsedInRound: boolean; qaVipMaxItems?: number; questionnaire?: any; prompts?: Record<string, any>; askFlow?: Record<string, any>;
   renewHistory: Array<{ days: number; cost: number; at: number; success: boolean }>; listBadge: string; listCountdownEndAt: number | null; nextOpponentFindLibId?: string;
   waitingForPrompt: boolean; promptType: string | null; friendAdded: boolean; friendGreetingPending?: boolean;
+  searchQaCost?: number; // 当前搜索问答费用
+  searchQaCount?: number; // 已使用搜索问答次数
+  copiedSearchKeys?: string[]; // 已复制过的搜索结果key
     // 标签选择相关
     availableTagOptions: Array<{ id: string; label: string; type: 'opening' | 'content' | 'leaving' }>; // 当前可选的4个标签选项
     selectedTagId: string | null; // 用户选择的标签ID
@@ -34,6 +37,7 @@ export interface Settings {
     smallCopyCdMs: number; bigRoundMinMs: number; opponentFindWaitMs: number; opponentFindCopyEnableMs: number; idleWarnMs: number; idleForceCdMs: number;
     zDurationByStage: { minMs: number; maxMs: number }[];
   };
+  vip: { levels: { level: number; qaMaxItems: number }[] }; // VIP等级对应的问答搜索上限
 }
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -67,6 +71,18 @@ export function initSmLocal() {
           { minMs: getCountdownTimeMs(6 * 60 * 1000), maxMs: getCountdownTimeMs(12 * 60 * 1000) },  // 6-12分钟Z倒计时
           { minMs: getCountdownTimeMs(6 * 60 * 1000), maxMs: getCountdownTimeMs(12 * 60 * 1000) },  // 6-12分钟Z倒计时
         ],
+      },
+      vip: {
+        levels: [
+          { level: 0, qaMaxItems: 2 },  // 游客：2条
+          { level: 1, qaMaxItems: 3 },  // VIP1：3条
+          { level: 2, qaMaxItems: 4 },  // VIP2：4条
+          { level: 3, qaMaxItems: 5 },  // VIP3：5条
+          { level: 4, qaMaxItems: 6 },  // VIP4：6条
+          { level: 5, qaMaxItems: 7 },  // VIP5：7条
+          { level: 6, qaMaxItems: 8 },  // VIP6：8条
+          { level: 7, qaMaxItems: 10 }, // VIP7：10条
+        ]
       },
     };
     set('sm:settings', settings);
@@ -277,14 +293,18 @@ export function listTasks(): { id: string; name: string; status: TaskStatus; bad
   return res;
 }
 
-export function createTask(payload: { name: string; durationDays: number }): { ok: boolean; reason?: string; task?: Task } {
+export function createTask(payload: { name: string; durationDays: number; userVipLevel?: number }): { ok: boolean; reason?: string; task?: Task } {
   initSmLocal();
-  const { name, durationDays } = payload;
+  const { name, durationDays, userVipLevel = 1 } = payload;
   if (!name || name.trim().length === 0 || name.trim().length > 6) return { ok: false, reason: '名称需1-6字' };
   const id = genId();
   const now = Date.now();
   const expireAt = now + durationDays * 24 * 60 * 60 * 1000;
   const settings: Settings = get('sm:settings');
+
+  // 根据用户VIP等级设置问答搜索上限
+  const vipConfig = settings.vip.levels.find(l => l.level === userVipLevel);
+  const qaMaxItems = vipConfig ? vipConfig.qaMaxItems : settings.vip.levels[0].qaMaxItems;
 
   const task: Task = {
     id,
@@ -311,7 +331,7 @@ export function createTask(payload: { name: string; durationDays: number }): { o
     usedLibIdsByStage: {},
     currentLibChain: null,
     opponentFindUsedInRound: false,
-    qaVipMaxItems: 0,
+    qaVipMaxItems: qaMaxItems,
     questionnaire: {},
     prompts: {},
     askFlow: {},
@@ -322,6 +342,9 @@ export function createTask(payload: { name: string; durationDays: number }): { o
     promptType: 'friend_added',
     friendAdded: false,
     friendGreetingPending: false,
+    searchQaCost: 100, // 初始搜索费用100心币
+    searchQaCount: 0,  // 初始搜索次数0
+    copiedSearchKeys: [],
   };
 
   const ids: string[] = get('sm:tasks') || [];
@@ -330,6 +353,17 @@ export function createTask(payload: { name: string; durationDays: number }): { o
 }
 
 export function getTask(taskId: string): Task | null { initSmLocal(); const t: Task = get(`sm:task:${taskId}`); return t || null }
+
+export function markSearchResultCopied(taskId: string, key: string) {
+  initSmLocal();
+  const t = getTask(taskId);
+  if (!t || !key) return;
+  const copiedKeys = Array.isArray(t.copiedSearchKeys) ? t.copiedSearchKeys : [];
+  if (!copiedKeys.includes(key)) copiedKeys.push(key);
+  t.copiedSearchKeys = copiedKeys;
+  t.lastActionAt = Date.now();
+  set(`sm:task:${taskId}`, t);
+}
 
 function pickChain(group: Record<string, Chain[]>, libId: string): Chain | null { const arr = group[libId]; if (!arr || arr.length === 0) return null; return arr[0] }
 function setCurrentChain(t: Task, type: CurrentLibChain['type'], libId: string, chain: Chain) { t.currentLibChain = { type, libId, nodeIndex: 0, segmentsCopied: 0 }; markChainUsedInternal(t, libId, type) }
@@ -349,6 +383,53 @@ export function onDEnter(taskId: string) { initSmLocal(); const t = getTask(task
 export function onDClick(taskId: string) { initSmLocal(); const t = getTask(taskId); if (!t) return; t.dMode = false; set(`sm:task:${taskId}`, t); advancePastCurrentNode(taskId) }
 
 export function onOpponentFindClick(taskId: string, libId = 'M20') { initSmLocal(); const t = getTask(taskId); if (!t) return; const libs: Libs = get('sm:libs'); const op = pickChain(libs.opponent, libId); if (op) setCurrentChain(t, 'opponent', libId, op); const settings: Settings = get('sm:settings'); t.opponentFindUsedInRound = true; t.opponentFindUnlockAt = Date.now(); t.opponentFindCopyUnlockAt = Date.now() + settings.cd.opponentFindCopyEnableMs; t.listBadge = '聊天任务进行中'; t.listCountdownEndAt = null; set(`sm:task:${taskId}`, t) }
+
+/**
+ * 执行搜索问答并更新费用
+ * @param taskId 任务ID
+ * @returns 搜索结果和新费用
+ */
+export function performSearchQa(taskId: string): { ok: boolean; cost: number; nextCost: number; reason?: string } {
+  initSmLocal();
+  const t = getTask(taskId);
+  if (!t) return { ok: false, cost: 0, nextCost: 0, reason: '任务不存在' };
+
+  const currentCost = t.searchQaCost || 100;
+
+  // 执行搜索（这里只更新费用，实际搜索逻辑在UI层处理）
+  t.searchQaCount = (t.searchQaCount || 0) + 1;
+
+  // 计算下次费用：当前费用 * 1.6
+  const nextCost = Math.round(currentCost * 1.6);
+  t.searchQaCost = nextCost;
+
+  set(`sm:task:${taskId}`, t);
+
+  console.log('[sm.performSearchQa] 搜索问答执行:', {
+    count: t.searchQaCount,
+    currentCost,
+    nextCost
+  });
+
+  return { ok: true, cost: currentCost, nextCost };
+}
+
+/**
+ * 重置搜索问答费用（任务续费时调用）
+ * @param taskId 任务ID
+ */
+export function resetSearchQaCost(taskId: string) {
+  initSmLocal();
+  const t = getTask(taskId);
+  if (!t) return;
+
+  t.searchQaCost = 100;
+  t.searchQaCount = 0;
+
+  set(`sm:task:${taskId}`, t);
+
+  console.log('[sm.resetSearchQaCost] 搜索问答费用已重置');
+}
 
 export function enterRoundBigCd(taskId: string, multiplier = 1) {
   initSmLocal();
