@@ -54,6 +54,13 @@ type BackupManifest = {
   shards: ManifestShard[];
 };
 
+type DownloadResult = {
+  found: boolean;
+  data?: any;
+  statusCode?: number;
+  error?: boolean;
+};
+
 // 排除的键（系统级，不需要同步）
 const EXCLUDE_KEYS = [
   'token',
@@ -305,29 +312,33 @@ async function uploadData(): Promise<boolean> {
   }
 }
 
-async function downloadAndParseFile(userId: number, fileName: string): Promise<{ found: boolean; data?: any }> {
+async function downloadAndParseFile(userId: number, fileName: string): Promise<DownloadResult> {
   const url = `${BASE_URL}${DOWNLOAD_PATH_PREFIX}${userId}/${fileName}`;
   return new Promise((resolve) => {
     uni.downloadFile({
       url,
       header: { Authorization: uni.getStorageSync('token') },
       success: (res) => {
+        if (res.statusCode === 404) {
+          resolve({ found: false, statusCode: res.statusCode });
+          return;
+        }
         if (res.statusCode !== 200 || !res.tempFilePath) {
-          resolve({ found: false });
+          resolve({ found: false, statusCode: res.statusCode, error: true });
           return;
         }
         try {
           const fs = uni.getFileSystemManager();
           const content = fs.readFileSync(res.tempFilePath, 'utf-8') as string;
-          resolve({ found: true, data: JSON.parse(content) });
+          resolve({ found: true, data: JSON.parse(content), statusCode: res.statusCode });
         } catch (e) {
           console.error('[DataSync] 解析下载分片失败:', { fileName, e });
-          resolve({ found: false });
+          resolve({ found: false, statusCode: res.statusCode, error: true });
         }
       },
       fail: (err) => {
         console.error('[DataSync] 下载请求失败:', { fileName, err });
-        resolve({ found: false });
+        resolve({ found: false, error: true });
       },
     });
   });
@@ -344,13 +355,22 @@ export async function downloadAndRestore(): Promise<boolean> {
     }
 
     const manifestResult = await downloadAndParseFile(userId, MANIFEST_FILE_NAME);
-    if (!manifestResult.found || !manifestResult.data) {
+    if (!manifestResult.found) {
+      if (manifestResult.error) {
+        console.warn('[DataSync] manifest 下载异常，保留本地同步数据');
+        return false;
+      }
       console.warn('[DataSync] 服务器无 manifest，清空本地同步数据');
       clearAllSyncData();
       return true;
     }
 
     const manifest = manifestResult.data as BackupManifest;
+    if (!manifest || !Array.isArray(manifest.shards)) {
+      console.warn('[DataSync] manifest 内容异常，保留本地同步数据');
+      return false;
+    }
+
     const groupDataMap: Partial<Record<SyncGroupName, Record<string, any>>> = {};
 
     for (const group of SYNC_GROUPS) {
@@ -360,6 +380,10 @@ export async function downloadAndRestore(): Promise<boolean> {
         continue;
       }
       const shardResult = await downloadAndParseFile(userId, shard.fileName);
+      if (shardResult.error) {
+        console.warn('[DataSync] 分片下载异常，保留本地同步数据', { groupName: group.name, fileName: shard.fileName });
+        return false;
+      }
       groupDataMap[group.name] = shardResult.found && shardResult.data ? shardResult.data : {};
     }
 

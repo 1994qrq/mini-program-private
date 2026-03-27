@@ -1,4 +1,5 @@
 import { Toast } from '@/utils/util';
+import { clearSyncCache } from '@/utils/data-sync';
 
 // 后端返回的通用响应结构
 export type ResponseData<T> = {
@@ -16,6 +17,7 @@ const handleResponse = <T>(res: any, resolve: (value: T | PromiseLike<T>) => voi
     // 登录失败 - 清除token但不自动跳转
     console.log('[Request] 401 未授权，清除token');
     uni.removeStorageSync('token');
+    clearSyncCache();
     // 不再自动跳转到登录页，由各个页面自己控制
     // 这样可以避免在首页等公共页面自动弹出登录
     reject(res);
