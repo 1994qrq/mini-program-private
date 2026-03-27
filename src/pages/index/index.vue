@@ -182,12 +182,12 @@ const getRequiredLevel = (module: string) => MODULE_PERMISSIONS[module] ?? 0;
 const isFreeModule = (module: string) => module === '免费模块';
 
 const canAccessModule = (module: string) => {
-  if (!isLoggedIn()) {
-    return false;
-  }
-
   if (isFreeModule(module)) {
     return true;
+  }
+
+  if (!isLoggedIn()) {
+    return false;
   }
 
   const requiredLevel = getRequiredLevel(module);

@@ -121,6 +121,16 @@ const handleJump = async (item: TaskData) => {
 			return;
 		}
 
+		if (moduleType === '免费' && taskStageIndex === 0) {
+			const enterResult = fm.enterStage1(taskId);
+			if (!enterResult.ok) {
+				uni.showToast({ title: enterResult.reason || '进入第一阶段失败', icon: 'none', duration: 2000 });
+				return;
+			}
+			uni.navigateTo({ url: `/pages/sub-page/stepTask/round?module=${moduleType}模块&taskId=${taskId}` });
+			return;
+		}
+
 		// 阶段0：问卷，否则：回合
 		const url = taskStageIndex === 0
 			? `/pages/sub-page/stepTask/questionnaire?module=${moduleType}模块&taskId=${taskId}&taskName=${taskName}`
