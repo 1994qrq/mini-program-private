@@ -1,7 +1,7 @@
 <template>
   <md-page :title="data.prevPageQuery?.taskName">
     <view class="container">
-      <block v-if="!data.info.timeOut">
+      <block v-if="!data.info.hasItTimeOut">
         <bc-countdown desc="倒计时结束后，将显示第一条回复内容" :time="data.info?.endTime" />
       </block>
       <block v-for="item in data.info?.list" :key="item.id">

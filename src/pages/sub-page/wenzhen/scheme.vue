@@ -37,7 +37,7 @@ const handleDetail = async () => {
   const open = await checkVirtualCoin(payModule['问诊二阶段付费']);
   if (open) {
     uni.navigateTo({
-      url: '/pages/sub-page/wenzhen/analysis?taskId='+ data.prevPageQuery.taskId ,
+      url: `/pages/sub-page/wenzhen/detail?taskId=${data.prevPageQuery.taskId}&taskName=${data.prevPageQuery?.taskName}`,
     });
   }
 };
