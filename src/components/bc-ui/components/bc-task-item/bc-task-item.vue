@@ -336,11 +336,9 @@ const fetchRenewTime = async () => {
 // 任务删除
 const fetchDelTask = async () => {
   try {
-    // 判断任务类型，使用不同的删除方法
-    const taskType = props.taskType; // '熟悉'、'不熟'、'超熟'、'陌生'、''(免费)
+    const taskType = props.taskType;
 
     if (taskType === '熟悉') {
-      // 熟悉模块：使用本地删除
       fm.initFamiliarLocal('familiar');
       const deleted = fm.deleteTask(props.item.id || props.item.taskId);
       if (deleted) {
@@ -350,7 +348,6 @@ const fetchDelTask = async () => {
         uni.showToast({ title: '删除失败', icon: 'none' });
       }
     } else if (taskType === '超熟') {
-      // 超熟模块：使用本地删除
       fm.initFamiliarLocal('super');
       const deleted = fm.deleteTask(props.item.id || props.item.taskId);
       if (deleted) {
@@ -360,7 +357,6 @@ const fetchDelTask = async () => {
         uni.showToast({ title: '删除失败', icon: 'none' });
       }
     } else if (taskType === '不熟') {
-      // 不熟模块：使用本地删除
       um.initUmLocal();
       const deleted = um.deleteTask(props.item.id || props.item.taskId);
       if (deleted) {
@@ -370,7 +366,6 @@ const fetchDelTask = async () => {
         uni.showToast({ title: '删除失败', icon: 'none' });
       }
     } else if (taskType === '陌生') {
-      // 陌生模块：使用本地删除
       sm.initSmLocal();
       const deleted = sm.deleteTask(props.item.id || props.item.taskId);
       if (deleted) {
@@ -379,11 +374,13 @@ const fetchDelTask = async () => {
       } else {
         uni.showToast({ title: '删除失败', icon: 'none' });
       }
-    } else {
-      // 免费模块：只删除本地数据，不调用后端接口
-      console.log('[删除任务] 免费模块，只删除本地数据');
+    } else if (taskType === '免费') {
       fm.initFamiliarLocal('free');
       fm.deleteTask(props.item.id || props.item.taskId);
+      uni.showToast({ title: '已删除', icon: 'none' });
+      emit('swipeClick');
+    } else {
+      await api.task.delTask({ taskId: props.item.taskId });
       uni.showToast({ title: '已删除', icon: 'none' });
       emit('swipeClick');
     }
@@ -392,7 +389,6 @@ const fetchDelTask = async () => {
     uni.showToast({ title: '删除失败', icon: 'none' });
   }
   popup.value!.close();
-  // 延迟重置删除标志，确保不会触发点击事件
   setTimeout(() => {
     data.isDeleting = false;
   }, 500);

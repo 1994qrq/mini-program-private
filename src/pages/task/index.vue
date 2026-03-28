@@ -32,13 +32,16 @@ import * as um from '@/utils/unfamiliar-local';
 import * as sm from '@/utils/stranger-local';
 import { hasItTimeOut } from '@/utils/util';
 import { taskModule } from '@/utils/data';
+import api from '@/api';
+import type { Task } from '@/api/data';
 
 // 任务数据类型
 interface TaskData {
 	taskId: string;
 	taskName: string;
-	moduleType: '熟悉' | '超熟' | '不熟' | '陌生' | '免费';
+	moduleType: '熟悉' | '超熟' | '不熟' | '陌生' | '免费' | '定制' | '问诊' | '线下' | '图文';
 	endTime: string;
+	taskStatus?: number;
 }
 
 const data = reactive<any>({
@@ -54,6 +57,10 @@ const getModuleLabel = (type: string) => {
 		'不熟': '不熟',
 		'陌生': '陌生',
 		'免费': '免费',
+		'定制': '定制',
+		'问诊': '问诊',
+		'线下': '线下',
+		'图文': '图文',
 	};
 	return labels[type] || type;
 };
@@ -66,6 +73,10 @@ const getModuleIcon = (type: string) => {
 		'不熟': 'home/bushu',
 		'陌生': 'home/mosheng',
 		'免费': 'home/free',
+		'定制': 'home/dingzhi',
+		'问诊': 'home/wenzhen',
+		'线下': 'home/xianxia',
+		'图文': 'home/tuwen',
 	};
 	return icons[type] || 'home/shuxi';
 };
@@ -77,7 +88,7 @@ const handleJump = async (item: TaskData) => {
 		return;
 	}
 
-	const { moduleType, taskId, taskName } = item;
+	const { moduleType, taskId, taskName, taskStatus } = item;
 
 	// 熟悉/超熟/免费模块
 	if (['熟悉', '超熟', '免费'].includes(moduleType)) {
@@ -131,15 +142,15 @@ const handleJump = async (item: TaskData) => {
 			return;
 		}
 
-		// 阶段0：问卷，否则：回合
 		const url = taskStageIndex === 0
 			? `/pages/sub-page/stepTask/questionnaire?module=${moduleType}模块&taskId=${taskId}&taskName=${taskName}`
 			: `/pages/sub-page/stepTask/round?module=${moduleType}模块&taskId=${taskId}`;
 
 		uni.navigateTo({ url });
+		return;
 	}
-	// 不熟模块
-	else if (moduleType === '不熟') {
+
+	if (moduleType === '不熟') {
 		um.initUmLocal();
 		const tasks = um.listTasks();
 		const task = tasks.find(t => t.id === taskId);
@@ -148,7 +159,6 @@ const handleJump = async (item: TaskData) => {
 			return;
 		}
 
-		// 检查倒计时
 		if (task.badge === '对方找倒计时' && task.countdownEndAt && !hasItTimeOut(task.countdownEndAt)) {
 			uni.showToast({ title: '对方找倒计时未结束', icon: 'none', duration: 2000 });
 			return;
@@ -161,9 +171,10 @@ const handleJump = async (item: TaskData) => {
 		uni.navigateTo({
 			url: `/pages/sub-page/stepTask/round-new?module=不熟模块&taskId=${taskId}&taskName=${taskName}`,
 		});
+		return;
 	}
-	// 陌生模块
-	else if (moduleType === '陌生') {
+
+	if (moduleType === '陌生') {
 		sm.initSmLocal();
 		const tasks = sm.listTasks();
 		const task = tasks.find(t => t.id === taskId);
@@ -172,7 +183,6 @@ const handleJump = async (item: TaskData) => {
 			return;
 		}
 
-		// 检查倒计时
 		if (task.badge === '对方找倒计时' && task.countdownEndAt && !hasItTimeOut(task.countdownEndAt)) {
 			uni.showToast({ title: '对方找倒计时未结束', icon: 'none', duration: 2000 });
 			return;
@@ -185,6 +195,61 @@ const handleJump = async (item: TaskData) => {
 		uni.navigateTo({
 			url: `/pages/sub-page/stepTask/round-stranger?module=陌生模块&taskId=${taskId}&taskName=${taskName}`,
 		});
+		return;
+	}
+
+	if (moduleType === '定制') {
+		let url = '';
+		const params = `taskId=${taskId}&taskName=${encodeURIComponent(taskName || '')}`;
+		if (taskStatus === 20) {
+			url = `/pages/sub-page/custom/analysis?${params}`;
+		} else if (taskStatus === 30) {
+			url = `/pages/sub-page/custom/scheme?${params}`;
+		} else if ((taskStatus || 0) >= 50) {
+			url = `/pages/sub-page/custom/detail?${params}&taskStatus=${taskStatus}`;
+		} else {
+			url = `/pages/sub-page/custom/questionnaire?${params}`;
+		}
+		uni.navigateTo({ url });
+		return;
+	}
+
+	if (moduleType === '问诊') {
+		let url = '';
+		const params = `taskId=${taskId}&taskName=${encodeURIComponent(taskName || '')}`;
+		if (taskStatus === 20) {
+			url = `/pages/sub-page/wenzhen/analysis?${params}`;
+		} else if (taskStatus === 30) {
+			url = `/pages/sub-page/wenzhen/scheme?${params}`;
+		} else if ((taskStatus || 0) >= 50) {
+			url = `/pages/sub-page/wenzhen/detail?${params}&taskStatus=${taskStatus}`;
+		} else {
+			url = `/pages/sub-page/wenzhen/questionnaire?${params}`;
+		}
+		uni.navigateTo({ url });
+		return;
+	}
+
+	if (moduleType === '线下') {
+		let url = '';
+		const params = `taskId=${taskId}&taskName=${encodeURIComponent(taskName || '')}`;
+		if (taskStatus === 20) {
+			url = `/pages/sub-page/offline/analysis?${params}`;
+		} else if (taskStatus === 30) {
+			url = `/pages/sub-page/offline/scheme?${params}`;
+		} else {
+			url = `/pages/sub-page/offline/problem?${params}`;
+		}
+		uni.navigateTo({ url });
+		return;
+	}
+
+	if (moduleType === '图文') {
+		const params = `taskId=${taskId}&taskName=${encodeURIComponent(taskName || '')}`;
+		const url = taskStatus === 10
+			? `/pages/sub-page/image-text/problem?${params}`
+			: `/pages/sub-page/image-text/analysis?${params}`;
+		uni.navigateTo({ url });
 	}
 };
 
@@ -193,7 +258,6 @@ const fetchTaskList = async () => {
 	try {
 		const allTasks: TaskData[] = [];
 
-		// 1. 熟悉模块任务
 		fm.initFamiliarLocal('familiar');
 		const fmTasks = fm.listTasks();
 		fmTasks.forEach(t => {
@@ -205,7 +269,6 @@ const fetchTaskList = async () => {
 			});
 		});
 
-		// 2. 超熟模块任务
 		fm.initFamiliarLocal('super');
 		const superTasks = fm.listTasks();
 		superTasks.forEach(t => {
@@ -217,7 +280,6 @@ const fetchTaskList = async () => {
 			});
 		});
 
-		// 3. 免费模块任务
 		fm.initFamiliarLocal('free');
 		const freeTasks = fm.listTasks();
 		freeTasks.forEach(t => {
@@ -229,7 +291,6 @@ const fetchTaskList = async () => {
 			});
 		});
 
-		// 4. 不熟模块任务
 		um.initUmLocal();
 		const umTasks = um.listTasks();
 		umTasks.forEach(t => {
@@ -241,7 +302,6 @@ const fetchTaskList = async () => {
 			});
 		});
 
-		// 5. 陌生模块任务
 		sm.initSmLocal();
 		const smTasks = sm.listTasks();
 		smTasks.forEach(t => {
@@ -250,6 +310,31 @@ const fetchTaskList = async () => {
 				taskName: t.name,
 				moduleType: '陌生',
 				endTime: t.countdownEndAt ? new Date(t.countdownEndAt).toLocaleString() : '',
+			});
+		});
+
+		const backendModuleConfigs: Array<{ moduleType: TaskData['moduleType']; moduleCode: string }> = [
+			{ moduleType: '定制', moduleCode: taskModule['定制模块'] },
+			{ moduleType: '问诊', moduleCode: taskModule['问诊模块'] },
+			{ moduleType: '线下', moduleCode: taskModule['线下模块'] },
+			{ moduleType: '图文', moduleCode: taskModule['图文模块'] },
+		];
+
+		const backendResults = await Promise.allSettled(
+			backendModuleConfigs.map(config => api.task.list({ moduleCode: config.moduleCode }))
+		);
+
+		backendResults.forEach((result, index) => {
+			if (result.status !== 'fulfilled') return;
+			const config = backendModuleConfigs[index];
+			(result.value.data || []).forEach((task: Task.List.Data) => {
+				allTasks.push({
+					taskId: task.taskId,
+					taskName: task.taskName,
+					moduleType: config.moduleType,
+					taskStatus: task.taskStatus,
+					endTime: task.endTime || '',
+				});
 			});
 		});
 
@@ -265,7 +350,7 @@ const handleDelete = (taskId: string, moduleType: TaskData['moduleType']) => {
 	uni.showModal({
 		title: '提示',
 		content: '确认删除该任务吗？',
-		success: (res) => {
+		success: async (res) => {
 			if (res.confirm) {
 				let deleted = false;
 
@@ -284,9 +369,13 @@ const handleDelete = (taskId: string, moduleType: TaskData['moduleType']) => {
 				} else if (moduleType === '陌生') {
 					sm.initSmLocal();
 					deleted = !!sm.deleteTask(taskId);
+				} else {
+					await api.task.delTask({ taskId });
+					deleted = true;
 				}
 
 				if (deleted) {
+					data.list = data.list.filter((item: TaskData) => !(item.taskId === taskId && item.moduleType === moduleType));
 					uni.showToast({ title: '已删除', icon: 'none' });
 					fetchTaskList();
 				} else {
@@ -308,28 +397,21 @@ const handleRenew = (taskId: string) => {
 	fetchTaskList();
 };
 
-onLoad(() => {
-	fetchTaskList();
-});
-
-// 进入页面时刷新
-onShow(() => {
-	fetchTaskList();
-});
-
 // 监听数据同步完成事件
 const handleDataSyncCompleted = (event: { action: string }) => {
 	console.log('[TaskList] 收到数据同步完成事件:', event.action);
 	fetchTaskList();
 };
 
-// 页面加载时注册事件监听
 onLoad(() => {
 	uni.$on('dataSyncCompleted', handleDataSyncCompleted);
 	fetchTaskList();
 });
 
-// 页面卸载时移除事件监听
+onShow(() => {
+	fetchTaskList();
+});
+
 onUnmounted(() => {
 	uni.$off('dataSyncCompleted', handleDataSyncCompleted);
 });

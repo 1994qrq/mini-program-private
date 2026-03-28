@@ -22,7 +22,8 @@
           :taskType="data.title.includes('熟悉') ? '熟悉' :
                     data.title.includes('不熟') ? '不熟' :
                     data.title.includes('超熟') ? '超熟' :
-                    data.title.includes('陌生') ? '陌生' : ''"
+                    data.title.includes('陌生') ? '陌生' :
+                    data.title.includes('免费') ? '免费' : ''"
           @click="() => handleJump(item)"
           @swipeClick="onSwipeClick"></bc-task-item>
       </block>
