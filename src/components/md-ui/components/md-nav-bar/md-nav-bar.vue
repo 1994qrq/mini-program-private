@@ -90,12 +90,13 @@ let customLeft = () => {
 
   if (currentRoute && currentRoute.includes('stepTask/round')) {
     console.log('[md-nav-bar] 检测到stepTask/round页面');
-    // 检查当前页面参数，如果是熟悉模块，返回到熟悉模块列表
+    // 检查当前页面参数，如果是熟悉/超熟模块，返回到对应模块列表
     const options = currentPage[currentPage.length - 1]?.options;
     console.log('[md-nav-bar] 当前页面参数:', options);
-    
-    if (options && options.module === '熟悉模块') {
-      console.log('[md-nav-bar] 熟悉模块round页面，尝试返回已有list页面');
+    const stepModule = options?.module;
+
+    if (stepModule === '熟悉模块' || stepModule === '超熟模块') {
+      console.log('[md-nav-bar] 阶梯模块round页面，尝试返回已有list页面:', stepModule);
       const listIndex = currentPage.findIndex(p => p.route === 'pages/sub-page/stepTask/list');
       if (listIndex >= 0) {
         const delta = currentPage.length - listIndex - 1;
@@ -108,7 +109,7 @@ let customLeft = () => {
       } else {
         console.log('[md-nav-bar] 页面栈没有列表页，使用navigateTo跳转');
         uni.navigateTo({
-          url: '/pages/sub-page/stepTask/list?module=熟悉模块'
+          url: `/pages/sub-page/stepTask/list?module=${encodeURIComponent(stepModule)}`
         });
       }
       return;

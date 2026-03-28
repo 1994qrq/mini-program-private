@@ -278,6 +278,19 @@ const data = reactive<any>({
 const popup = ref<any>(null);
 const idleDialog = ref<any>(null);
 
+const getCurrentModuleName = () => data.moduleCodeName || '熟悉模块';
+const getCurrentStoragePrefix = () => {
+  if (getCurrentModuleName().includes('免费')) return 'free';
+  if (getCurrentModuleName().includes('超熟')) return 'super';
+  return 'fm';
+};
+const getScopedTaskKey = (taskId: string | number) => `${getCurrentStoragePrefix()}:task:${taskId}`;
+const getScopedLeavingKey = (taskId: string | number) => `${getCurrentStoragePrefix()}:leaving:${taskId}`;
+const getScopedLibs = () => uni.getStorageSync(`${getCurrentStoragePrefix()}:libs`);
+const goCurrentModuleList = () => {
+  uni.redirectTo({ url: `/pages/sub-page/stepTask/list?module=${encodeURIComponent(getCurrentModuleName())}` });
+};
+
 // 空闲检查定时器
 let idleCheckTimer: any = null;
 
@@ -428,7 +441,7 @@ const showGoButton = (content?: string) => {
   const task = getTask(data.taskId);
   if (task?.stage4) {
     task.stage4.goClicked = false;
-    uni.setStorageSync(`fm:task:${data.taskId}`, task);
+    uni.setStorageSync(getScopedTaskKey(data.taskId), task);
   }
 };
 
@@ -451,7 +464,7 @@ const handleGoButtonClick = async () => {
   const task = getTask(data.taskId);
   if (task?.stage4) {
     task.stage4.goClicked = true;
-    uni.setStorageSync(`fm:task:${data.taskId}`, task);
+    uni.setStorageSync(getScopedTaskKey(data.taskId), task);
   }
 
   // 隐藏Go按钮
@@ -485,7 +498,7 @@ const handleGoButtonClick = async () => {
                   if (result.ok) {
                     uni.showToast({ title: '任务已结束', icon: 'success' });
                     setTimeout(() => {
-                      uni.redirectTo({ url: '/pages/sub-page/stepTask/list?module=熟悉模块' });
+                      goCurrentModuleList();
                     }, 1500);
                   } else {
                     uni.showToast({ title: result.reason || '结束任务失败', icon: 'none' });
@@ -637,7 +650,7 @@ const loadTaskData = () => {
     if (task.roundCdUnlockAt && now < (task.roundCdUnlockAt as number)) {
       console.log('[loadTaskData] 正在回合CD中，清除离库恢复数据');
       try {
-        uni.removeStorageSync(`fm:leaving:${data.taskId}`);
+        uni.removeStorageSync(getScopedLeavingKey(data.taskId));
       } catch (e) {}
 
       // 设置倒计时显示
@@ -665,7 +678,7 @@ const loadTaskData = () => {
     
     // 离库恢复：若存在离库UI恢复数据，则优先还原离库并行展示
     try {
-      const restore = uni.getStorageSync(`fm:leaving:${data.taskId}`);
+      const restore = uni.getStorageSync(getScopedLeavingKey(data.taskId));
       if (restore && restore.raw && restore.roundIndex) {
         console.log('[loadTaskData] 恢复离库数据，回合:', restore.roundIndex);
         buildLeavingUIFromRaw(String(restore.raw), Number(restore.roundIndex));
@@ -697,7 +710,7 @@ const loadTaskData = () => {
         if (updatedTask) {
           updatedTask.roundIndex = savedRoundIndex;
           updatedTask.stageScore = savedStageScore;
-          uni.setStorageSync(`fm:task:${data.taskId}`, updatedTask);
+          uni.setStorageSync(getScopedTaskKey(data.taskId), updatedTask);
           task = updatedTask;
           console.log('[loadTaskData] stage2初始化成功，已恢复回合数:', savedRoundIndex, '和得分:', savedStageScore);
         }
@@ -723,7 +736,7 @@ const loadTaskData = () => {
         if (updatedTask) {
           updatedTask.roundIndex = savedRoundIndex;
           updatedTask.stageScore = savedStageScore;
-          uni.setStorageSync(`fm:task:${data.taskId}`, updatedTask);
+          uni.setStorageSync(getScopedTaskKey(data.taskId), updatedTask);
           task = updatedTask;
           console.log('[loadTaskData] stage3初始化成功，已恢复回合数:', savedRoundIndex, '和得分:', savedStageScore);
         }
@@ -749,7 +762,7 @@ const loadTaskData = () => {
         if (updatedTask) {
           updatedTask.roundIndex = savedRoundIndex;
           updatedTask.stageScore = savedStageScore;
-          uni.setStorageSync(`fm:task:${data.taskId}`, updatedTask);
+          uni.setStorageSync(getScopedTaskKey(data.taskId), updatedTask);
           task = updatedTask;
           console.log('[loadTaskData] stage4初始化成功，已恢复回合数:', savedRoundIndex, '和得分:', savedStageScore);
         }
@@ -864,7 +877,7 @@ const loadCurrentRoundContent = () => {
   const t = getTask(data.taskId) as any;
   const clc = t?.currentLibChain;
   if (clc && clc.type === 'content' && clc.libId) {
-    const libs = uni.getStorageSync('fm:libs');
+    const libs = getScopedLibs();
     const chainGroup = libs?.content || {};
     const chain = chainGroup?.[clc.libId]?.[0] || [];
     const node = chain?.[clc.nodeIndex] || null;
@@ -901,7 +914,7 @@ const loadCurrentRoundContent = () => {
   }
   
   // 获取内容库内容
-  const libs = uni.getStorageSync('fm:libs');
+  const libs = getScopedLibs();
   const contentChains = libs?.content?.[contentLibId] || [];
   
   if (contentChains.length > 0) {
@@ -1075,7 +1088,7 @@ const handleLookforClick = async () => {
   }
 
   // 获取对方找内容库
-  const libs = uni.getStorageSync('fm:libs');
+  const libs = getScopedLibs();
   const task = getTask(data.taskId);
 
   // 根据不同阶段/回合获取对应的对方找库
@@ -1296,7 +1309,7 @@ const finishCurrentContent = () => {
   
   console.log('[finishCurrentContent] 阶段:', task.stageIndex, '回合:', task.roundIndex, 'specialRound:', task.specialRound, '离库:', leavingLibId);
 
-  const libs = uni.getStorageSync('fm:libs');
+  const libs = getScopedLibs();
   const leavingChains = libs?.leaving?.[leavingLibId] || [];
 
   if (leavingChains.length > 0) {
@@ -1335,7 +1348,7 @@ const finishCurrentContent = () => {
     // 保存映射到 data & 本地，用于刷新恢复
     // @ts-ignore
     data.leavingAtNextById = map;
-    uni.setStorageSync(`fm:leaving:${data.taskId}`, {
+    uni.setStorageSync(getScopedLeavingKey(data.taskId), {
       raw,
       roundIndex: task.roundIndex,
       specialRound: task.specialRound || null,
@@ -1442,7 +1455,7 @@ const handleCopy = (item: any) => {
       const tSync1 = getTask(data.taskId) as any;
       if (tSync1 && tSync1.currentLibChain) {
         tSync1.currentLibChain.segmentsCopied = Number(tSync1.currentLibChain?.segmentsCopied || 0) + 1;
-        uni.setStorageSync(`fm:task:${data.taskId}`, tSync1);
+        uni.setStorageSync(getScopedTaskKey(data.taskId), tSync1);
       }
     } catch (e) {}
     uni.showToast({
@@ -1486,7 +1499,7 @@ const handleCopy = (item: any) => {
         const tSync2 = getTask(data.taskId) as any;
         if (tSync2 && tSync2.currentLibChain) {
           tSync2.currentLibChain.segmentsCopied = Number(tSync2.currentLibChain?.segmentsCopied || 0) + 1;
-          uni.setStorageSync(`fm:task:${data.taskId}`, tSync2);
+          uni.setStorageSync(getScopedTaskKey(data.taskId), tSync2);
         }
       } catch (e) {}
 
@@ -1514,7 +1527,7 @@ const handleCopy = (item: any) => {
         // 更新任务状态
         if (task) {
           task.opponentFindCdUnlockAt = opponentFindCdUnlockAt;
-          uni.setStorageSync(`fm:task:${data.taskId}`, task);
+          uni.setStorageSync(getScopedTaskKey(data.taskId), task);
         }
 
         // 显示对方找CD倒计时
@@ -1564,7 +1577,7 @@ const handleCopy = (item: any) => {
 
         // 清除离库恢复数据，避免下次进入页面重复恢复
         try {
-          uni.removeStorageSync(`fm:leaving:${data.taskId}`);
+          uni.removeStorageSync(getScopedLeavingKey(data.taskId));
           console.log('[round] 已清除离库恢复数据');
         } catch (e) {
           console.log('[round] 清除离库恢复数据失败:', e);
@@ -1764,7 +1777,7 @@ const enterContentLib = () => {
   console.log('[enterContentLib] 随机选择内容库:', randomContentLibId);
   
   // 获取内容库
-  const libs = uni.getStorageSync('fm:libs');
+  const libs = getScopedLibs();
   const contentChains = libs?.content?.[randomContentLibId] || [];
   
   if (contentChains.length > 0) {
@@ -1799,7 +1812,7 @@ const enterContentLib = () => {
         nodeIndex: 0,
         segmentsCopied: 0
       };
-      uni.setStorageSync(`fm:task:${data.taskId}`, t);
+      uni.setStorageSync(getScopedTaskKey(data.taskId), t);
     }
     
     console.log('[enterContentLib] 内容库加载完成:', randomContentLibId, '第一段:', segments[0]);
@@ -2014,7 +2027,7 @@ const _addStage = async (taskId: number, nextStageNum: number) => {
     });
 
     // 跳转到列表页，显示"下次聊天开启倒计时"
-    uni.redirectTo({ url: '/pages/sub-page/stepTask/list?module=熟悉模块' });
+    goCurrentModuleList();
 
   } catch (error) {
     console.error('_addStage 执行失败:', error);
@@ -2054,7 +2067,7 @@ const cdTimeup = async () => {
 
     // 清除对方找CD标记
     t.opponentFindCdUnlockAt = null;
-    uni.setStorageSync(`fm:task:${data.taskId}`, t);
+    uni.setStorageSync(getScopedTaskKey(data.taskId), t);
 
     // 根据当前阶段和回合，决定下一步
     const currentStage = t.stageIndex || 1;
@@ -2088,13 +2101,13 @@ const cdTimeup = async () => {
         const stage2 = t.stage2;
         if (stage2) {
           stage2.skipOpening = true;
-          uni.setStorageSync(`fm:task:${data.taskId}`, t);
+          uni.setStorageSync(getScopedTaskKey(data.taskId), t);
         }
       } else if (currentStage === 3) {
         const stage3 = t.stage3;
         if (stage3) {
           stage3.skipOpening = true;
-          uni.setStorageSync(`fm:task:${data.taskId}`, t);
+          uni.setStorageSync(getScopedTaskKey(data.taskId), t);
         }
       }
 
@@ -2285,7 +2298,7 @@ const cdTimeup = async () => {
         if (tUpdated) {
           tUpdated.roundIndex = savedRoundIndex;
           tUpdated.stageScore = savedStageScore;
-          uni.setStorageSync(`fm:task:${data.taskId}`, tUpdated);
+          uni.setStorageSync(getScopedTaskKey(data.taskId), tUpdated);
           Object.assign(t, tUpdated);
         }
       }
@@ -2404,7 +2417,7 @@ const cdTimeup = async () => {
                   if (tForSpecialB && tForSpecialB.stage2) {
                     tForSpecialB.stage2.specialRound = 'b';
                     tForSpecialB.roundIndex = 4; // 特殊回合b是第4回合
-                    uni.setStorageSync(`fm:task:${data.taskId}`, tForSpecialB);
+                    uni.setStorageSync(getScopedTaskKey(data.taskId), tForSpecialB);
                   }
                   // 进入3×大CD
                   const range = { minDays: 0, maxDays: 0, multiplier: 3 };
@@ -2489,7 +2502,7 @@ const cdTimeup = async () => {
         if (tUpdated) {
           tUpdated.roundIndex = savedRoundIndex;
           tUpdated.stageScore = savedStageScore;
-          uni.setStorageSync(`fm:task:${data.taskId}`, tUpdated);
+          uni.setStorageSync(getScopedTaskKey(data.taskId), tUpdated);
           Object.assign(t, tUpdated);
         }
       }
@@ -2565,7 +2578,7 @@ const cdTimeup = async () => {
                             duration: 2000
                           });
                           setTimeout(() => {
-                            uni.redirectTo({ url: '/pages/sub-page/stepTask/list?module=熟悉模块' });
+                            goCurrentModuleList();
                           }, 2000);
                         } else {
                           uni.showToast({
@@ -2622,7 +2635,7 @@ const cdTimeup = async () => {
                             duration: 2000
                           });
                           setTimeout(() => {
-                            uni.redirectTo({ url: '/pages/sub-page/stepTask/list?module=熟悉模块' });
+                            goCurrentModuleList();
                           }, 2000);
                         } else {
                           uni.showToast({
@@ -2668,7 +2681,7 @@ const cdTimeup = async () => {
                       duration: 2000
                     });
                     setTimeout(() => {
-                      uni.redirectTo({ url: '/pages/sub-page/stepTask/list?module=熟悉模块' });
+                      goCurrentModuleList();
                     }, 2000);
                   } else {
                     uni.showToast({
@@ -3729,7 +3742,7 @@ const handleInvitationFlow = async () => {
   console.log('[handleInvitationFlow] 开始邀约流程');
 
   // 显示内容库S17
-  const libs = uni.getStorageSync('fm:libs');
+  const libs = getScopedLibs();
   const s17Chains = libs?.content?.S17 || [];
 
   if (s17Chains.length > 0) {

@@ -209,7 +209,7 @@ const handleJump = async (item: Task.List.Data) => {
   const currentModule = data.title || '';
   const isFreeModule = currentModule.includes('免费');
   const isSuperModule = currentModule.includes('超熟');
-  const isFamiliarModule = !isFreeModule && !isSuperModule;
+  const isFamiliarModule = currentModule.includes('熟悉') || isSuperModule;
 
   // 非熟悉模块：不熟 / 陌生 分别进入各自的回合页
   if (currentModule.includes('不熟') || currentModule.includes('陌生')) {
@@ -350,7 +350,7 @@ const handleQuestion3 = async (taskId: string) => {
 
   console.log('[handleQuestion3] 用户选择:', result);
 
-  fm.initFamiliarLocal();
+  fm.initFamiliarLocal(data.title.includes('超熟') ? 'super' : 'familiar');
   const ask3Result = handleAsk3(taskId, result);
   console.log('[handleQuestion3] handleAsk3 结果:', ask3Result);
 
@@ -373,7 +373,7 @@ const handleQuestion3 = async (taskId: string) => {
     const t = fm.getTask(taskId);
     if (t) {
       t.prompts = { ...(t.prompts || {}), S4: { shown: true, at: Date.now() } };
-      uni.setStorageSync(`fm:task:${taskId}`, t);
+      uni.setStorageSync(`${data.title.includes('超熟') ? 'super' : 'fm'}:task:${taskId}`, t);
     }
 
     getTaskList();
@@ -401,7 +401,7 @@ const handleQuestion3 = async (taskId: string) => {
     if (t) {
       t.prompts = { ...(t.prompts || {}), S3: { shown: true, at: Date.now() } };
       t.askFlow = { ...(t.askFlow || {}), ask3: undefined };
-      uni.setStorageSync(`fm:task:${taskId}`, t);
+      uni.setStorageSync(`${data.title.includes('超熟') ? 'super' : 'fm'}:task:${taskId}`, t);
     }
 
     getTaskList();

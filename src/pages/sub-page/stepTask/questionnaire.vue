@@ -24,7 +24,7 @@
     <bc-bottom-bar
       showRecharge
       rightBtn
-      rechargeUrl="/pages/task-purchase/index?from=questionnaire&module=熟悉模块"
+      :rechargeUrl="rechargeUrl"
       @ok="hanldeSubmit"
       @back="handleBack" />
     <!-- 提示弹窗 -->
@@ -36,7 +36,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue';
+import { computed, reactive, ref } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 // 接口
 import { initFamiliarLocal, getTask, saveQuestionnaireAnswer, deleteTask, handleAsk1, handleAsk2 } from '@/utils/familiar-local';
@@ -55,6 +55,35 @@ const data = reactive<any>({
 
 const popup = ref<any>(null);
 const modelType = ref('submit');
+
+const currentModule = computed(() => data.prevPageQuery?.module || '熟悉模块');
+const currentStoragePrefix = computed(() => {
+  if (currentModule.value === '超熟模块') return 'super';
+  if (currentModule.value === '免费模块') return 'free';
+  return 'fm';
+});
+const rechargeUrl = computed(() => `/pages/task-purchase/index?from=questionnaire&module=${encodeURIComponent(currentModule.value)}`);
+
+const initCurrentModuleLocal = () => {
+  if (currentModule.value === '超熟模块') {
+    initFamiliarLocal('super');
+  } else if (currentModule.value === '免费模块') {
+    initFamiliarLocal('free');
+  } else {
+    initFamiliarLocal('familiar');
+  }
+};
+
+const getScopedStorageKey = (suffix: string) => `${currentStoragePrefix.value}:${suffix}`;
+const getScopedLibs = () => uni.getStorageSync(getScopedStorageKey('libs')) || {};
+const getScopedSettings = () => uni.getStorageSync(getScopedStorageKey('settings')) || {};
+const setScopedTask = (taskId: string, task: any) => {
+  uni.setStorageSync(getScopedStorageKey(`task:${taskId}`), task);
+};
+const goCurrentModuleList = () => {
+  uni.redirectTo({ url: `/pages/sub-page/stepTask/list?module=${encodeURIComponent(currentModule.value)}` });
+};
+const shouldRunAskFlow = () => ['熟悉模块', '超熟模块'].includes(currentModule.value);
 
 const handleBack = () => {
   modelType.value = 'back';
@@ -122,7 +151,7 @@ const handleOk = () => {
     // 返回：删除未提交问卷的任务
     const taskId = data.prevPageQuery?.taskId;
     if (taskId) {
-      initFamiliarLocal();
+      initCurrentModuleLocal();
       deleteTask(taskId);
       console.log('[Questionnaire] 问卷未提交，已删除任务:', taskId);
     }
@@ -137,8 +166,8 @@ const fetchModuleQuestionList = async () => {
   uni.showLoading({ title: '加载中...', mask: true });
   try {
     // 使用本地apiMock，保持结构与后端完全一致
-    initFamiliarLocal();
-    const libs = uni.getStorageSync('fm:libs') || {};
+    initCurrentModuleLocal();
+    const libs = getScopedLibs();
     const apiMock = libs?.questionnaire?.apiMock || [];
     console.log('[Questionnaire] libs.questionnaire.apiMock exists:', !!libs?.questionnaire?.apiMock, 'length:', Array.isArray(apiMock) ? apiMock.length : -1);
     const resData = Array.isArray(apiMock) ? apiMock : [];
@@ -236,7 +265,7 @@ const runAskFlow = async (taskId: string): Promise<void> => {
     });
 
     setTimeout(() => {
-      uni.redirectTo({ url: '/pages/sub-page/stepTask/list?module=熟悉模块' });
+      goCurrentModuleList();
     }, 3000);
   }
 };
@@ -283,7 +312,7 @@ const showTipsBoard = (tipsType: 'S1' | 'S2' | 'S3' | 'S4', taskId: string): Pro
     const t = getTask(taskId);
     if (t) {
       t.prompts = { ...(t.prompts || {}), [tipsType]: { shown: true, at: Date.now() } };
-      uni.setStorageSync(`fm:task:${taskId}`, t);
+      setScopedTask(taskId, t);
     }
     
     uni.showModal({
@@ -304,7 +333,7 @@ const submitQuestion = async (params: Task.SubmitQuestion.Body) => {
   uni.showLoading({ title: '提交中...', mask: true });
   try {
     // 本地保存所有单选题的答案
-    initFamiliarLocal();
+    initCurrentModuleLocal();
     const taskId = data.prevPageQuery?.taskId;
     const stage0 = data.submitList?.[0]?.moduleUserQuestionList || [];
     stage0.forEach((q: any) => {
@@ -315,7 +344,7 @@ const submitQuestion = async (params: Task.SubmitQuestion.Body) => {
 
     // 本地评分与路由（熟悉模块.md一致）
     // 1) 读取题库 apiMock（与后端一致）
-    const libs = uni.getStorageSync('fm:libs') || {};
+    const libs = getScopedLibs();
     const apiMock = libs?.questionnaire?.apiMock || [];
     const resData = Array.isArray(apiMock) ? apiMock : [];
     // 2) 累计分数：根据用户选择的 optionId 找到对应 optionIntegral
@@ -330,7 +359,7 @@ const submitQuestion = async (params: Task.SubmitQuestion.Body) => {
       totalScore += s;
     });
     // 3) 阈值判断：取 familiar-local 的settings.stageThresholdX["0"]（默认10）
-    const settings = uni.getStorageSync('fm:settings') || {};
+    const settings = getScopedSettings();
     const thresholdX = (settings?.stageThresholdX && Number(settings.stageThresholdX["0"])) || 10;
     const routed = totalScore >= thresholdX ? 'familiar' : 'stranger';
     // 4) 持久化到任务对象 + 日志
@@ -341,7 +370,7 @@ const submitQuestion = async (params: Task.SubmitQuestion.Body) => {
         totalScore,
         routedModule: routed
       };
-      uni.setStorageSync(`fm:task:${taskId}`, tSnap);
+      setScopedTask(taskId, tSnap);
     }
     console.log('[Questionnaire][评分日志] totalScore:', totalScore, 'thresholdX:', thresholdX, 'routed:', routed);
     console.log('[Questionnaire][评分细节] submit:', stage0Submit, 'questions:', stage0Questions);
@@ -352,8 +381,8 @@ const submitQuestion = async (params: Task.SubmitQuestion.Body) => {
     data.loading = false;
 
     // 执行真实的问1/问2/问3交互流程
-    if (data.prevPageQuery.module === '熟悉模块') {
-      console.log('[Questionnaire][链路] 开始问1/问2流程，得分:', totalScore, '阈值:', thresholdX);
+    if (shouldRunAskFlow()) {
+      console.log('[Questionnaire][链路] 开始问1/问2流程，模块:', currentModule.value, '得分:', totalScore, '阈值:', thresholdX);
 
       // 初始化任务状态
       const t = getTask(taskId);
@@ -363,7 +392,7 @@ const submitQuestion = async (params: Task.SubmitQuestion.Body) => {
         t.stepIndex = 1;
         t.askFlow = { ...(t.askFlow || {}) };
         t.prompts = { ...(t.prompts || {}) };
-        uni.setStorageSync(`fm:task:${taskId}`, t);
+        setScopedTask(taskId, t);
       }
 
       runAskFlow(taskId);
@@ -394,13 +423,13 @@ onLoad(option => {
   };
 
   // 本地初始化与恢复阶段0
-  initFamiliarLocal();
+  initCurrentModuleLocal();
   ensureQuestionnaireMock(); // 确保问卷本地题库已注入
   const taskId = data.prevPageQuery?.taskId;
   const t = getTask(taskId);
   if (t) {
     t.stageIndex = 0; t.roundIndex = null; t.stepIndex = 0;
-    uni.setStorageSync(`fm:task:${taskId}`, t);
+    setScopedTask(taskId, t);
   }
 
   fetchModuleQuestionList();

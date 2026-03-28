@@ -24,6 +24,13 @@ import {
   finishTask
 } from '@/utils/familiar-local';
 
+const getTaskListUrl = () => {
+  const pages = getCurrentPages();
+  const currentOptions = pages[pages.length - 1]?.options as Record<string, any> | undefined;
+  const moduleName = currentOptions?.module || '熟悉模块';
+  return `/pages/sub-page/stepTask/list?module=${encodeURIComponent(moduleName)}`;
+};
+
 const moduleCode = 'familiar_module';
 
 /**
@@ -141,7 +148,7 @@ const stage2RoundEnd = async (taskId: number) => {
                   () => {
                     console.log('S14确认后，任务结束，跳转到列表页');
                     finishTask(String(taskId));
-                    uni.redirectTo({ url: '/pages/sub-page/stepTask/list?module=熟悉模块' });
+                    uni.redirectTo({ url: getTaskListUrl() });
                   }
                 );
               }
@@ -179,7 +186,7 @@ const stage2RoundEnd = async (taskId: number) => {
         () => {
           console.log('S14确认后，任务结束，跳转到列表页');
           finishTask(String(taskId));
-          uni.redirectTo({ url: '/pages/sub-page/stepTask/list?module=熟悉模块' });
+          uni.redirectTo({ url: getTaskListUrl() });
         }
       );
       break;
