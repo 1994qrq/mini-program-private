@@ -40,7 +40,7 @@ const props = defineProps({
   },
   userVipLevel: {
     type: Number,
-    default: 1, // 默认VIP1
+    default: 0, // 默认游客
   },
 });
 const emit = defineEmits(['copy']);

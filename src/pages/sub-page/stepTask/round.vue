@@ -200,7 +200,7 @@ import api from '@/api';
 import { getCountdown } from '@/utils/util';
 
 // 用户VIP等级
-const userVipLevel = ref(1);
+const userVipLevel = ref(0);
 
 const data = reactive<any>({
   taskId: null,
@@ -578,11 +578,11 @@ onUnmounted(() => {
 const getUserVipLevel = async () => {
   try {
     const res = await api.common.info();
-    userVipLevel.value = res.data?.userLevel || 1;
+    userVipLevel.value = res.data?.userLevel ?? 0;
     console.log('[round] 用户VIP等级:', userVipLevel.value);
   } catch (error) {
     console.error('[round] 获取VIP等级失败:', error);
-    userVipLevel.value = 1; // 失败时默认VIP1
+    userVipLevel.value = 0; // 失败时默认游客
   }
 };
 

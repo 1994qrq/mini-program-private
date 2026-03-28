@@ -213,17 +213,6 @@ const handleJump = async (item: Task.List.Data) => {
 
   // 非熟悉模块：不熟 / 陌生 分别进入各自的回合页
   if (currentModule.includes('不熟') || currentModule.includes('陌生')) {
-    // “对方找倒计时”未结束时禁止点击（taskStatus=65）
-    if (item.taskStatus === 65 && item.otherFindEndTime && !hasItTimeOut(item.otherFindEndTime)) {
-      uni.showToast({ title: '对方找倒计时未结束，请稍后再试', icon: 'none', duration: 2000 });
-      return;
-    }
-    // 通用倒计时检查：回合/阶段倒计时（taskStatus=61,62）或Z倒计时（taskStatus=63）
-    if ([61, 62, 63].includes(item.taskStatus) && item.endTime && !hasItTimeOut(item.endTime)) {
-      const statusText = item.taskStatus === 63 ? 'Z倒计时' : '下次聊天开启倒计时';
-      uni.showToast({ title: `${statusText}未结束，请耐心等待`, icon: 'none', duration: 2000 });
-      return;
-    }
     const name = item.taskName || '';
     if (currentModule.includes('不熟')) {
       // 不熟模块：继续使用 round-new.vue
@@ -292,18 +281,6 @@ const handleJump = async (item: Task.List.Data) => {
     return;
   }
 
-  // “对方找倒计时”未结束时禁止点击（taskStatus=65）
-  if (item.taskStatus === 65 && item.otherFindEndTime && !hasItTimeOut(item.otherFindEndTime)) {
-    uni.showToast({ title: '对方找倒计时未结束，请稍后再试', icon: 'none', duration: 2000 });
-    return;
-  }
-  // 通用倒计时检查：回合/阶段倒计时（taskStatus=61,62）或Z倒计时（taskStatus=63）
-  if ([61, 62, 63].includes(item.taskStatus) && item.endTime && !hasItTimeOut(item.endTime)) {
-    const statusText = item.taskStatus === 63 ? 'Z倒计时' : '下次聊天开启倒计时';
-    uni.showToast({ title: `${statusText}未结束，请耐心等待`, icon: 'none', duration: 2000 });
-    return;
-  }
-
   // 根据本地状态决定路由：阶段0进问卷，其余进回合页
   let taskForRouting = t;
   if (!taskForRouting) {
@@ -317,7 +294,9 @@ const handleJump = async (item: Task.List.Data) => {
     taskForRouting = fm.getTask(String(item.taskId));
   }
   const name = item.taskName || '';
-  if (taskForRouting && taskForRouting.stageIndex === 0 && isFamiliarModule) {
+  const hasSubmittedQuestionnaire = Array.isArray(taskForRouting?.questionnaire?.answers) && taskForRouting.questionnaire.answers.length > 0;
+  const hasStartedStage0Flow = hasSubmittedQuestionnaire || !!taskForRouting?.askFlow?.ask1 || !!taskForRouting?.askFlow?.ask2 || !!taskForRouting?.askFlow?.ask3 || !!taskForRouting?.stageCdUnlockAt;
+  if (taskForRouting && taskForRouting.stageIndex === 0 && isFamiliarModule && !hasStartedStage0Flow) {
     uni.navigateTo({ url: `/pages/sub-page/stepTask/questionnaire?module=${currentModule}&taskId=${item.taskId}&taskName=${encodeURIComponent(name)}` });
   } else {
     uni.navigateTo({ url: `/pages/sub-page/stepTask/round?module=${currentModule}&taskId=${item.taskId}` });

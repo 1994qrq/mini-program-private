@@ -165,7 +165,7 @@ import { getAllContentLibraryData } from '@/utils/content-library-sync';
 const taskId = ref('');
 const taskName = ref('');
 const task = ref<any>(null);
-const userVipLevel = ref(1); // 用户VIP等级，默认VIP1
+const userVipLevel = ref(0); // 用户VIP等级，默认游客
 const remainingVirtual = ref(0);
 const currentSearchCost = ref(100);
 
@@ -322,12 +322,12 @@ onLoad((options: any) => {
 const getUserVipLevel = async () => {
   try {
     const res = await api.common.info();
-    userVipLevel.value = res.data?.userLevel || 1;
+    userVipLevel.value = res.data?.userLevel ?? 0;
     remainingVirtual.value = res.data?.remainingVirtual || 0;
     console.log('[round-stranger] 用户VIP等级:', userVipLevel.value, '心币余额:', remainingVirtual.value);
   } catch (error) {
     console.error('[round-stranger] 获取VIP等级失败:', error);
-    userVipLevel.value = 1; // 失败时默认VIP1
+    userVipLevel.value = 0; // 失败时默认游客
     remainingVirtual.value = 0;
   }
 };
