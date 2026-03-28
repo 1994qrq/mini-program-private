@@ -37,7 +37,9 @@
       <block v-for="item in displayList" :key="item">
         <bc-img-text-item
           disabled
-          :item="{ ...item, title: item.title }"></bc-img-text-item>
+          allowItemClickWhenDisabled
+          :item="{ ...item, title: item.title }"
+          @itemClick="handleItemClick"></bc-img-text-item>
       </block>
     <template #footer>
       <view class="mf-footer">
@@ -60,6 +62,24 @@
       :cancelText="popupInfo?.cancelText">
       <view class="pupup-content">{{ popupInfo.text }}</view>
     </md-dialog>
+
+    <!-- 特殊图文激活提示板 -->
+    <md-dialog
+      ref="specialActivatedDialog"
+      title="特殊图文已激活"
+      :showCancel="false"
+      okText="我知道了">
+      <view class="pupup-content">特殊图文已成功激活，您现在可以查看特殊内容了！</view>
+    </md-dialog>
+
+    <!-- 首次点击普通图文提示板 -->
+    <md-dialog
+      ref="normalFirstClickDialog"
+      title="温馨提示"
+      :showCancel="false"
+      okText="我知道了">
+      <view class="pupup-content">您已激活特殊图文，现在点击普通图文查看内容。</view>
+    </md-dialog>
   </md-page>
 </template>
 
@@ -72,16 +92,35 @@ import type { Task, Common } from '@/api/data';
 // 工具
 import { taskModule, payModule } from '@/utils/data';
 
+const IMAGE_TEXT_STATE_KEY = 'imageTextPageState';
+
 const data = reactive<any>({
   describe: '', // 图文说明
   list: [],
   allSets: [], // 所有套餐数据
   value: '',
+  specialActivated: false, // 特殊图文是否已激活
+  normalFirstClicked: false, // 激活后是否已首次点击普通图文
 });
+
+const restoreImageTextState = () => {
+  const saved = uni.getStorageSync(IMAGE_TEXT_STATE_KEY) || {};
+  data.specialActivated = !!saved.specialActivated;
+  data.normalFirstClicked = !!saved.normalFirstClicked;
+};
+
+const persistImageTextState = () => {
+  uni.setStorageSync(IMAGE_TEXT_STATE_KEY, {
+    specialActivated: data.specialActivated,
+    normalFirstClicked: data.normalFirstClicked,
+  });
+};
 
 // 添加用户信息
 const userInfo = ref<Common.Info.Data>();
 const popup = ref<any>(null);
+const specialActivatedDialog = ref<any>(null);
+const normalFirstClickDialog = ref<any>(null);
 const popupInfo = ref<{ type: 'create' | 'recharge'; okText?: string; text?: string; cancelText?: string }>({
   type: 'create',
 });
@@ -175,6 +214,29 @@ const handleClick = async () => {
 // 添加取消按钮处理
 const handleCancel = () => {
   popup.value!.close();
+};
+
+// 处理图文卡片点击
+const handleItemClick = (item: any) => {
+  console.log('[图文-子页面] 点击卡片:', item);
+
+  const isSpecial = item.dataType === 1;
+
+  if (isSpecial) {
+    if (!data.specialActivated) {
+      data.specialActivated = true;
+      persistImageTextState();
+      specialActivatedDialog.value?.open();
+      console.log('[图文-子页面] 特殊图文已激活');
+    }
+  } else {
+    if (data.specialActivated && !data.normalFirstClicked) {
+      data.normalFirstClicked = true;
+      persistImageTextState();
+      normalFirstClickDialog.value?.open();
+      console.log('[图文-子页面] 首次点击普通图文');
+    }
+  }
 };
 
 /**
@@ -302,6 +364,7 @@ onShow(() => {
     return;
   }
 
+  restoreImageTextState();
   getList();
   getUserInfo(); // 页面显示时获取用户信息
 });
