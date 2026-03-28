@@ -429,45 +429,21 @@ const getTaskList = async (module?: any) => {
     if (title.includes('不熟')) {
       um.initUmLocal();
       lt = um.listTasks();
-      if (!lt || lt.length === 0) {
-        const created = um.createTask({ name: '测试订单', durationDays: 5 });
-        if (created.ok) { lt = um.listTasks(); uni.showToast({ title: '已创建示例订单', icon: 'none' }); }
-      }
     } else if (title.includes('陌生')) {
       sm.initSmLocal();
       lt = sm.listTasks();
-      if (!lt || lt.length === 0) {
-        const created = sm.createTask({ name: '测试订单', durationDays: 5 });
-        if (created.ok) { lt = sm.listTasks(); uni.showToast({ title: '已创建示例订单', icon: 'none' }); }
-      }
     } else if (title.includes('免费')) {
       // 免费模块使用独立存储
       fm.initFamiliarLocal('free');
       lt = fm.listTasks();
-      if (!lt || lt.length === 0) {
-        const created = fm.createTask({ name: '测试订单', durationDays: 5 });
-        if (created.ok && created.task) {
-          fm.enterStage1(created.task.id);
-          lt = fm.listTasks();
-          uni.showToast({ title: '已创建示例订单', icon: 'none' });
-        }
-      }
     } else if (title.includes('超熟')) {
       // 超熟模块使用独立存储
       fm.initFamiliarLocal('super');
       lt = fm.listTasks();
-      if (!lt || lt.length === 0) {
-        const created = fm.createTask({ name: '测试订单', durationDays: 5 });
-        if (created.ok) { lt = fm.listTasks(); uni.showToast({ title: '已创建示例订单', icon: 'none' }); }
-      }
     } else {
       // 熟悉模块使用默认存储
       fm.initFamiliarLocal('familiar');
       lt = fm.listTasks();
-      if (!lt || lt.length === 0) {
-        const created = fm.createTask({ name: '测试订单', durationDays: 5 });
-        if (created.ok) { lt = fm.listTasks(); uni.showToast({ title: '已创建示例订单', icon: 'none' }); }
-      }
     }
 
     // 映射到该页面现有字段，保持模板不改
