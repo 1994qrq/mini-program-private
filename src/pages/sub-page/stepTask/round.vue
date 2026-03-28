@@ -178,6 +178,7 @@ import {
   getSearchQaCost,
   performSearchQa,
   getUserBalance,
+  setUserBalance,
   // 第2阶段函数
   enterStage2,
   startStage2Round,
@@ -357,7 +358,7 @@ const handleWenhao = () => {
 };
 
 // 搜索问答处理
-const handleSearch = () => {
+const handleSearch = async () => {
   if (!data.searchKeyword || data.searchKeyword.trim() === '') {
     uni.showToast({
       title: '请输入搜索内容',
@@ -367,8 +368,20 @@ const handleSearch = () => {
     return;
   }
 
+  // 先从后端获取最新的用户余额
+  let currentBalance = 0;
+  try {
+    const userInfo = await api.common.info();
+    currentBalance = userInfo.data?.remainingVirtual || 0;
+    // 同步到本地存储
+    setUserBalance(currentBalance);
+  } catch (error) {
+    console.error('[handleSearch] 获取用户余额失败:', error);
+    // 如果获取失败，使用本地缓存的余额
+    currentBalance = getUserBalance();
+  }
+
   const currentCost = getSearchQaCost(data.taskId);
-  const currentBalance = getUserBalance();
 
   if (currentBalance < currentCost) {
     uni.showModal({
