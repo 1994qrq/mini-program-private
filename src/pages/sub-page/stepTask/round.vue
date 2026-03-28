@@ -806,6 +806,13 @@ const loadTaskData = () => {
     }
 
     _round();
+  } else if (task.stageIndex === 0) {
+    // 阶段0应该在问卷页，自动重定向
+    console.log('[loadTaskData] 检测到阶段0，重定向到问卷页');
+    const name = task.name || '';
+    uni.redirectTo({
+      url: `/pages/sub-page/stepTask/questionnaire?module=${encodeURIComponent(getCurrentModuleName())}&taskId=${data.taskId}&taskName=${encodeURIComponent(name)}`
+    });
   } else {
     console.log('[loadTaskData] 未知阶段:', task.stageIndex);
     uni.showToast({
