@@ -295,7 +295,7 @@ const searchPlaceholder = ref('请输入对方的问题'); // 动态placeholder
 // 加载动态placeholder
 onMounted(async () => {
   try {
-    const moduleCode = moduleTitle.value.includes('不熟') ? '不熟模块' : '陌生模块';
+    const moduleCode = moduleTitle.value.includes('不熟') ? 'unfamiliar_module' : 'strange_module';
     searchPlaceholder.value = await getPlaceholder(moduleCode as any);
   } catch (error) {
     console.error('[round-new] 加载placeholder失败:', error);
@@ -356,8 +356,8 @@ const getUserVipLevel = async () => {
   try {
     const res = await api.common.info();
     userVipLevel.value = res.data?.userLevel ?? 0;
-    remainingVirtual.value = res.data?.remainingVirtual || 0;
-    console.log('[round-new] 用户VIP等级:', userVipLevel.value, '心币余额:', remainingVirtual.value);
+    remainingVirtual.value = Number(res.data?.remainingVirtual || 0);
+    console.log('[round-new] 用户VIP等级:', userVipLevel.value, '心币余额:', remainingVirtual.value, '原始余额值:', res.data?.remainingVirtual);
   } catch (error) {
     console.error('[round-new] 获取用户VIP等级失败:', error);
     userVipLevel.value = 0; // 失败时默认游客
@@ -985,10 +985,14 @@ const handleSearch = () => {
     return;
   }
 
+  console.log('[搜索] 当前心币余额:', remainingVirtual.value);
+  console.log('[搜索] 本次搜索费用:', currentSearchCost.value);
+  console.log('[搜索] 余额是否足够:', remainingVirtual.value >= currentSearchCost.value);
+
   if (remainingVirtual.value < currentSearchCost.value) {
     uni.showModal({
       title: '心币不足',
-      content: `本次搜索需要 ${currentSearchCost.value} 心币，当前余额不足，请先充值。`,
+      content: `本次搜索需要 ${currentSearchCost.value} 心币，当前余额 ${remainingVirtual.value} 心币不足，请先充值。`,
       confirmText: '去充值',
       cancelText: '取消',
       success: (res) => {
@@ -1002,7 +1006,7 @@ const handleSearch = () => {
 
   uni.showModal({
     title: '搜索问答',
-    content: `本次搜索需要消耗 ${currentSearchCost.value} 心币，是否继续？`,
+    content: `本次搜索需要消耗 ${currentSearchCost.value} 心币，当前余额 ${remainingVirtual.value} 心币，是否继续？`,
     confirmText: '确定',
     cancelText: '取消',
     success: (res) => {

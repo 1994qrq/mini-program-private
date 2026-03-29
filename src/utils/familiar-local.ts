@@ -673,7 +673,7 @@ export function createTask(payload: { name: string; durationDays: DurationDays }
     currentLibChain: null,
     opponentFindUsedInRound: false,
     qaVipMaxItems: vipMax,
-    questionnaire: { answers: [], totalScore: 0, routedModule: "familiar" },
+    questionnaire: { answers: [], totalScore: 0, routedModule: currentPrefix as RoutedModule },
     prompts: {},
     askFlow: {},
     renewHistory: [],
@@ -1094,10 +1094,10 @@ export function submitQuestionnaire(taskId: string): { routed: RoutedModule; nex
   t.lastActionAt = Date.now();
 
   // 保存问卷路由信息供前端判断使用：
-  // - 得分≥X(10分)：问1 → 问2 → S2提示板 → 9-10天倒计时 → 问3 → S4提示板 → XX-XX天倒计时 → 第一阶段
+  // - 得分≥X(10分)：问1 → 问2 → S2提示板 → 9-10���倒计时 → 问3 → S4提示板 → XX-XX天倒计时 → 第一阶段
   // - 得分<X(10分)：问1 → (是→不熟模块 / 否→陌生模块)
   if (score >= X) {
-    t.questionnaire.routedModule = "familiar"; // 得分达标，后续走熟悉模块的问1/问2/问3流程
+    t.questionnaire.routedModule = currentPrefix as RoutedModule; // 得分达标，后续走当前模块的问1/问2/问3流程
   } else {
     t.questionnaire.routedModule = "pending_ask1"; // 得分不足，问1后根据用户选择路由到不熟/陌生模块
   }
@@ -1105,7 +1105,7 @@ export function submitQuestionnaire(taskId: string): { routed: RoutedModule; nex
   set(`fm:task:${taskId}`, t);
 
   // 无论得分多少，都先进入"问1"流程
-  return { routed: "familiar", next: "问1" };
+  return { routed: currentPrefix as RoutedModule, next: "问1" };
 }
 
 /**

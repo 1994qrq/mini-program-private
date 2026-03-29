@@ -156,7 +156,7 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted } from 'vue';
-import { onLoad } from '@dcloudio/uni-app';
+import { onLoad, onShow } from '@dcloudio/uni-app';
 import api from '@/api';
 import * as sm from '@/utils/stranger-local';
 import { getPlaceholder } from '@/utils/placeholder-manager';
@@ -216,7 +216,7 @@ const searchPlaceholder = ref('请输入对方的问题'); // 动态placeholder
 // 加载动态placeholder
 onMounted(async () => {
   try {
-    searchPlaceholder.value = await getPlaceholder('陌生模块');
+    searchPlaceholder.value = await getPlaceholder('strange_module');
   } catch (error) {
     console.error('[round-stranger] 加载placeholder失败:', error);
   }
@@ -318,13 +318,18 @@ onLoad((options: any) => {
   }
 });
 
+// 页面显示时刷新VIP等级（从充值页返回时）
+onShow(() => {
+  getUserVipLevel();
+});
+
 // 获取用户VIP等级
 const getUserVipLevel = async () => {
   try {
     const res = await api.common.info();
     userVipLevel.value = res.data?.userLevel ?? 0;
-    remainingVirtual.value = res.data?.remainingVirtual || 0;
-    console.log('[round-stranger] 用户VIP等级:', userVipLevel.value, '心币余额:', remainingVirtual.value);
+    remainingVirtual.value = Number(res.data?.remainingVirtual || 0);
+    console.log('[round-stranger] 用户VIP等级:', userVipLevel.value, '心币余额:', remainingVirtual.value, '原始余额值:', res.data?.remainingVirtual);
   } catch (error) {
     console.error('[round-stranger] 获取VIP等级失败:', error);
     userVipLevel.value = 0; // 失败时默认游客
@@ -800,10 +805,14 @@ const handleSearch = () => {
     return;
   }
 
+  console.log('[搜索] 当前心币余额:', remainingVirtual.value);
+  console.log('[搜索] 本次搜索费用:', currentSearchCost.value);
+  console.log('[搜索] 余额是否足够:', remainingVirtual.value >= currentSearchCost.value);
+
   if (remainingVirtual.value < currentSearchCost.value) {
     uni.showModal({
       title: '心币不足',
-      content: `本次搜索需要 ${currentSearchCost.value} 心币，当前余额不足，请先充值。`,
+      content: `本次搜索需要 ${currentSearchCost.value} 心币，当前余额 ${remainingVirtual.value} 心币不足，请先充值。`,
       confirmText: '去充值',
       cancelText: '取消',
       success: (res) => {
@@ -817,7 +826,7 @@ const handleSearch = () => {
 
   uni.showModal({
     title: '搜索问答',
-    content: `本次搜索需要消耗 ${currentSearchCost.value} 心币，是否继续？`,
+    content: `本次搜索需要消耗 ${currentSearchCost.value} 心币，当前余额 ${remainingVirtual.value} 心币，是否继续？`,
     confirmText: '确定',
     cancelText: '取消',
     success: (res) => {

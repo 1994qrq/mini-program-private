@@ -22,6 +22,16 @@ const SYNC_GROUPS = [
     prefixes: ['fm:task:', 'fm:clipboard:'],
   },
   {
+    name: 'super',
+    exact: ['super:tasks', 'super:settings', 'super:stateVersion'],
+    prefixes: ['super:task:', 'super:clipboard:'],
+  },
+  {
+    name: 'free',
+    exact: ['free:tasks', 'free:settings', 'free:stateVersion'],
+    prefixes: ['free:task:', 'free:clipboard:'],
+  },
+  {
     name: 'um',
     exact: ['um:tasks', 'um:settings'],
     prefixes: ['um:task:'],
