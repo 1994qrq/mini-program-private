@@ -373,7 +373,8 @@ onShow(() => {
 <style lang="scss" scoped>
 .container {
   padding: 30rpx;
-  padding-bottom: calc($safe-bottom + 120rpx);
+  /* 为底部按钮和tab-bar留出空间：按钮高度约80rpx + tab-bar 48px + 额外间距 */
+  padding-bottom: calc(48px + env(safe-area-inset-bottom) + 160rpx);
 }
 
 /* 套餐选择器 */
@@ -427,9 +428,11 @@ onShow(() => {
   position: fixed;
   left: 0; right: 0; bottom: 0;
   padding: 16rpx 30rpx;
-  padding-bottom: calc(env(safe-area-inset-bottom) + 16rpx);
+  /* 为 tab-bar 留出空间：48px(tab-bar高度) + safe-area + 16rpx(原有padding) */
+  padding-bottom: calc(48px + env(safe-area-inset-bottom) + 16rpx);
   box-sizing: border-box;
-  z-index: 99;
+  /* 降低 z-index，确保不遮挡 tab-bar (tab-bar 的 z-index 是 98) */
+  z-index: 97;
 }
 .mf-btn { width: 100%; position: relative; }
 .mf-bg { width: 100%; display: block; }
