@@ -367,6 +367,10 @@ onLoad(async options => {
   }
 });
 
+onShow(() => {
+  getUserVipLevel();
+});
+
 // 获取用户VIP等级
 const getUserVipLevel = async () => {
   try {
