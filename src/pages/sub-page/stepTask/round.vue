@@ -139,7 +139,7 @@
 
 <script setup lang="ts">
 import { reactive, ref, onUnmounted, computed, watch, nextTick } from 'vue';
-import { onLoad } from '@dcloudio/uni-app';
+import { onLoad, onShow } from '@dcloudio/uni-app';
 // 工具
 import { hasItTimeOut } from '@/utils/util';
 import { taskModule } from '@/utils/data';
@@ -567,6 +567,11 @@ onLoad((options: any) => {
       uni.navigateBack();
     }, 2000);
   }
+});
+
+// 页面显示时刷新VIP等级（从充值页返回时）
+onShow(() => {
+  getUserVipLevel();
 });
 
 // 页面卸载时清理定时器

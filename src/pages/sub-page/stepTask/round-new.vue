@@ -205,7 +205,7 @@
 
 <script setup lang="ts">
 import { reactive, ref, computed, nextTick, onUnmounted, onMounted } from 'vue';
-import { onLoad } from '@dcloudio/uni-app';
+import { onLoad, onShow } from '@dcloudio/uni-app';
 import * as um from '@/utils/unfamiliar-local';
 import * as sm from '@/utils/stranger-local';
 import { getPlaceholder } from '@/utils/placeholder-manager';
@@ -349,6 +349,11 @@ onLoad((options: any) => {
     uni.showToast({ title: '任务ID缺失', icon: 'error' });
     setTimeout(() => uni.navigateBack(), 2000);
   }
+});
+
+// 页面显示时刷新VIP等级（从充值页返回时）
+onShow(() => {
+  getUserVipLevel();
 });
 
 // 获取用户VIP等级
