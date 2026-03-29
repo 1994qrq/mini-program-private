@@ -139,7 +139,7 @@
 
 <script setup lang="ts">
 import { reactive, ref, onUnmounted, computed, watch, nextTick } from 'vue';
-import { onLoad } from '@dcloudio/uni-app';
+import { onLoad, onShow } from '@dcloudio/uni-app';
 // 工具
 import { hasItTimeOut } from '@/utils/util';
 import { taskModule } from '@/utils/data';
@@ -177,6 +177,8 @@ import {
   // 搜索问答函数
   getSearchQaCost,
   performSearchQa,
+  getUserBalance,
+  setUserBalance,
   // 第2阶段函数
   enterStage2,
   startStage2Round,
@@ -198,7 +200,7 @@ import api from '@/api';
 import { getCountdown } from '@/utils/util';
 
 // 用户VIP等级
-const userVipLevel = ref(1);
+const userVipLevel = ref(0);
 
 const data = reactive<any>({
   taskId: null,
@@ -277,6 +279,19 @@ const data = reactive<any>({
 const popup = ref<any>(null);
 const idleDialog = ref<any>(null);
 
+const getCurrentModuleName = () => data.moduleCodeName || '熟悉模块';
+const getCurrentStoragePrefix = () => {
+  if (getCurrentModuleName().includes('免费')) return 'free';
+  if (getCurrentModuleName().includes('超熟')) return 'super';
+  return 'fm';
+};
+const getScopedTaskKey = (taskId: string | number) => `${getCurrentStoragePrefix()}:task:${taskId}`;
+const getScopedLeavingKey = (taskId: string | number) => `${getCurrentStoragePrefix()}:leaving:${taskId}`;
+const getScopedLibs = () => uni.getStorageSync(`${getCurrentStoragePrefix()}:libs`);
+const goCurrentModuleList = () => {
+  uni.redirectTo({ url: `/pages/sub-page/stepTask/list?module=${encodeURIComponent(getCurrentModuleName())}` });
+};
+
 // 空闲检查定时器
 let idleCheckTimer: any = null;
 
@@ -343,7 +358,7 @@ const handleWenhao = () => {
 };
 
 // 搜索问答处理
-const handleSearch = () => {
+const handleSearch = async () => {
   if (!data.searchKeyword || data.searchKeyword.trim() === '') {
     uni.showToast({
       title: '请输入搜索内容',
@@ -353,10 +368,36 @@ const handleSearch = () => {
     return;
   }
 
-  // 获取当前搜索费用
+  // 先从后端获取最新的用户余额
+  let currentBalance = 0;
+  try {
+    const userInfo = await api.common.info();
+    currentBalance = userInfo.data?.remainingVirtual || 0;
+    // 同步到本地存储
+    setUserBalance(currentBalance);
+  } catch (error) {
+    console.error('[handleSearch] 获取用户余额失败:', error);
+    // 如果获取失败，使用本地缓存的余额
+    currentBalance = getUserBalance();
+  }
+
   const currentCost = getSearchQaCost(data.taskId);
 
-  // 显示确认对话框
+  if (currentBalance < currentCost) {
+    uni.showModal({
+      title: '心币不足',
+      content: `当前搜索需要 ${currentCost} 心币，您的余额不足，请先充值`,
+      confirmText: '去充值',
+      cancelText: '取消',
+      success: (res) => {
+        if (res.confirm) {
+          uni.navigateTo({ url: '/pages/recharge/index' });
+        }
+      }
+    });
+    return;
+  }
+
   uni.showModal({
     title: '搜索问答',
     content: `本次搜索需要消耗 ${currentCost} 心币，是否继续？`,
@@ -364,7 +405,6 @@ const handleSearch = () => {
     cancelText: '取消',
     success: (res) => {
       if (res.confirm) {
-        // 用户确认，执行搜索
         executeSearch();
       }
     }
@@ -373,26 +413,23 @@ const handleSearch = () => {
 
 // 执行搜索
 const executeSearch = () => {
-  // 执行搜索并更新费用
+  const keyword = data.searchKeyword.trim();
   const result = performSearchQa(data.taskId);
 
   if (result.ok) {
-    // 更新显示的费用为下次费用
     data.searchCost = result.nextCost;
 
-    // TODO: 这里应该调用实际的搜索API
-    // 目前先显示提示
-    uni.showToast({
-      title: `搜索成功，消耗 ${result.cost} 心币`,
-      icon: 'success',
-      duration: 2000
+    uni.showModal({
+      title: '搜索结果',
+      content: `关键词：${keyword}\n\n本次搜索已完成，消耗 ${result.cost} 心币。\n下次搜索将消耗 ${result.nextCost} 心币。`,
+      showCancel: false,
+      confirmText: '知道了'
     });
 
-    // 清空搜索框
     data.searchKeyword = '';
 
     console.log('[executeSearch] 搜索完成:', {
-      keyword: data.searchKeyword,
+      keyword,
       cost: result.cost,
       nextCost: result.nextCost
     });
@@ -413,6 +450,12 @@ const showGoButton = (content?: string) => {
   console.log('[showGoButton] 显示Go按钮');
   data.showGoButton = true;
   data.goButtonContent = content || '';
+
+  const task = getTask(data.taskId);
+  if (task?.stage4) {
+    task.stage4.goClicked = false;
+    uni.setStorageSync(getScopedTaskKey(data.taskId), task);
+  }
 };
 
 /**
@@ -430,6 +473,12 @@ const hideGoButton = () => {
  */
 const handleGoButtonClick = async () => {
   console.log('[handleGoButtonClick] 点击Go按钮');
+
+  const task = getTask(data.taskId);
+  if (task?.stage4) {
+    task.stage4.goClicked = true;
+    uni.setStorageSync(getScopedTaskKey(data.taskId), task);
+  }
 
   // 隐藏Go按钮
   hideGoButton();
@@ -462,7 +511,7 @@ const handleGoButtonClick = async () => {
                   if (result.ok) {
                     uni.showToast({ title: '任务已结束', icon: 'success' });
                     setTimeout(() => {
-                      uni.redirectTo({ url: '/pages/sub-page/stepTask/list?module=熟悉模块' });
+                      goCurrentModuleList();
                     }, 1500);
                   } else {
                     uni.showToast({ title: result.reason || '结束任务失败', icon: 'none' });
@@ -520,6 +569,11 @@ onLoad((options: any) => {
   }
 });
 
+// 页面显示时刷新VIP等级（从充值页返回时）
+onShow(() => {
+  getUserVipLevel();
+});
+
 // 页面卸载时清理定时器
 onUnmounted(() => {
   stopIdleCheck();
@@ -529,11 +583,11 @@ onUnmounted(() => {
 const getUserVipLevel = async () => {
   try {
     const res = await api.common.info();
-    userVipLevel.value = res.data?.userLevel || 1;
+    userVipLevel.value = res.data?.userLevel ?? 0;
     console.log('[round] 用户VIP等级:', userVipLevel.value);
   } catch (error) {
     console.error('[round] 获取VIP等级失败:', error);
-    userVipLevel.value = 1; // 失败时默认VIP1
+    userVipLevel.value = 0; // 失败时默认游客
   }
 };
 
@@ -614,7 +668,7 @@ const loadTaskData = () => {
     if (task.roundCdUnlockAt && now < (task.roundCdUnlockAt as number)) {
       console.log('[loadTaskData] 正在回合CD中，清除离库恢复数据');
       try {
-        uni.removeStorageSync(`fm:leaving:${data.taskId}`);
+        uni.removeStorageSync(getScopedLeavingKey(data.taskId));
       } catch (e) {}
 
       // 设置倒计时显示
@@ -642,7 +696,7 @@ const loadTaskData = () => {
     
     // 离库恢复：若存在离库UI恢复数据，则优先还原离库并行展示
     try {
-      const restore = uni.getStorageSync(`fm:leaving:${data.taskId}`);
+      const restore = uni.getStorageSync(getScopedLeavingKey(data.taskId));
       if (restore && restore.raw && restore.roundIndex) {
         console.log('[loadTaskData] 恢复离库数据，回合:', restore.roundIndex);
         buildLeavingUIFromRaw(String(restore.raw), Number(restore.roundIndex));
@@ -674,7 +728,7 @@ const loadTaskData = () => {
         if (updatedTask) {
           updatedTask.roundIndex = savedRoundIndex;
           updatedTask.stageScore = savedStageScore;
-          uni.setStorageSync(`fm:task:${data.taskId}`, updatedTask);
+          uni.setStorageSync(getScopedTaskKey(data.taskId), updatedTask);
           task = updatedTask;
           console.log('[loadTaskData] stage2初始化成功，已恢复回合数:', savedRoundIndex, '和得分:', savedStageScore);
         }
@@ -700,7 +754,7 @@ const loadTaskData = () => {
         if (updatedTask) {
           updatedTask.roundIndex = savedRoundIndex;
           updatedTask.stageScore = savedStageScore;
-          uni.setStorageSync(`fm:task:${data.taskId}`, updatedTask);
+          uni.setStorageSync(getScopedTaskKey(data.taskId), updatedTask);
           task = updatedTask;
           console.log('[loadTaskData] stage3初始化成功，已恢复回合数:', savedRoundIndex, '和得分:', savedStageScore);
         }
@@ -726,7 +780,7 @@ const loadTaskData = () => {
         if (updatedTask) {
           updatedTask.roundIndex = savedRoundIndex;
           updatedTask.stageScore = savedStageScore;
-          uni.setStorageSync(`fm:task:${data.taskId}`, updatedTask);
+          uni.setStorageSync(getScopedTaskKey(data.taskId), updatedTask);
           task = updatedTask;
           console.log('[loadTaskData] stage4初始化成功，已恢复回合数:', savedRoundIndex, '和得分:', savedStageScore);
         }
@@ -770,6 +824,13 @@ const loadTaskData = () => {
     }
 
     _round();
+  } else if (task.stageIndex === 0) {
+    // 阶段0应该在问卷页，自动重定向
+    console.log('[loadTaskData] 检测到阶段0，重定向到问卷页');
+    const name = task.name || '';
+    uni.redirectTo({
+      url: `/pages/sub-page/stepTask/questionnaire?module=${encodeURIComponent(getCurrentModuleName())}&taskId=${data.taskId}&taskName=${encodeURIComponent(name)}`
+    });
   } else {
     console.log('[loadTaskData] 未知阶段:', task.stageIndex);
     uni.showToast({
@@ -841,7 +902,7 @@ const loadCurrentRoundContent = () => {
   const t = getTask(data.taskId) as any;
   const clc = t?.currentLibChain;
   if (clc && clc.type === 'content' && clc.libId) {
-    const libs = uni.getStorageSync('fm:libs');
+    const libs = getScopedLibs();
     const chainGroup = libs?.content || {};
     const chain = chainGroup?.[clc.libId]?.[0] || [];
     const node = chain?.[clc.nodeIndex] || null;
@@ -878,7 +939,7 @@ const loadCurrentRoundContent = () => {
   }
   
   // 获取内容库内容
-  const libs = uni.getStorageSync('fm:libs');
+  const libs = getScopedLibs();
   const contentChains = libs?.content?.[contentLibId] || [];
   
   if (contentChains.length > 0) {
@@ -1052,7 +1113,7 @@ const handleLookforClick = async () => {
   }
 
   // 获取对方找内容库
-  const libs = uni.getStorageSync('fm:libs');
+  const libs = getScopedLibs();
   const task = getTask(data.taskId);
 
   // 根据不同阶段/回合获取对应的对方找库
@@ -1273,7 +1334,7 @@ const finishCurrentContent = () => {
   
   console.log('[finishCurrentContent] 阶段:', task.stageIndex, '回合:', task.roundIndex, 'specialRound:', task.specialRound, '离库:', leavingLibId);
 
-  const libs = uni.getStorageSync('fm:libs');
+  const libs = getScopedLibs();
   const leavingChains = libs?.leaving?.[leavingLibId] || [];
 
   if (leavingChains.length > 0) {
@@ -1312,7 +1373,7 @@ const finishCurrentContent = () => {
     // 保存映射到 data & 本地，用于刷新恢复
     // @ts-ignore
     data.leavingAtNextById = map;
-    uni.setStorageSync(`fm:leaving:${data.taskId}`, {
+    uni.setStorageSync(getScopedLeavingKey(data.taskId), {
       raw,
       roundIndex: task.roundIndex,
       specialRound: task.specialRound || null,
@@ -1419,7 +1480,7 @@ const handleCopy = (item: any) => {
       const tSync1 = getTask(data.taskId) as any;
       if (tSync1 && tSync1.currentLibChain) {
         tSync1.currentLibChain.segmentsCopied = Number(tSync1.currentLibChain?.segmentsCopied || 0) + 1;
-        uni.setStorageSync(`fm:task:${data.taskId}`, tSync1);
+        uni.setStorageSync(getScopedTaskKey(data.taskId), tSync1);
       }
     } catch (e) {}
     uni.showToast({
@@ -1463,7 +1524,7 @@ const handleCopy = (item: any) => {
         const tSync2 = getTask(data.taskId) as any;
         if (tSync2 && tSync2.currentLibChain) {
           tSync2.currentLibChain.segmentsCopied = Number(tSync2.currentLibChain?.segmentsCopied || 0) + 1;
-          uni.setStorageSync(`fm:task:${data.taskId}`, tSync2);
+          uni.setStorageSync(getScopedTaskKey(data.taskId), tSync2);
         }
       } catch (e) {}
 
@@ -1491,7 +1552,7 @@ const handleCopy = (item: any) => {
         // 更新任务状态
         if (task) {
           task.opponentFindCdUnlockAt = opponentFindCdUnlockAt;
-          uni.setStorageSync(`fm:task:${data.taskId}`, task);
+          uni.setStorageSync(getScopedTaskKey(data.taskId), task);
         }
 
         // 显示对方找CD倒计时
@@ -1541,7 +1602,7 @@ const handleCopy = (item: any) => {
 
         // 清除离库恢复数据，避免下次进入页面重复恢复
         try {
-          uni.removeStorageSync(`fm:leaving:${data.taskId}`);
+          uni.removeStorageSync(getScopedLeavingKey(data.taskId));
           console.log('[round] 已清除离库恢复数据');
         } catch (e) {
           console.log('[round] 清除离库恢复数据失败:', e);
@@ -1741,7 +1802,7 @@ const enterContentLib = () => {
   console.log('[enterContentLib] 随机选择内容库:', randomContentLibId);
   
   // 获取内容库
-  const libs = uni.getStorageSync('fm:libs');
+  const libs = getScopedLibs();
   const contentChains = libs?.content?.[randomContentLibId] || [];
   
   if (contentChains.length > 0) {
@@ -1776,7 +1837,7 @@ const enterContentLib = () => {
         nodeIndex: 0,
         segmentsCopied: 0
       };
-      uni.setStorageSync(`fm:task:${data.taskId}`, t);
+      uni.setStorageSync(getScopedTaskKey(data.taskId), t);
     }
     
     console.log('[enterContentLib] 内容库加载完成:', randomContentLibId, '第一段:', segments[0]);
@@ -1991,7 +2052,7 @@ const _addStage = async (taskId: number, nextStageNum: number) => {
     });
 
     // 跳转到列表页，显示"下次聊天开启倒计时"
-    uni.redirectTo({ url: '/pages/sub-page/stepTask/list?module=熟悉模块' });
+    goCurrentModuleList();
 
   } catch (error) {
     console.error('_addStage 执行失败:', error);
@@ -2031,7 +2092,7 @@ const cdTimeup = async () => {
 
     // 清除对方找CD标记
     t.opponentFindCdUnlockAt = null;
-    uni.setStorageSync(`fm:task:${data.taskId}`, t);
+    uni.setStorageSync(getScopedTaskKey(data.taskId), t);
 
     // 根据当前阶段和回合，决定下一步
     const currentStage = t.stageIndex || 1;
@@ -2065,13 +2126,13 @@ const cdTimeup = async () => {
         const stage2 = t.stage2;
         if (stage2) {
           stage2.skipOpening = true;
-          uni.setStorageSync(`fm:task:${data.taskId}`, t);
+          uni.setStorageSync(getScopedTaskKey(data.taskId), t);
         }
       } else if (currentStage === 3) {
         const stage3 = t.stage3;
         if (stage3) {
           stage3.skipOpening = true;
-          uni.setStorageSync(`fm:task:${data.taskId}`, t);
+          uni.setStorageSync(getScopedTaskKey(data.taskId), t);
         }
       }
 
@@ -2262,7 +2323,7 @@ const cdTimeup = async () => {
         if (tUpdated) {
           tUpdated.roundIndex = savedRoundIndex;
           tUpdated.stageScore = savedStageScore;
-          uni.setStorageSync(`fm:task:${data.taskId}`, tUpdated);
+          uni.setStorageSync(getScopedTaskKey(data.taskId), tUpdated);
           Object.assign(t, tUpdated);
         }
       }
@@ -2381,7 +2442,7 @@ const cdTimeup = async () => {
                   if (tForSpecialB && tForSpecialB.stage2) {
                     tForSpecialB.stage2.specialRound = 'b';
                     tForSpecialB.roundIndex = 4; // 特殊回合b是第4回合
-                    uni.setStorageSync(`fm:task:${data.taskId}`, tForSpecialB);
+                    uni.setStorageSync(getScopedTaskKey(data.taskId), tForSpecialB);
                   }
                   // 进入3×大CD
                   const range = { minDays: 0, maxDays: 0, multiplier: 3 };
@@ -2466,7 +2527,7 @@ const cdTimeup = async () => {
         if (tUpdated) {
           tUpdated.roundIndex = savedRoundIndex;
           tUpdated.stageScore = savedStageScore;
-          uni.setStorageSync(`fm:task:${data.taskId}`, tUpdated);
+          uni.setStorageSync(getScopedTaskKey(data.taskId), tUpdated);
           Object.assign(t, tUpdated);
         }
       }
@@ -2542,7 +2603,7 @@ const cdTimeup = async () => {
                             duration: 2000
                           });
                           setTimeout(() => {
-                            uni.redirectTo({ url: '/pages/sub-page/stepTask/list?module=熟悉模块' });
+                            goCurrentModuleList();
                           }, 2000);
                         } else {
                           uni.showToast({
@@ -2599,7 +2660,7 @@ const cdTimeup = async () => {
                             duration: 2000
                           });
                           setTimeout(() => {
-                            uni.redirectTo({ url: '/pages/sub-page/stepTask/list?module=熟悉模块' });
+                            goCurrentModuleList();
                           }, 2000);
                         } else {
                           uni.showToast({
@@ -2645,7 +2706,7 @@ const cdTimeup = async () => {
                       duration: 2000
                     });
                     setTimeout(() => {
-                      uni.redirectTo({ url: '/pages/sub-page/stepTask/list?module=熟悉模块' });
+                      goCurrentModuleList();
                     }, 2000);
                   } else {
                     uni.showToast({
@@ -2996,10 +3057,11 @@ const _round = async (r?: { taskId?: number }) => {
   if (stageNum >= 4) {
     console.log('第4阶段及以上，stepType:', stepType);
 
-    const task = getTask(data.taskId);
+    let task = getTask(data.taskId);
     if (!task || !task.stage4) {
       console.log('[_round] 第4阶段数据不存在，初始化');
       enterStage4(data.taskId);
+      task = getTask(data.taskId);
     }
 
     // 检查是否需要显示提示板S20
@@ -3705,7 +3767,7 @@ const handleInvitationFlow = async () => {
   console.log('[handleInvitationFlow] 开始邀约流程');
 
   // 显示内容库S17
-  const libs = uni.getStorageSync('fm:libs');
+  const libs = getScopedLibs();
   const s17Chains = libs?.content?.S17 || [];
 
   if (s17Chains.length > 0) {
@@ -3814,16 +3876,28 @@ const handleInvitationFlow = async () => {
               const attempts = task?.stage4?.invitationAttempts || 0;
 
               if (attempts <= 2) {
-                // 失败1-2次：进入大CD
+                // 失败1-2次：真正进入大CD
                 const cdMultiplier = attempts === 1 ? 3 : 5;
+                enterRoundBigCd(data.taskId, cdMultiplier);
+
+                const taskAfterCd = getTask(data.taskId);
+                const roundCdUnlockAt = taskAfterCd?.roundCdUnlockAt || null;
+                const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
+                let endTimeStr = '';
+                if (roundCdUnlockAt) {
+                  const d = new Date(roundCdUnlockAt as number);
+                  endTimeStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+                }
+
                 uni.showModal({
                   title: '温馨提示',
                   content: `邀约失败，进入${cdMultiplier}×大CD`,
                   showCancel: false,
-                  success: () => {
+                  success: async () => {
                     data.currentStep = 'stage_cd';
                     data.cdMsg = `邀约失败${attempts}次，${cdMultiplier}×大CD`;
-                    _round();
+                    data.detail = { ...(data.detail || {}), endTime: endTimeStr, stepType: 'familiar_4_cd' };
+                    await _round();
                   }
                 });
               } else {
@@ -3835,10 +3909,63 @@ const handleInvitationFlow = async () => {
                   cancelText: '关闭任务',
                   success: (res2) => {
                     if (res2.confirm) {
-                      // 指导逻辑（待实现）
-                      uni.showToast({
-                        title: '指导功能待实现',
-                        icon: 'none'
+                      // 指导流程：S26 -> 继续/关闭
+                      uni.showModal({
+                        title: '温馨提示',
+                        content: '接下来我会给您进一步指导，是否继续保留任务？',
+                        confirmText: '继续',
+                        cancelText: '关闭任务',
+                        success: (res3) => {
+                          if (res3.confirm) {
+                            uni.showModal({
+                              title: '温馨提示',
+                              content: '任务继续，您可以继续使用搜索问答功能',
+                              showCancel: false,
+                              success: () => {
+                                _round();
+                              }
+                            });
+                          } else {
+                            // 关闭任务流程：半价重开 / 结束任务
+                            uni.showModal({
+                              title: '温馨提示',
+                              content: '请选择后续操作',
+                              confirmText: '半价重开',
+                              cancelText: '结束任务',
+                              success: (res4) => {
+                                if (res4.confirm) {
+                                  const restartResult = halfPriceRestart(data.taskId);
+                                  if (restartResult.ok) {
+                                    uni.showToast({
+                                      title: '任务已半价重开',
+                                      icon: 'success',
+                                      duration: 2000
+                                    });
+                                    setTimeout(() => {
+                                      uni.navigateBack();
+                                    }, 2000);
+                                  } else {
+                                    uni.showToast({
+                                      title: restartResult.reason || '半价重开失败',
+                                      icon: 'none',
+                                      duration: 2000
+                                    });
+                                  }
+                                } else {
+                                  finishTask(data.taskId);
+                                  uni.showToast({
+                                    title: '任务已结束',
+                                    icon: 'success',
+                                    duration: 2000
+                                  });
+                                  setTimeout(() => {
+                                    uni.navigateBack();
+                                  }, 2000);
+                                }
+                              }
+                            });
+                          }
+                        }
                       });
                     } else {
                       // 关闭任务

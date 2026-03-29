@@ -106,7 +106,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { getTask } from '@/utils/familiar-local';
 
 const QUESTION_1_CONTENT = '有对方微信或其他线上可交流方式吗？';
@@ -136,10 +136,20 @@ const tipsS3Popup = ref<any>(null);
 const tipsS4Popup = ref<any>(null);
 
 let currentTaskId = '';
+let currentModule = '熟悉模块';
+
+const currentStoragePrefix = computed(() => {
+  if (currentModule === '超熟模块') return 'super';
+  if (currentModule === '免费模块') return 'free';
+  return 'fm';
+});
+
+const getScopedTaskKey = (taskId: string) => `${currentStoragePrefix.value}:task:${taskId}`;
 
 // ==================== 问1 ====================
-const showQuestion1 = (taskId: string) => {
+const showQuestion1 = (taskId: string, module: string = '熟悉模块') => {
   currentTaskId = taskId;
+  currentModule = module;
   question1Popup.value?.open();
 };
 
@@ -148,7 +158,7 @@ const onQuestion1Confirm = () => {
   const t = getTask(currentTaskId);
   if (t) {
     t.askFlow = { ...(t.askFlow || {}), ask1: '是' };
-    uni.setStorageSync(`fm:task:${currentTaskId}`, t);
+    uni.setStorageSync(getScopedTaskKey(currentTaskId), t);
   }
   emit('question1Result', 'yes');
 };
@@ -158,14 +168,15 @@ const onQuestion1Cancel = () => {
   const t = getTask(currentTaskId);
   if (t) {
     t.askFlow = { ...(t.askFlow || {}), ask1: '否' };
-    uni.setStorageSync(`fm:task:${currentTaskId}`, t);
+    uni.setStorageSync(getScopedTaskKey(currentTaskId), t);
   }
   emit('question1Result', 'no');
 };
 
 // ==================== 问2 ====================
-const showQuestion2 = (taskId: string) => {
+const showQuestion2 = (taskId: string, module: string = '熟悉模块') => {
   currentTaskId = taskId;
+  currentModule = module;
   question2Popup.value?.open();
 };
 
@@ -174,7 +185,7 @@ const onQuestion2Confirm = () => {
   const t = getTask(currentTaskId);
   if (t) {
     t.askFlow = { ...(t.askFlow || {}), ask2: '是' };
-    uni.setStorageSync(`fm:task:${currentTaskId}`, t);
+    uni.setStorageSync(getScopedTaskKey(currentTaskId), t);
   }
   emit('question2Result', 'yes');
 };
@@ -184,14 +195,15 @@ const onQuestion2Cancel = () => {
   const t = getTask(currentTaskId);
   if (t) {
     t.askFlow = { ...(t.askFlow || {}), ask2: '否' };
-    uni.setStorageSync(`fm:task:${currentTaskId}`, t);
+    uni.setStorageSync(getScopedTaskKey(currentTaskId), t);
   }
   emit('question2Result', 'no');
 };
 
 // ==================== 问3 ====================
-const showQuestion3 = (taskId: string) => {
+const showQuestion3 = (taskId: string, module: string = '熟悉模块') => {
   currentTaskId = taskId;
+  currentModule = module;
   question3Popup.value?.open();
 };
 
@@ -200,7 +212,7 @@ const onQuestion3Confirm = () => {
   const t = getTask(currentTaskId);
   if (t) {
     t.askFlow = { ...(t.askFlow || {}), ask3: '是' };
-    uni.setStorageSync(`fm:task:${currentTaskId}`, t);
+    uni.setStorageSync(getScopedTaskKey(currentTaskId), t);
   }
   emit('question3Result', 'yes');
 };
@@ -210,18 +222,19 @@ const onQuestion3Cancel = () => {
   const t = getTask(currentTaskId);
   if (t) {
     t.askFlow = { ...(t.askFlow || {}), ask3: '否' };
-    uni.setStorageSync(`fm:task:${currentTaskId}`, t);
+    uni.setStorageSync(getScopedTaskKey(currentTaskId), t);
   }
   emit('question3Result', 'no');
 };
 
 // ==================== 提示板 ====================
-const showTipsS1 = (taskId: string) => {
+const showTipsS1 = (taskId: string, module: string = '熟悉模块') => {
   currentTaskId = taskId;
+  currentModule = module;
   const t = getTask(taskId);
   if (t) {
     t.prompts = { ...(t.prompts || {}), S1: { shown: true, at: Date.now() } };
-    uni.setStorageSync(`fm:task:${taskId}`, t);
+    uni.setStorageSync(getScopedTaskKey(taskId), t);
   }
   emit('showTipsS1');
   tipsS1Popup.value?.open();
@@ -232,12 +245,13 @@ const onTipsS1Confirm = () => {
   emit('tipsS1Confirmed');
 };
 
-const showTipsS2 = (taskId: string) => {
+const showTipsS2 = (taskId: string, module: string = '熟悉模块') => {
   currentTaskId = taskId;
+  currentModule = module;
   const t = getTask(taskId);
   if (t) {
     t.prompts = { ...(t.prompts || {}), S2: { shown: true, at: Date.now() } };
-    uni.setStorageSync(`fm:task:${taskId}`, t);
+    uni.setStorageSync(getScopedTaskKey(taskId), t);
   }
   emit('showTipsS2');
   tipsS2Popup.value?.open();
@@ -248,12 +262,13 @@ const onTipsS2Confirm = () => {
   emit('tipsS2Confirmed');
 };
 
-const showTipsS3 = (taskId: string) => {
+const showTipsS3 = (taskId: string, module: string = '熟悉模块') => {
   currentTaskId = taskId;
+  currentModule = module;
   const t = getTask(taskId);
   if (t) {
     t.prompts = { ...(t.prompts || {}), S3: { shown: true, at: Date.now() } };
-    uni.setStorageSync(`fm:task:${taskId}`, t);
+    uni.setStorageSync(getScopedTaskKey(taskId), t);
   }
   emit('showTipsS3');
   tipsS3Popup.value?.open();
@@ -264,12 +279,13 @@ const onTipsS3Confirm = () => {
   emit('tipsS3Confirmed');
 };
 
-const showTipsS4 = (taskId: string) => {
+const showTipsS4 = (taskId: string, module: string = '熟悉模块') => {
   currentTaskId = taskId;
+  currentModule = module;
   const t = getTask(taskId);
   if (t) {
     t.prompts = { ...(t.prompts || {}), S4: { shown: true, at: Date.now() } };
-    uni.setStorageSync(`fm:task:${taskId}`, t);
+    uni.setStorageSync(getScopedTaskKey(taskId), t);
   }
   emit('showTipsS4');
   tipsS4Popup.value?.open();

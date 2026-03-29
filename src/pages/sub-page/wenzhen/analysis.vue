@@ -30,14 +30,14 @@ const handleOk = () => {
     return;
   }
   uni.navigateTo({
-    url: '/pages/sub-page/wenzhen/detail',
+    url: `/pages/sub-page/wenzhen/detail?taskId=${data.prevPageQuery.taskId}&taskName=${data.prevPageQuery?.taskName}`,
   });
 };
 
 const handleBack = () => {
   uni.showModal({
     title: '提示',
-    content: '您未完成问卷填写，请确认是否要返回',
+    content: '当前问题已提交，确认返回问诊列表吗？',
     success: res => {
       if (res.confirm) {
         uni.redirectTo({

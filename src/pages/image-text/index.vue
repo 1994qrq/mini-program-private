@@ -21,6 +21,7 @@
       <block v-for="item in sortedList" :key="item">
         <bc-img-text-item
           disabled
+          allowItemClickWhenDisabled
           :item="{ ...item, title: item.title }"
           @itemClick="handleItemClick"></bc-img-text-item>
       </block>
@@ -76,6 +77,8 @@ import type { Task, Common } from '@/api/data';
 // 工具
 import { taskModule, payModule } from '@/utils/data';
 
+const IMAGE_TEXT_STATE_KEY = 'imageTextPageState';
+
 const data = reactive<any>({
   describe: '', // 图文说明
   list: [],
@@ -83,6 +86,19 @@ const data = reactive<any>({
   specialActivated: false, // 特殊图文是否已激活
   normalFirstClicked: false, // 激活后是否已首次点击普通图文
 });
+
+const restoreImageTextState = () => {
+  const saved = uni.getStorageSync(IMAGE_TEXT_STATE_KEY) || {};
+  data.specialActivated = !!saved.specialActivated;
+  data.normalFirstClicked = !!saved.normalFirstClicked;
+};
+
+const persistImageTextState = () => {
+  uni.setStorageSync(IMAGE_TEXT_STATE_KEY, {
+    specialActivated: data.specialActivated,
+    normalFirstClicked: data.normalFirstClicked,
+  });
+};
 
 // 排序后的列表：普通图文在前，特殊图文在后
 const sortedList = computed(() => {
@@ -172,6 +188,7 @@ const handleItemClick = (item: any) => {
     if (!data.specialActivated) {
       // 首次激活特殊图文，显示提示板
       data.specialActivated = true;
+      persistImageTextState();
       specialActivatedDialog.value?.open();
       console.log('[图文] 特殊图文已激活');
     }
@@ -180,6 +197,7 @@ const handleItemClick = (item: any) => {
     if (data.specialActivated && !data.normalFirstClicked) {
       // 特殊图文已激活，且首次点击普通图文，显示提示板
       data.normalFirstClicked = true;
+      persistImageTextState();
       normalFirstClickDialog.value?.open();
       console.log('[图文] 首次点击普通图文');
     }
@@ -282,6 +300,7 @@ const fetchCreateTask = async (params: Pick<Task.Create.Body, 'taskName'>) => {
 };
 
 onShow(() => {
+  restoreImageTextState();
   getList();
   getUserInfo(); // 页面显示时获取用户信息
 });

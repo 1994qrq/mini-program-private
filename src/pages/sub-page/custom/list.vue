@@ -67,10 +67,18 @@ const data = reactive<any>({
 });
 const popup = ref(null);
 
-const onSwipeClick = () => {
+const onSwipeClick = (taskId?: string) => {
   // 设置删除标志，防止触发跳转
   data.isDeleting = true;
+
+  // 立即从列表中移除该任务
+  if (taskId) {
+    data.list = data.list.filter((item: any) => String(item.taskId) !== String(taskId));
+  }
+
+  // 异步刷新列表
   getTaskList();
+
   // 延迟重置删除标志
   setTimeout(() => {
     data.isDeleting = false;

@@ -22,7 +22,8 @@
           :taskType="data.title.includes('熟悉') ? '熟悉' :
                     data.title.includes('不熟') ? '不熟' :
                     data.title.includes('超熟') ? '超熟' :
-                    data.title.includes('陌生') ? '陌生' : ''"
+                    data.title.includes('陌生') ? '陌生' :
+                    data.title.includes('免费') ? '免费' : ''"
           @click="() => handleJump(item)"
           @swipeClick="onSwipeClick"></bc-task-item>
       </block>
@@ -76,6 +77,7 @@ import { reactive, ref, computed, onUnmounted } from 'vue';
 import api from '@/api';
 import type { Four, Task } from '@/api/data';
 import * as fm from '@/utils/familiar-local';
+import { checkStage0Countdown, handleAsk3 } from '@/utils/familiar-local';
 import * as um from '@/utils/unfamiliar-local';
 import * as sm from '@/utils/stranger-local';
 import { getCountdownTimeMs } from '@/config';
@@ -83,7 +85,6 @@ import { getCountdownTimeMs } from '@/config';
 import { taskModule } from '@/utils/data';
 import type { taskModuleKey } from '@/utils/data';
 import { hasItTimeOut, Toast, convertToBase64 } from '@/utils/util';
-import { question3 } from './shuxi/stage0';
 
 const data = reactive<any>({
   title: '',
@@ -209,21 +210,10 @@ const handleJump = async (item: Task.List.Data) => {
   const currentModule = data.title || '';
   const isFreeModule = currentModule.includes('免费');
   const isSuperModule = currentModule.includes('超熟');
-  const isFamiliarModule = !isFreeModule && !isSuperModule;
+  const isFamiliarModule = currentModule.includes('熟悉') || isSuperModule;
 
   // 非熟悉模块：不熟 / 陌生 分别进入各自的回合页
   if (currentModule.includes('不熟') || currentModule.includes('陌生')) {
-    // “对方找倒计时”未结束时禁止点击（taskStatus=65）
-    if (item.taskStatus === 65 && item.otherFindEndTime && !hasItTimeOut(item.otherFindEndTime)) {
-      uni.showToast({ title: '对方找倒计时未结束，请稍后再试', icon: 'none', duration: 2000 });
-      return;
-    }
-    // 通用倒计时检查：回合/阶段倒计时（taskStatus=61,62）或Z倒计时（taskStatus=63）
-    if ([61, 62, 63].includes(item.taskStatus) && item.endTime && !hasItTimeOut(item.endTime)) {
-      const statusText = item.taskStatus === 63 ? 'Z倒计时' : '下次聊天开启倒计时';
-      uni.showToast({ title: `${statusText}未结束，请耐心等待`, icon: 'none', duration: 2000 });
-      return;
-    }
     const name = item.taskName || '';
     if (currentModule.includes('不熟')) {
       // 不熟模块：继续使用 round-new.vue
@@ -255,8 +245,20 @@ const handleJump = async (item: Task.List.Data) => {
   }
   if (t && t.stageIndex === 0 && t.stageCdUnlockAt) {
     const now = Date.now();
-    // 检查是否已经完成了问3（即S4倒计时）
-    if (t.askFlow?.ask3 === '是' && now >= t.stageCdUnlockAt) {
+    if (now < t.stageCdUnlockAt) {
+      uni.navigateTo({ url: `/pages/sub-page/stepTask/round?module=${currentModule}&taskId=${item.taskId}` });
+      return;
+    }
+
+    const stage0Result = checkStage0Countdown(String(item.taskId));
+    console.log('[handleJump] stage0 倒计时检查结果:', stage0Result);
+
+    if (stage0Result.action === 'showAsk3') {
+      await handleQuestion3(String(item.taskId));
+      return;
+    }
+
+    if (stage0Result.action === 'enterStage1') {
       console.log('[handleJump] S4倒计时结束，进入阶段1');
       const result = fm.enterStage1(String(item.taskId));
       if (result.ok) {
@@ -267,43 +269,17 @@ const handleJump = async (item: Task.List.Data) => {
       }
       return;
     }
-    // 检查是否尚未完成问3（即S2倒计时）
-    if (!t.askFlow?.ask3 && now >= t.stageCdUnlockAt) {
-      console.log('[handleJump] S2倒计时结束，触发问3');
-      await handleQuestion3(String(item.taskId));
-      return;
-    }
-    // 倒计时未结束
-    if (now < t.stageCdUnlockAt) {
-      uni.showToast({ title: '倒计时未结束，请耐心等待', icon: 'none', duration: 2000 });
-      return;
-    }
   }
 
-  // familiar_s2（阶段0的问答流程）需要等大CD结束（旧逻辑兼容）
+  // 旧的 familiar_s2 标记也统一走本地阶段0能力
   if (item.stepType === 'familiar_s2') {
     const _hasItTimeOut = hasItTimeOut(item?.endTime);
     if (!_hasItTimeOut) {
-      uni.showToast({ title: '倒计时未结束，请耐心等待', icon: 'none', duration: 2000 });
+      // 倒计时未结束也允许进入，用户可以在详情页使用"对方找"和"搜索"功能
+      uni.navigateTo({ url: `/pages/sub-page/stepTask/round?module=${currentModule}&taskId=${item.taskId}` });
       return;
     }
-    await question3({
-      taskId: item.taskId,
-      specialStepId: item.specialStepId,
-      onNoSelected: () => { console.log('问3选择了"否"，刷新列表'); getTaskList(); }
-    });
-    return;
-  }
-
-  // “对方找倒计时”未结束时禁止点击（taskStatus=65）
-  if (item.taskStatus === 65 && item.otherFindEndTime && !hasItTimeOut(item.otherFindEndTime)) {
-    uni.showToast({ title: '对方找倒计时未结束，请稍后再试', icon: 'none', duration: 2000 });
-    return;
-  }
-  // 通用倒计时检查：回合/阶段倒计时（taskStatus=61,62）或Z倒计时（taskStatus=63）
-  if ([61, 62, 63].includes(item.taskStatus) && item.endTime && !hasItTimeOut(item.endTime)) {
-    const statusText = item.taskStatus === 63 ? 'Z倒计时' : '下次聊天开启倒计时';
-    uni.showToast({ title: `${statusText}未结束，请耐心等待`, icon: 'none', duration: 2000 });
+    await handleQuestion3(String(item.taskId));
     return;
   }
 
@@ -320,7 +296,9 @@ const handleJump = async (item: Task.List.Data) => {
     taskForRouting = fm.getTask(String(item.taskId));
   }
   const name = item.taskName || '';
-  if (taskForRouting && taskForRouting.stageIndex === 0 && isFamiliarModule) {
+  const hasSubmittedQuestionnaire = Array.isArray(taskForRouting?.questionnaire?.answers) && taskForRouting.questionnaire.answers.length > 0;
+  const hasStartedStage0Flow = hasSubmittedQuestionnaire || !!taskForRouting?.askFlow?.ask1 || !!taskForRouting?.askFlow?.ask2 || !!taskForRouting?.askFlow?.ask3 || !!taskForRouting?.stageCdUnlockAt;
+  if (taskForRouting && taskForRouting.stageIndex === 0 && isFamiliarModule && !hasStartedStage0Flow) {
     uni.navigateTo({ url: `/pages/sub-page/stepTask/questionnaire?module=${currentModule}&taskId=${item.taskId}&taskName=${encodeURIComponent(name)}` });
   } else {
     uni.navigateTo({ url: `/pages/sub-page/stepTask/round?module=${currentModule}&taskId=${item.taskId}` });
@@ -339,7 +317,6 @@ const onSwipeClick = () => {
 
 // 处理问3逻辑
 const handleQuestion3 = async (taskId: string) => {
-  // 显示问3对话框
   const result = await new Promise<'是' | '否'>((resolve) => {
     uni.showModal({
       title: '温馨提示',
@@ -351,97 +328,65 @@ const handleQuestion3 = async (taskId: string) => {
       }
     });
   });
-  
+
   console.log('[handleQuestion3] 用户选择:', result);
 
-  fm.initFamiliarLocal();
-  const t = fm.getTask(taskId);
-  if (!t) return;
+  fm.initFamiliarLocal(data.title.includes('超熟') ? 'super' : 'familiar');
+  const ask3Result = handleAsk3(taskId, result);
+  console.log('[handleQuestion3] handleAsk3 结果:', ask3Result);
 
-  // 保存选择
-  t.askFlow = { ...(t.askFlow || {}), ask3: result };
-  uni.setStorageSync(`fm:task:${taskId}`, t);
-  
-  if (result === '是') {
-    // 显示提示板S4
+  if (!ask3Result.ok) {
+    uni.showToast({ title: ask3Result.reason || '处理失败', icon: 'none', duration: 2000 });
+    return;
+  }
+
+  if (ask3Result.action === 'showPromptS4AndStartCountdown') {
     await new Promise<void>((resolve) => {
       uni.showModal({
         title: '温馨提示',
         content: '很好！接下来将进入正式阶段，请继续保持',
         showCancel: false,
         confirmText: '确定',
-        success: () => {
-          resolve();
-        }
+        success: () => resolve()
       });
     });
 
-    // 保存S4提示板状态
-    const t2 = fm.getTask(taskId);
-    if (t2) {
-      t2.prompts = { ...(t2.prompts || {}), S4: { shown: true, at: Date.now() } };
-      uni.setStorageSync(`fm:task:${taskId}`, t2);
+    const t = fm.getTask(taskId);
+    if (t) {
+      t.prompts = { ...(t.prompts || {}), S4: { shown: true, at: Date.now() } };
+      uni.setStorageSync(`${data.title.includes('超熟') ? 'super' : 'fm'}:task:${taskId}`, t);
     }
 
-    // 设置6-9天倒计时（进入阶段1前的倒计时）
-    const days = Math.floor(6 + Math.random() * 4); // 6-9天
-    const unlockAt = Date.now() + getCountdownTimeMs(days * 24 * 60 * 60 * 1000);
-    const t3 = fm.getTask(taskId);
-    if (t3) {
-      t3.listBadge = '下次聊天开启倒计时';
-      t3.listCountdownEndAt = unlockAt;
-      t3.stageCdUnlockAt = unlockAt;
-      uni.setStorageSync(`fm:task:${taskId}`, t3);
-    }
-    
-    console.log('[handleQuestion3] S4倒计时设置:', days, '天，结束时间:', new Date(unlockAt).toLocaleString());
-    
-    // 刷新列表显示
     getTaskList();
-    
+
     uni.showToast({
-      title: `已设置${days}天倒计时，到期后进入第一阶段`,
+      title: `已设置${ask3Result.countdownDays || 0}天倒计时，到期后进入第一阶段`,
       icon: 'none',
       duration: 3000
     });
-  } else {
-    // 显示提示板S3
+    return;
+  }
+
+  if (ask3Result.action === 'showPromptS3') {
     await new Promise<void>((resolve) => {
       uni.showModal({
         title: '温馨提示',
         content: '请您做好准备后再开始',
         showCancel: false,
         confirmText: '确定',
-        success: () => {
-          resolve();
-        }
+        success: () => resolve()
       });
     });
 
-    // 保存S3提示板状态
-    const t2 = fm.getTask(taskId);
-    if (t2) {
-      t2.prompts = { ...(t2.prompts || {}), S3: { shown: true, at: Date.now() } };
-      uni.setStorageSync(`fm:task:${taskId}`, t2);
+    const t = fm.getTask(taskId);
+    if (t) {
+      t.prompts = { ...(t.prompts || {}), S3: { shown: true, at: Date.now() } };
+      t.askFlow = { ...(t.askFlow || {}), ask3: undefined };
+      uni.setStorageSync(`${data.title.includes('超熟') ? 'super' : 'fm'}:task:${taskId}`, t);
     }
 
-    // 重新设置9-10天倒计时（回到问2）
-    const days = Math.floor(9 + Math.random() * 2); // 9-10天
-    const unlockAt = Date.now() + getCountdownTimeMs(days * 24 * 60 * 60 * 1000);
-    const t3 = fm.getTask(taskId);
-    if (t3) {
-      t3.listBadge = '下次聊天开启倒计时';
-      t3.listCountdownEndAt = unlockAt;
-      t3.stageCdUnlockAt = unlockAt;
-      t3.askFlow = { ...(t3.askFlow || {}), ask3: undefined }; // 清除ask3选择
-      uni.setStorageSync(`fm:task:${taskId}`, t3);
-    }
-    
-    console.log('[handleQuestion3] S3触发，重新设置倒计时:', days, '天');
-    
-    // 刷新列表显示
     getTaskList();
-    
+
     uni.showToast({
       title: '请准备好后再次尝试',
       icon: 'none',
@@ -465,45 +410,21 @@ const getTaskList = async (module?: any) => {
     if (title.includes('不熟')) {
       um.initUmLocal();
       lt = um.listTasks();
-      if (!lt || lt.length === 0) {
-        const created = um.createTask({ name: '测试订单', durationDays: 5 });
-        if (created.ok) { lt = um.listTasks(); uni.showToast({ title: '已创建示例订单', icon: 'none' }); }
-      }
     } else if (title.includes('陌生')) {
       sm.initSmLocal();
       lt = sm.listTasks();
-      if (!lt || lt.length === 0) {
-        const created = sm.createTask({ name: '测试订单', durationDays: 5 });
-        if (created.ok) { lt = sm.listTasks(); uni.showToast({ title: '已创建示例订单', icon: 'none' }); }
-      }
     } else if (title.includes('免费')) {
       // 免费模块使用独立存储
       fm.initFamiliarLocal('free');
       lt = fm.listTasks();
-      if (!lt || lt.length === 0) {
-        const created = fm.createTask({ name: '测试订单', durationDays: 5 });
-        if (created.ok && created.task) {
-          fm.enterStage1(created.task.id);
-          lt = fm.listTasks();
-          uni.showToast({ title: '已创建示例订单', icon: 'none' });
-        }
-      }
     } else if (title.includes('超熟')) {
       // 超熟模块使用独立存储
       fm.initFamiliarLocal('super');
       lt = fm.listTasks();
-      if (!lt || lt.length === 0) {
-        const created = fm.createTask({ name: '测试订单', durationDays: 5 });
-        if (created.ok) { lt = fm.listTasks(); uni.showToast({ title: '已创建示例订单', icon: 'none' }); }
-      }
     } else {
       // 熟悉模块使用默认存储
       fm.initFamiliarLocal('familiar');
       lt = fm.listTasks();
-      if (!lt || lt.length === 0) {
-        const created = fm.createTask({ name: '测试订单', durationDays: 5 });
-        if (created.ok) { lt = fm.listTasks(); uni.showToast({ title: '已创建示例订单', icon: 'none' }); }
-      }
     }
 
     // 映射到该页面现有字段，保持模板不改
@@ -572,6 +493,11 @@ const fetchCreateTask = async (params: { taskName: string; durationDays: number;
     const name = (params.taskName || '').slice(0, 6);
     const title = data.title || '';
 
+    console.log('[创建任务] 开始创建任务');
+    console.log('[创建任务] data.title:', data.title);
+    console.log('[创建任务] title:', title);
+    console.log('[创建任务] params:', params);
+
     if (title.includes('不熟')) {
       um.initUmLocal();
       const res = um.createTask({ name, durationDays: params.durationDays });
@@ -585,7 +511,17 @@ const fetchCreateTask = async (params: { taskName: string; durationDays: number;
       }
     } else if (title.includes('陌生')) {
       sm.initSmLocal();
-      const res = sm.createTask({ name, durationDays: params.durationDays });
+      // 获取用户VIP等级
+      let userVipLevel = 1;
+      try {
+        const userInfo = await api.common.info();
+        userVipLevel = userInfo.data?.userLevel || 1;
+        console.log('[创建陌生任务] 用户VIP等级:', userVipLevel);
+      } catch (error) {
+        console.error('[创建陌生任务] 获取VIP等级失败:', error);
+      }
+
+      const res = sm.createTask({ name, durationDays: params.durationDays, userVipLevel });
       if (res.ok && res.task) {
         // 陌生模块使用专用页面 round-stranger.vue
         uni.navigateTo({ url: `/pages/sub-page/stepTask/round-stranger?taskId=${res.task.id}&taskName=${encodeURIComponent(params?.taskName || '')}&module=陌生模块` });
@@ -680,8 +616,12 @@ const handleDataSyncCompleted = (event: { action: string }) => {
 onLoad(async (options: any) => {
   uni.$on('dataSyncCompleted', handleDataSyncCompleted);
   const module = options?.module as taskModuleKey;
+  console.log('[StepTaskList] onLoad options:', options);
+  console.log('[StepTaskList] module 参数:', module);
+  console.log('[StepTaskList] taskModule[module]:', taskModule[module]);
   data.module = taskModule[module];
   data.title = module;
+  console.log('[StepTaskList] data.title 设置为:', data.title);
   data.isFirstLoad = true;
   await getTaskList(taskModule[module]);
   data.bottom_bg = await convertToBase64('/static/images/page_bottom_bg.png');

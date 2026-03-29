@@ -61,7 +61,6 @@ const fetchMessageList = async () => {
     }
   } catch (error) {
     console.error('[MessageList] 获取消息列表失败:', error);
-    // 接口失败时显示空列表
     data.list = [];
   } finally {
     data.loading = false;
@@ -70,6 +69,7 @@ const fetchMessageList = async () => {
 
 const handleDel = async (index: number) => {
   const message = data.list[index];
+  if (!message?.id) return;
 
   uni.showModal({
     title: '提示',
@@ -77,10 +77,7 @@ const handleDel = async (index: number) => {
     success: async function (res) {
       if (res.confirm) {
         try {
-          // 调用删除接口
           await api.common.deleteMessage({ id: message.id });
-
-          // 删除成功后从列表中移除
           data.list.splice(index, 1);
           uni.showToast({
             title: '删除成功',

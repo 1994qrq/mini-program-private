@@ -37,12 +37,17 @@ const props = defineProps({
   },
   disabled: Boolean,
   selectedNum: Number,
+  allowItemClickWhenDisabled: Boolean,
 });
 
 // 处理卡片点击
 const handleItemClick = () => {
-  if (props.disabled) return;
+  if (props.disabled && !props.allowItemClickWhenDisabled) return;
   emit('itemClick', props.item);
+  const selectedKey = props.item?.replayId ?? props.item?.replyId ?? props.item?.id;
+  if (selectedKey !== undefined && selectedKey !== null) {
+    emit('select', selectedKey);
+  }
 };
 
 /**

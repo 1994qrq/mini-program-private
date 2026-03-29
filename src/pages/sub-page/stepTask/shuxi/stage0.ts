@@ -8,6 +8,14 @@ import { hasItTimeOut, Toast } from '@/utils/util';
 import { taskModule } from '@/utils/data';
 import { activateImageTextSpecialPermission } from '@/utils/familiar-local';
 
+const getTaskModuleName = () => {
+  const pages = getCurrentPages();
+  const currentOptions = pages[pages.length - 1]?.options as Record<string, any> | undefined;
+  return currentOptions?.module || '熟悉模块';
+};
+const getTaskListUrl = () => `/pages/sub-page/stepTask/list?module=${encodeURIComponent(getTaskModuleName())}`;
+const getRoundUrl = (taskId: number) => `/pages/sub-page/stepTask/round?module=${encodeURIComponent(getTaskModuleName())}&taskId=${taskId}`;
+
 // 提示S3
 const hint3 = (taskId: number, onComplete?: () => void) => {
   getHint(
@@ -51,7 +59,7 @@ const hint4 = (params: { taskId: number; specialStepId?: number; flag?: boolean 
             },
             () => {
               // 跳转对方主动找页面
-              uni.navigateTo({ url: '/pages/sub-page/stepTask/round?module=熟悉模块&taskId=' + taskId });
+              uni.navigateTo({ url: getRoundUrl(taskId) });
             }
           );
         });
@@ -94,7 +102,7 @@ const question2 = async (taskId: number) => {
           },
           () => {
             console.log('savePoint回调执行，准备跳转到熟悉列表');
-            uni.redirectTo({ url: '/pages/sub-page/stepTask/list?module=熟悉模块' });
+            uni.redirectTo({ url: getTaskListUrl() });
           }
         );
       }

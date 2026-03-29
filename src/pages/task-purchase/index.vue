@@ -192,19 +192,20 @@ const executePurchase = async () => {
   uni.showLoading({ title: '购买中...', mask: true });
 
   try {
-    // 初始化本地存储
-    initFamiliarLocal();
+    // 根据模块初始化本地存储
+    const moduleType = data.module?.includes('超熟') ? 'super' : data.module?.includes('免费') ? 'free' : 'familiar';
+    initFamiliarLocal(moduleType);
 
     // TODO: 调用后端接口扣除心币
     // await api.task.purchaseTask({
     //   days: data.currentDays,
     //   price: data.currentPrice,
-    //   module: '熟悉模块'
+    //   module: data.module
     // });
 
     // 本地模拟：创建任务
-    const taskName = `${data.currentDays}天熟悉任务`;
-    const newTaskId = createTask(taskName, data.currentDays, '熟悉模块');
+    const taskName = `${data.currentDays}天${data.module || '熟悉'}任务`;
+    const newTaskId = createTask(taskName, data.currentDays, data.module || '熟悉模块');
 
     console.log('[任务购买] 任务创建成功，taskId:', newTaskId);
 
@@ -414,10 +415,11 @@ onShow(() => {
     position: fixed;
     bottom: 0;
     left: 0;
-    padding: 40rpx 40rpx calc($safe-bottom + 40rpx);
+    padding: 20rpx 20rpx $safe-bottom;
     box-sizing: border-box;
     background: white;
-    box-shadow: 0 -4rpx 20rpx 0 rgba(0, 0, 0, 0.1);
+    box-shadow: 0 0 20rpx 0 #ebebeb80;
+    z-index: 98;
   }
 }
 

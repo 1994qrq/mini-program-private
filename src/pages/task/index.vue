@@ -13,7 +13,7 @@
 						<text class="date font-bold">{{ item.endTime }}</text>
 					</view>
 					<view class="bottom">
-						<view class="btn" @click.stop.prevent="handleDelete(item.taskId)">删除</view>
+						<view class="btn" @click.stop.prevent="handleDelete(item.taskId, item.moduleType)">删除</view>
 						<view class="btn active" @click.stop.prevent="handleRenew(item.taskId)">充值</view>
 					</view>
 				</view>
@@ -32,13 +32,16 @@ import * as um from '@/utils/unfamiliar-local';
 import * as sm from '@/utils/stranger-local';
 import { hasItTimeOut } from '@/utils/util';
 import { taskModule } from '@/utils/data';
+import api from '@/api';
+import type { Task } from '@/api/data';
 
 // 任务数据类型
 interface TaskData {
 	taskId: string;
 	taskName: string;
-	moduleType: '熟悉' | '超熟' | '不熟' | '陌生' | '免费';
+	moduleType: '熟悉' | '超熟' | '不熟' | '陌生' | '免费' | '定制' | '问诊' | '线下' | '图文';
 	endTime: string;
+	taskStatus?: number;
 }
 
 const data = reactive<any>({
@@ -54,6 +57,10 @@ const getModuleLabel = (type: string) => {
 		'不熟': '不熟',
 		'陌生': '陌生',
 		'免费': '免费',
+		'定制': '定制',
+		'问诊': '问诊',
+		'线下': '线下',
+		'图文': '图文',
 	};
 	return labels[type] || type;
 };
@@ -66,6 +73,10 @@ const getModuleIcon = (type: string) => {
 		'不熟': 'home/bushu',
 		'陌生': 'home/mosheng',
 		'免费': 'home/free',
+		'定制': 'home/dingzhi',
+		'问诊': 'home/wenzhen',
+		'线下': 'home/xianxia',
+		'图文': 'home/tuwen',
 	};
 	return icons[type] || 'home/shuxi';
 };
@@ -77,7 +88,7 @@ const handleJump = async (item: TaskData) => {
 		return;
 	}
 
-	const { moduleType, taskId, taskName } = item;
+	const { moduleType, taskId, taskName, taskStatus } = item;
 
 	// 熟悉/超熟/免费模块
 	if (['熟悉', '超熟', '免费'].includes(moduleType)) {
@@ -121,15 +132,25 @@ const handleJump = async (item: TaskData) => {
 			return;
 		}
 
-		// 阶段0：问卷，否则：回合
+		if (moduleType === '免费' && taskStageIndex === 0) {
+			const enterResult = fm.enterStage1(taskId);
+			if (!enterResult.ok) {
+				uni.showToast({ title: enterResult.reason || '进入第一阶段失败', icon: 'none', duration: 2000 });
+				return;
+			}
+			uni.navigateTo({ url: `/pages/sub-page/stepTask/round?module=${moduleType}模块&taskId=${taskId}` });
+			return;
+		}
+
 		const url = taskStageIndex === 0
 			? `/pages/sub-page/stepTask/questionnaire?module=${moduleType}模块&taskId=${taskId}&taskName=${taskName}`
 			: `/pages/sub-page/stepTask/round?module=${moduleType}模块&taskId=${taskId}`;
 
 		uni.navigateTo({ url });
+		return;
 	}
-	// 不熟模块
-	else if (moduleType === '不熟') {
+
+	if (moduleType === '不熟') {
 		um.initUmLocal();
 		const tasks = um.listTasks();
 		const task = tasks.find(t => t.id === taskId);
@@ -138,7 +159,6 @@ const handleJump = async (item: TaskData) => {
 			return;
 		}
 
-		// 检查倒计时
 		if (task.badge === '对方找倒计时' && task.countdownEndAt && !hasItTimeOut(task.countdownEndAt)) {
 			uni.showToast({ title: '对方找倒计时未结束', icon: 'none', duration: 2000 });
 			return;
@@ -151,9 +171,10 @@ const handleJump = async (item: TaskData) => {
 		uni.navigateTo({
 			url: `/pages/sub-page/stepTask/round-new?module=不熟模块&taskId=${taskId}&taskName=${taskName}`,
 		});
+		return;
 	}
-	// 陌生模块
-	else if (moduleType === '陌生') {
+
+	if (moduleType === '陌生') {
 		sm.initSmLocal();
 		const tasks = sm.listTasks();
 		const task = tasks.find(t => t.id === taskId);
@@ -162,7 +183,6 @@ const handleJump = async (item: TaskData) => {
 			return;
 		}
 
-		// 检查倒计时
 		if (task.badge === '对方找倒计时' && task.countdownEndAt && !hasItTimeOut(task.countdownEndAt)) {
 			uni.showToast({ title: '对方找倒计时未结束', icon: 'none', duration: 2000 });
 			return;
@@ -175,15 +195,70 @@ const handleJump = async (item: TaskData) => {
 		uni.navigateTo({
 			url: `/pages/sub-page/stepTask/round-stranger?module=陌生模块&taskId=${taskId}&taskName=${taskName}`,
 		});
+		return;
+	}
+
+	if (moduleType === '定制') {
+		let url = '';
+		const params = `taskId=${taskId}&taskName=${encodeURIComponent(taskName || '')}`;
+		if (taskStatus === 20) {
+			url = `/pages/sub-page/custom/analysis?${params}`;
+		} else if (taskStatus === 30) {
+			url = `/pages/sub-page/custom/scheme?${params}`;
+		} else if ((taskStatus || 0) >= 50) {
+			url = `/pages/sub-page/custom/detail?${params}&taskStatus=${taskStatus}`;
+		} else {
+			url = `/pages/sub-page/custom/questionnaire?${params}`;
+		}
+		uni.navigateTo({ url });
+		return;
+	}
+
+	if (moduleType === '问诊') {
+		let url = '';
+		const params = `taskId=${taskId}&taskName=${encodeURIComponent(taskName || '')}`;
+		if (taskStatus === 20) {
+			url = `/pages/sub-page/wenzhen/analysis?${params}`;
+		} else if (taskStatus === 30) {
+			url = `/pages/sub-page/wenzhen/scheme?${params}`;
+		} else if ((taskStatus || 0) >= 50) {
+			url = `/pages/sub-page/wenzhen/detail?${params}&taskStatus=${taskStatus}`;
+		} else {
+			url = `/pages/sub-page/wenzhen/questionnaire?${params}`;
+		}
+		uni.navigateTo({ url });
+		return;
+	}
+
+	if (moduleType === '线下') {
+		let url = '';
+		const params = `taskId=${taskId}&taskName=${encodeURIComponent(taskName || '')}`;
+		if (taskStatus === 20) {
+			url = `/pages/sub-page/offline/analysis?${params}`;
+		} else if (taskStatus === 30) {
+			url = `/pages/sub-page/offline/scheme?${params}`;
+		} else {
+			url = `/pages/sub-page/offline/problem?${params}`;
+		}
+		uni.navigateTo({ url });
+		return;
+	}
+
+	if (moduleType === '图文') {
+		const params = `taskId=${taskId}&taskName=${encodeURIComponent(taskName || '')}`;
+		const url = taskStatus === 10
+			? `/pages/sub-page/image-text/problem?${params}`
+			: `/pages/sub-page/image-text/analysis?${params}`;
+		uni.navigateTo({ url });
 	}
 };
 
 // 查询所有模块的任务列表
 const fetchTaskList = async () => {
+	console.log('[TaskList] 开始查询所有模块任务列表');
 	try {
 		const allTasks: TaskData[] = [];
 
-		// 1. 熟悉模块任务
 		fm.initFamiliarLocal('familiar');
 		const fmTasks = fm.listTasks();
 		fmTasks.forEach(t => {
@@ -195,7 +270,6 @@ const fetchTaskList = async () => {
 			});
 		});
 
-		// 2. 超熟模块任务
 		fm.initFamiliarLocal('super');
 		const superTasks = fm.listTasks();
 		superTasks.forEach(t => {
@@ -207,7 +281,6 @@ const fetchTaskList = async () => {
 			});
 		});
 
-		// 3. 免费模块任务
 		fm.initFamiliarLocal('free');
 		const freeTasks = fm.listTasks();
 		freeTasks.forEach(t => {
@@ -219,7 +292,6 @@ const fetchTaskList = async () => {
 			});
 		});
 
-		// 4. 不熟模块任务
 		um.initUmLocal();
 		const umTasks = um.listTasks();
 		umTasks.forEach(t => {
@@ -231,7 +303,6 @@ const fetchTaskList = async () => {
 			});
 		});
 
-		// 5. 陌生模块任务
 		sm.initSmLocal();
 		const smTasks = sm.listTasks();
 		smTasks.forEach(t => {
@@ -243,33 +314,87 @@ const fetchTaskList = async () => {
 			});
 		});
 
+		const backendModuleConfigs: Array<{ moduleType: TaskData['moduleType']; moduleCode: string }> = [
+			{ moduleType: '定制', moduleCode: taskModule['定制模块'] },
+			{ moduleType: '问诊', moduleCode: taskModule['问诊模块'] },
+			{ moduleType: '线下', moduleCode: taskModule['线下模块'] },
+			{ moduleType: '图文', moduleCode: taskModule['图文模块'] },
+		];
+
+		const backendResults = await Promise.allSettled(
+			backendModuleConfigs.map(config => api.task.list({ moduleCode: config.moduleCode }))
+		);
+
+		backendResults.forEach((result, index) => {
+			const config = backendModuleConfigs[index];
+			if (result.status === 'rejected') {
+				console.error(`[TaskList] ${config.moduleType} 请求失败:`, result.reason);
+				return;
+			}
+			console.log(`[TaskList] ${config.moduleType} 模块返回数据:`, result.value.data?.length, '条', result.value.data);
+			(result.value.data || []).forEach((task: Task.List.Data) => {
+				allTasks.push({
+					taskId: task.taskId,
+					taskName: task.taskName,
+					moduleType: config.moduleType,
+					taskStatus: task.taskStatus,
+					endTime: task.endTime || '',
+				});
+			});
+		});
+
 		data.list = allTasks;
+		console.log('[TaskList] 汇总后的任务列表:', allTasks.length, allTasks);
 	} catch (e) {
 		console.error('获取任务列表失败:', e);
 	}
 };
 
 // 删除任务
-const handleDelete = (taskId: string) => {
-	data.isDeleting = true; // 设置删除标志
+const handleDelete = (taskId: string, moduleType: TaskData['moduleType']) => {
+	data.isDeleting = true;
 	uni.showModal({
 		title: '提示',
 		content: '确认删除该任务吗？',
-		success: (res) => {
+		success: async (res) => {
 			if (res.confirm) {
-				// 这里需要根据任务所属模块来删除
-				// 为了简化，暂时只删除熟悉模块的任务
-				// 实际应该先查找任务属于哪个模块，再调用对应删除方法
-				fm.initFamiliarLocal();
-				const deleted = fm.deleteTask(taskId);
+				let deleted = false;
+
+				try {
+					await api.task.delTask({ taskId });
+
+					if (moduleType === '熟悉') {
+						fm.initFamiliarLocal('familiar');
+						deleted = !!fm.deleteTask(taskId);
+					} else if (moduleType === '超熟') {
+						fm.initFamiliarLocal('super');
+						deleted = !!fm.deleteTask(taskId);
+					} else if (moduleType === '免费') {
+						fm.initFamiliarLocal('free');
+						deleted = !!fm.deleteTask(taskId);
+					} else if (moduleType === '不熟') {
+						um.initUmLocal();
+						deleted = !!um.deleteTask(taskId);
+					} else if (moduleType === '陌生') {
+						sm.initSmLocal();
+						deleted = !!sm.deleteTask(taskId);
+					} else {
+						deleted = true;
+					}
+				} catch (error) {
+					console.error('[TaskList] 删除任务失败:', error);
+					deleted = false;
+				}
+
 				if (deleted) {
+					data.list = data.list.filter((item: TaskData) => !(item.taskId === taskId && item.moduleType === moduleType));
 					uni.showToast({ title: '已删除', icon: 'none' });
 					fetchTaskList();
 				} else {
 					uni.showToast({ title: '删除失败', icon: 'none' });
 				}
 			}
-			// 延迟重置删除标志，确保不会触发跳转
+
 			setTimeout(() => {
 				data.isDeleting = false;
 			}, 300);
@@ -284,28 +409,21 @@ const handleRenew = (taskId: string) => {
 	fetchTaskList();
 };
 
-onLoad(() => {
-	fetchTaskList();
-});
-
-// 进入页面时刷新
-onShow(() => {
-	fetchTaskList();
-});
-
 // 监听数据同步完成事件
 const handleDataSyncCompleted = (event: { action: string }) => {
 	console.log('[TaskList] 收到数据同步完成事件:', event.action);
 	fetchTaskList();
 };
 
-// 页面加载时注册事件监听
 onLoad(() => {
 	uni.$on('dataSyncCompleted', handleDataSyncCompleted);
 	fetchTaskList();
 });
 
-// 页面卸载时移除事件监听
+onShow(() => {
+	fetchTaskList();
+});
+
 onUnmounted(() => {
 	uni.$off('dataSyncCompleted', handleDataSyncCompleted);
 });

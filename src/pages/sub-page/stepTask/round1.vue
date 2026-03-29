@@ -74,7 +74,7 @@
 
 <script setup lang="ts">
 import { reactive, ref } from 'vue';
-import { onLoad } from '@dcloudio/uni-app';
+import { onLoad, onShow } from '@dcloudio/uni-app';
 // 工具
 import { getRandomIntInclusive, hasItTimeOut } from '@/utils/util';
 import {
@@ -365,6 +365,10 @@ onLoad(async options => {
       getListInfo();
     }
   }
+});
+
+onShow(() => {
+  getUserVipLevel();
 });
 
 // 获取用户VIP等级

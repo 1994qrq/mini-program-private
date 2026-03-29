@@ -1,13 +1,42 @@
 import { ref } from 'vue';
 
-// 全局的tab badge状态 - 默认每个tab显示2个红点
-const tabBadges = ref({
-  task: 2,      // 对话列表
-  describe: 2,  // A0
-  index: 2,     // 首页
-  message: 2,   // 消息列表
-  my: 2,        // 我的
-});
+const TAB_BADGE_STORAGE_KEY = 'tab_badges_state';
+const DEFAULT_TAB_BADGES = {
+  task: 2,
+  describe: 2,
+  index: 2,
+  message: 2,
+  my: 2,
+};
+
+const loadBadgeState = () => {
+  try {
+    const saved = uni.getStorageSync(TAB_BADGE_STORAGE_KEY);
+    if (saved && typeof saved === 'object') {
+      return {
+        ...DEFAULT_TAB_BADGES,
+        ...saved,
+      };
+    }
+  } catch (error) {
+    console.error('[useTabBadge] 读取红点状态失败:', error);
+  }
+  return { ...DEFAULT_TAB_BADGES };
+};
+
+const saveBadgeState = () => {
+  try {
+    uni.setStorageSync(TAB_BADGE_STORAGE_KEY, { ...tabBadges.value });
+  } catch (error) {
+    console.error('[useTabBadge] 保存红点状态失败:', error);
+  }
+};
+
+const tabBadges = ref(loadBadgeState());
+
+const isLoggedIn = () => {
+  return !!uni.getStorageSync('token');
+};
 
 // Tab索引映射
 const tabIndexMap = {
@@ -23,6 +52,7 @@ export function useTabBadge() {
   const setBadge = (tabName, count) => {
     if (tabBadges.value.hasOwnProperty(tabName)) {
       tabBadges.value[tabName] = count;
+      saveBadgeState();
     }
   };
 
@@ -30,6 +60,7 @@ export function useTabBadge() {
   const showDot = (tabName) => {
     if (tabBadges.value.hasOwnProperty(tabName)) {
       tabBadges.value[tabName] = true;
+      saveBadgeState();
     }
   };
 
@@ -37,6 +68,7 @@ export function useTabBadge() {
   const hideBadge = (tabName) => {
     if (tabBadges.value.hasOwnProperty(tabName)) {
       tabBadges.value[tabName] = 0;
+      saveBadgeState();
     }
   };
 
@@ -45,8 +77,24 @@ export function useTabBadge() {
     return tabBadges.value[tabName] || 0;
   };
 
+  const resetBadges = () => {
+    tabBadges.value = { ...DEFAULT_TAB_BADGES };
+    saveBadgeState();
+  };
+
   // 获取所有badge状态（用于tab-bar组件）
   const getAllBadges = () => {
+    // 如果未登录，所有badge都为0
+    if (!isLoggedIn()) {
+      return {
+        task: 0,
+        describe: 0,
+        index: 0,
+        message: 0,
+        my: 0,
+      };
+    }
+
     const badges = {};
     for (const [name, count] of Object.entries(tabBadges.value)) {
       badges[tabIndexMap[name]] = count;
@@ -60,6 +108,7 @@ export function useTabBadge() {
     hideBadge,
     getBadge,
     getAllBadges,
+    resetBadges,
     tabBadges,
   };
 }

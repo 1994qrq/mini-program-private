@@ -205,7 +205,7 @@
 
 <script setup lang="ts">
 import { reactive, ref, computed, nextTick, onUnmounted, onMounted } from 'vue';
-import { onLoad } from '@dcloudio/uni-app';
+import { onLoad, onShow } from '@dcloudio/uni-app';
 import * as um from '@/utils/unfamiliar-local';
 import * as sm from '@/utils/stranger-local';
 import { getPlaceholder } from '@/utils/placeholder-manager';
@@ -216,7 +216,9 @@ const taskId = ref('');
 const taskName = ref('');
 const moduleTitle = ref('');
 const task = ref<any>(null);
-const userVipLevel = ref(1); // 用户VIP等级，默认VIP1
+const userVipLevel = ref(0); // 用户VIP等级，默认游客
+const remainingVirtual = ref(0);
+const currentSearchCost = ref(100);
 
 // 视图状态
 const currentView = ref<'content' | 'z' | 'd' | 'big_cd' | 'stage_cd' | 'tag_select'>('content');
@@ -293,7 +295,7 @@ const searchPlaceholder = ref('请输入对方的问题'); // 动态placeholder
 // 加载动态placeholder
 onMounted(async () => {
   try {
-    const moduleCode = moduleTitle.value.includes('不熟') ? '不熟模块' : '陌生模块';
+    const moduleCode = moduleTitle.value.includes('不熟') ? 'unfamiliar_module' : 'strange_module';
     searchPlaceholder.value = await getPlaceholder(moduleCode as any);
   } catch (error) {
     console.error('[round-new] 加载placeholder失败:', error);
@@ -349,15 +351,22 @@ onLoad((options: any) => {
   }
 });
 
+// 页面显示时刷新VIP等级（从充值页返回时）
+onShow(() => {
+  getUserVipLevel();
+});
+
 // 获取用户VIP等级
 const getUserVipLevel = async () => {
   try {
     const res = await api.common.info();
-    userVipLevel.value = res.data?.userLevel || 1;
-    console.log('[round-new] 用户VIP等级:', userVipLevel.value);
+    userVipLevel.value = res.data?.userLevel ?? 0;
+    remainingVirtual.value = Number(res.data?.remainingVirtual || 0);
+    console.log('[round-new] 用户VIP等级:', userVipLevel.value, '心币余额:', remainingVirtual.value, '原始余额值:', res.data?.remainingVirtual);
   } catch (error) {
     console.error('[round-new] 获取用户VIP等级失败:', error);
-    userVipLevel.value = 1; // 失败时默认VIP1
+    userVipLevel.value = 0; // 失败时默认游客
+    remainingVirtual.value = 0;
   }
 };
 
@@ -931,7 +940,10 @@ const handleZClick = () => {
 // 处理D点击
 const handleDClick = () => {
   console.log('[handleDClick] 点击D按钮');
-  // TODO: 实现D点击逻辑
+  const isUm = moduleTitle.value.includes('不熟');
+  isUm ? um.onDClick(taskId.value) : sm.onDClick(taskId.value);
+  loadTaskData();
+  uni.showToast({ title: '已进入下一条内容', icon: 'none' });
 };
 
 // 处理标签选择
@@ -978,6 +990,39 @@ const handleSearch = () => {
     return;
   }
 
+  console.log('[搜索] 当前心币余额:', remainingVirtual.value);
+  console.log('[搜索] 本次搜索费用:', currentSearchCost.value);
+  console.log('[搜索] 余额是否足够:', remainingVirtual.value >= currentSearchCost.value);
+
+  if (remainingVirtual.value < currentSearchCost.value) {
+    uni.showModal({
+      title: '心币不足',
+      content: `本次搜索需要 ${currentSearchCost.value} 心币，当前余额 ${remainingVirtual.value} 心币不足，请先充值。`,
+      confirmText: '去充值',
+      cancelText: '取消',
+      success: (res) => {
+        if (res.confirm) {
+          uni.navigateTo({ url: '/pages/recharge/index' });
+        }
+      }
+    });
+    return;
+  }
+
+  uni.showModal({
+    title: '搜索问答',
+    content: `本次搜索需要消耗 ${currentSearchCost.value} 心币，当前余额 ${remainingVirtual.value} 心币，是否继续？`,
+    confirmText: '确定',
+    cancelText: '取消',
+    success: (res) => {
+      if (res.confirm) {
+        executeSearch(keyword);
+      }
+    }
+  });
+};
+
+const executeSearch = (keyword: string) => {
   // 从本地库搜索
   const local = getAllContentLibraryData();
   const data = local?.data as any;
@@ -1009,6 +1054,15 @@ const handleSearch = () => {
 
   searchResults.value = results;
   searchDialog.value?.open();
+
+  const nextCost = Math.round(currentSearchCost.value * 1.6);
+  uni.showToast({
+    title: `搜索完成，消耗 ${currentSearchCost.value} 心币`,
+    icon: 'success'
+  });
+  remainingVirtual.value = Math.max(0, remainingVirtual.value - currentSearchCost.value);
+  currentSearchCost.value = nextCost;
+  searchKeyword.value = '';
 };
 
 // 问号说明

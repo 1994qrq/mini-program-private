@@ -548,23 +548,12 @@ onShow(() => {
       justify-content: space-between;
       flex: 1;
       gap: 12rpx;
-
-      .upgrade-tip {
-        font-size: 24rpx;
-        color: #8B4513;
-        font-weight: 300;
-        margin-left: 58rpx;
-        line-height: 1.4;
-        letter-spacing: 1rpx;
-        opacity: 0.9;
-        margin-top: 4rpx;
-      }
     }
     &-right {
       display: flex;
       flex-direction: column;
       align-items: flex-end;
-      justify-content: center;
+      justify-content: space-between;
 
       .guest-upgrade-tip {
         font-size: 26rpx;
@@ -576,6 +565,16 @@ onShow(() => {
         text-align: center;
         line-height: 1.4;
         box-shadow: 0 4rpx 12rpx rgba(217, 119, 6, 0.15);
+      }
+
+      .upgrade-tip {
+        font-size: 20rpx;
+        color: #8B4513;
+        font-weight: 400;
+        line-height: 1.3;
+        text-align: right;
+        opacity: 0.85;
+        margin-top: 8rpx;
       }
     }
   }
@@ -735,9 +734,11 @@ onShow(() => {
     position: fixed;
     bottom: 0;
     left: 0;
-    padding: 40rpx 40rpx calc($safe-bottom + 40rpx);
+    padding: 20rpx 20rpx $safe-bottom;
     box-sizing: border-box;
-    z-index: 10;
+    background: white;
+    box-shadow: 0 0 20rpx 0 #ebebeb80;
+    z-index: 98;
   }
 
 .bottom_bg {

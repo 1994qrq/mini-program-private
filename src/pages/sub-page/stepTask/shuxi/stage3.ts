@@ -25,8 +25,14 @@ import {
   finishTask,
   getTask
 } from '@/utils/familiar-local';
-// 第四阶段UI
-import enterStage4UI, { handleMultiChatComplete } from './stage4';
+import { handleMultiChatComplete } from './stage4';
+
+const getTaskListUrl = () => {
+  const pages = getCurrentPages();
+  const currentOptions = pages[pages.length - 1]?.options as Record<string, any> | undefined;
+  const moduleName = currentOptions?.module || '熟悉模块';
+  return `/pages/sub-page/stepTask/list?module=${encodeURIComponent(moduleName)}`;
+};
 
 const moduleCode = 'familiar_module';
 
@@ -89,9 +95,7 @@ const stage3RoundEnd = async (taskId: number) => {
       // 得分足够或特殊回合得分超过，直接进入第四阶段
       console.log('得分足够，直接进入第四阶段（无阶段CD）');
       // enterStage4已经在checkStage3RoundTransition中调用
-
-      // 调用第四阶段UI初始化函数，显示S20提示板
-      await enterStage4UI(taskId);
+      // 第四阶段UI由 round.vue 统一承接，避免双实现冲突
       break;
 
     case 'showPromptS15':
@@ -134,7 +138,7 @@ const stage3RoundEnd = async (taskId: number) => {
                 const result = halfPriceRestart(taskId);
                 if (result.ok) {
                   uni.showToast({ title: '任务已半价重开', icon: 'success' });
-                  uni.redirectTo({ url: '/pages/sub-page/stepTask/list?module=熟悉模块' });
+                  uni.redirectTo({ url: getTaskListUrl() });
                 }
               },
               {
@@ -144,7 +148,7 @@ const stage3RoundEnd = async (taskId: number) => {
                   console.log('用户选择结束任务');
                   finishTask(taskId);
                   uni.showToast({ title: '任务已结束', icon: 'success' });
-                  uni.redirectTo({ url: '/pages/sub-page/stepTask/list?module=熟悉模块' });
+                  uni.redirectTo({ url: getTaskListUrl() });
                 }
               }
             );
@@ -203,7 +207,7 @@ const stage3RoundEnd = async (taskId: number) => {
                 const result = halfPriceRestart(taskId);
                 if (result.ok) {
                   uni.showToast({ title: '任务已半价重开', icon: 'success' });
-                  uni.redirectTo({ url: '/pages/sub-page/stepTask/list?module=熟悉模块' });
+                  uni.redirectTo({ url: getTaskListUrl() });
                 }
               },
               {
@@ -212,7 +216,7 @@ const stage3RoundEnd = async (taskId: number) => {
                   // 结束任务
                   finishTask(taskId);
                   uni.showToast({ title: '任务已结束', icon: 'success' });
-                  uni.redirectTo({ url: '/pages/sub-page/stepTask/list?module=熟悉模块' });
+                  uni.redirectTo({ url: getTaskListUrl() });
                 }
               }
             );
@@ -244,7 +248,7 @@ const stage3RoundEnd = async (taskId: number) => {
               console.log('S19确认后，结束任务');
               finishTask(taskId);
               uni.showToast({ title: '任务已结束', icon: 'success' });
-              uni.redirectTo({ url: '/pages/sub-page/stepTask/list?module=熟悉模块' });
+              uni.redirectTo({ url: getTaskListUrl() });
             }
           );
         }
@@ -266,7 +270,7 @@ const stage3RoundEnd = async (taskId: number) => {
           const result = halfPriceRestart(taskId);
           if (result.ok) {
             uni.showToast({ title: '任务已半价重开', icon: 'success' });
-            uni.redirectTo({ url: '/pages/sub-page/stepTask/list?module=熟悉模块' });
+            uni.redirectTo({ url: getTaskListUrl() });
           }
         },
         {
@@ -276,7 +280,7 @@ const stage3RoundEnd = async (taskId: number) => {
             console.log('用户选择结束任务');
             finishTask(taskId);
             uni.showToast({ title: '任务已结束', icon: 'success' });
-            uni.redirectTo({ url: '/pages/sub-page/stepTask/list?module=熟悉模块' });
+            uni.redirectTo({ url: getTaskListUrl() });
           }
         }
       );

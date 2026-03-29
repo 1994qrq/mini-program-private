@@ -30,7 +30,6 @@
           @click="() => handleJump('step', item.label)">
           <md-icon type="bg" height="210" width="146" :name="'home/' + item.key"></md-icon>
           <view class="star-btn" @click.stop="handleModuleIntro(item.label)">★</view>
-          <view v-if="shouldShowMask(item.label)" class="module-mask"></view>
         </div>
       </div>
 
@@ -44,7 +43,6 @@
           @click="() => handleJump('imageText')">
           <md-icon type="bg" name="home/ao" width="176" height="316"></md-icon>
           <view class="star-btn" @click.stop="handleModuleIntro('图文模块')">★</view>
-          <view v-if="shouldShowMask('图文模块')" class="module-mask"></view>
         </div>
         <div class="four">
           <div
@@ -55,7 +53,6 @@
             @click="() => handleJump('wenzhen')">
             <md-icon type="bg" name="home/wenzhen" width="236" height="140"></md-icon>
             <view class="star-btn" @click.stop="handleModuleIntro('问诊模块')">★</view>
-            <view v-if="shouldShowMask('问诊模块')" class="module-mask"></view>
           </div>
           <div
             class="module-card item flex-c"
@@ -65,7 +62,6 @@
             @click="() => handleJump('step', '超熟模块')">
             <md-icon type="bg" name="home/chaoshu" width="212" height="164"></md-icon>
             <view class="star-btn" @click.stop="handleModuleIntro('超熟模块')">★</view>
-            <view v-if="shouldShowMask('超熟模块')" class="module-mask"></view>
           </div>
           <div
             class="module-card item flex-c"
@@ -75,7 +71,6 @@
             @click="() => handleJump('custom')">
             <md-icon type="bg" name="home/dingzhi" width="236" height="140"></md-icon>
             <view class="star-btn" @click.stop="handleModuleIntro('定制模块')">★</view>
-            <view v-if="shouldShowMask('定制模块')" class="module-mask"></view>
           </div>
           <div
             class="module-card item flex-c"
@@ -85,7 +80,6 @@
             @click="() => handleJump('key')">
             <md-icon type="bg" name="home/key" width="200" height="120"></md-icon>
             <view class="star-btn" @click.stop="handleModuleIntro('线下模块')">★</view>
-            <view v-if="shouldShowMask('线下模块')" class="module-mask"></view>
           </div>
         </div>
       </div>
@@ -97,7 +91,6 @@
         @click="() => handleJump('offline')">
         <md-icon type="bg" name="home/offline" width="100%" height="156" imageMode="scaleToFill"></md-icon>
         <view class="star-btn" @click.stop="handleModuleIntro('线下模块')">★</view>
-        <view v-if="shouldShowMask('线下模块')" class="module-mask"></view>
       </div>
       <div class="offline-tip">——据说 每颗星都有自己的小秘密</div>
     </div>
@@ -182,8 +175,6 @@ const isLoggedIn = () => !!uni.getStorageSync('token');
 
 const getUserLevel = () => data.info?.userLevel || 0;
 
-const isGuestUser = () => isLoggedIn() && getUserLevel() < 1;
-
 const getRequiredLevel = (module: string) => MODULE_PERMISSIONS[module] ?? 0;
 
 const isFreeModule = (module: string) => module === '免费模块';
@@ -201,22 +192,6 @@ const canAccessModule = (module: string) => {
   return getUserLevel() >= requiredLevel;
 };
 
-const shouldShowMask = (module: string) => {
-  if (isFreeModule(module)) {
-    return false;
-  }
-
-  if (!isLoggedIn()) {
-    return true;
-  }
-
-  if (isGuestUser()) {
-    return true;
-  }
-
-  return !canAccessModule(module);
-};
-
 const handleModuleIntro = (module: string) => {
   uni.navigateTo({
     url: `/pages/sub-page/describe/wenhao?pageTitle=${encodeURIComponent(module)}`,
@@ -224,22 +199,40 @@ const handleModuleIntro = (module: string) => {
 };
 
 const showModuleTip = (module?: string) => {
-  if (!module || isFreeModule(module)) {
+  if (!module) {
     return;
   }
 
   if (!isLoggedIn()) {
-    uni.navigateTo({
-      url: '/pages/login/index',
-    });
+    if (isFreeModule(module)) {
+      uni.showToast({
+        title: '登录可操作',
+        icon: 'none',
+        duration: 2000,
+      });
+    } else {
+      uni.showToast({
+        title: '会员开启',
+        icon: 'none',
+        duration: 2000,
+      });
+    }
     return;
   }
 
-  if (getUserLevel() < 1) {
-    uni.showToast({
-      title: '需要开通会员',
-      icon: 'none',
-      duration: 2000,
+  if (!isFreeModule(module) && getUserLevel() < 1) {
+    uni.showModal({
+      title: '提示',
+      content: '开启会员权限可以使用',
+      confirmText: '去充值',
+      cancelText: '取消',
+      success: (res) => {
+        if (res.confirm) {
+          uni.navigateTo({
+            url: '/pages/recharge/index',
+          });
+        }
+      }
     });
     return;
   }
@@ -261,8 +254,8 @@ const navigateByType = (type: string, module?: string) => {
       url: '/pages/sub-page/offline/list',
     });
   } else if (type === 'imageText') {
-    uni.navigateTo({
-      url: '/pages/sub-page/image-text/index',
+    uni.switchTab({
+      url: '/pages/image-text/index',
     });
   } else if (type === 'wenzhen') {
     uni.navigateTo({
@@ -290,16 +283,6 @@ const handleJump = (type: string, module?: string) => {
   }
 
   navigateByType(type, module);
-};
-
-// 显示来宾提示
-const showGuestTip = () => {
-  uni.showToast({
-    title: '请先成为会员',
-    icon: 'none',
-    duration: 3000,
-    mask: true, // 显示半透明遮罩
-  });
 };
 
 // 免责声明处理函数
@@ -430,13 +413,6 @@ onShow(() => {
     .module-card {
       position: relative;
       overflow: hidden;
-    }
-    .module-mask {
-      position: absolute;
-      inset: 0;
-      background: rgba(80, 80, 80, 0.45);
-      z-index: 2;
-      pointer-events: none;
     }
     .star-btn {
       position: absolute;

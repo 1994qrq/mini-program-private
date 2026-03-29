@@ -20,6 +20,9 @@ export interface Task {
   currentLibChain: CurrentLibChain | null; opponentFindUsedInRound: boolean; qaVipMaxItems?: number; questionnaire?: any; prompts?: Record<string, any>; askFlow?: Record<string, any>;
   renewHistory: Array<{ days: number; cost: number; at: number; success: boolean }>; listBadge: string; listCountdownEndAt: number | null; nextOpponentFindLibId?: string;
   waitingForPrompt: boolean; promptType: string | null; friendAdded: boolean; friendGreetingPending?: boolean;
+  searchQaCost?: number; // 当前搜索问答费用
+  searchQaCount?: number; // 已使用搜索问答次数
+  copiedSearchKeys?: string[]; // 已复制过的搜索结果key
     // 标签选择相关
     availableTagOptions: Array<{ id: string; label: string; type: 'opening' | 'content' | 'leaving' }>; // 当前可选的4个标签选项
     selectedTagId: string | null; // 用户选择的标签ID
@@ -34,6 +37,7 @@ export interface Settings {
     smallCopyCdMs: number; bigRoundMinMs: number; opponentFindWaitMs: number; opponentFindCopyEnableMs: number; idleWarnMs: number; idleForceCdMs: number;
     zDurationByStage: { minMs: number; maxMs: number }[];
   };
+  vip: { levels: { level: number; qaMaxItems: number }[] }; // VIP等级对应的问答搜索上限
 }
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -43,7 +47,7 @@ function get<T = any>(k: string): T { return uni.getStorageSync(k) as T }
 function set(k: string, v: any) { uni.setStorageSync(k, v); triggerSync(); }
 
 // 当前配置版本号
-const SETTINGS_VERSION = 3;
+const SETTINGS_VERSION = 4;
 
 export function initSmLocal() {
   const existingSettings: Settings | null = get('sm:settings');
@@ -67,6 +71,18 @@ export function initSmLocal() {
           { minMs: getCountdownTimeMs(6 * 60 * 1000), maxMs: getCountdownTimeMs(12 * 60 * 1000) },  // 6-12分钟Z倒计时
           { minMs: getCountdownTimeMs(6 * 60 * 1000), maxMs: getCountdownTimeMs(12 * 60 * 1000) },  // 6-12分钟Z倒计时
         ],
+      },
+      vip: {
+        levels: [
+          { level: 0, qaMaxItems: 2 },  // 游客：2条
+          { level: 1, qaMaxItems: 3 },  // VIP1：3条
+          { level: 2, qaMaxItems: 4 },  // VIP2：4条
+          { level: 3, qaMaxItems: 5 },  // VIP3：5条
+          { level: 4, qaMaxItems: 6 },  // VIP4：6条
+          { level: 5, qaMaxItems: 7 },  // VIP5：7条
+          { level: 6, qaMaxItems: 8 },  // VIP6：8条
+          { level: 7, qaMaxItems: 10 }, // VIP7：10条
+        ]
       },
     };
     set('sm:settings', settings);
@@ -277,14 +293,28 @@ export function listTasks(): { id: string; name: string; status: TaskStatus; bad
   return res;
 }
 
-export function createTask(payload: { name: string; durationDays: number }): { ok: boolean; reason?: string; task?: Task } {
+export function createTask(payload: { name: string; durationDays: number; userVipLevel?: number }): { ok: boolean; reason?: string; task?: Task } {
   initSmLocal();
-  const { name, durationDays } = payload;
+  const { name, durationDays, userVipLevel = 1 } = payload;
   if (!name || name.trim().length === 0 || name.trim().length > 6) return { ok: false, reason: '名称需1-6字' };
   const id = genId();
   const now = Date.now();
   const expireAt = now + durationDays * 24 * 60 * 60 * 1000;
   const settings: Settings = get('sm:settings');
+
+  // 根据用户VIP等级设置问答搜索上限
+  const vipLevels = settings?.vip?.levels || [
+    { level: 0, qaMaxItems: 2 },
+    { level: 1, qaMaxItems: 3 },
+    { level: 2, qaMaxItems: 4 },
+    { level: 3, qaMaxItems: 5 },
+    { level: 4, qaMaxItems: 6 },
+    { level: 5, qaMaxItems: 7 },
+    { level: 6, qaMaxItems: 8 },
+    { level: 7, qaMaxItems: 10 },
+  ];
+  const vipConfig = vipLevels.find(l => l.level === userVipLevel);
+  const qaMaxItems = vipConfig ? vipConfig.qaMaxItems : vipLevels[0].qaMaxItems;
 
   const task: Task = {
     id,
@@ -311,7 +341,7 @@ export function createTask(payload: { name: string; durationDays: number }): { o
     usedLibIdsByStage: {},
     currentLibChain: null,
     opponentFindUsedInRound: false,
-    qaVipMaxItems: 0,
+    qaVipMaxItems: qaMaxItems,
     questionnaire: {},
     prompts: {},
     askFlow: {},
@@ -322,6 +352,9 @@ export function createTask(payload: { name: string; durationDays: number }): { o
     promptType: 'friend_added',
     friendAdded: false,
     friendGreetingPending: false,
+    searchQaCost: 100, // 初始搜索费用100心币
+    searchQaCount: 0,  // 初始搜索次数0
+    copiedSearchKeys: [],
   };
 
   const ids: string[] = get('sm:tasks') || [];
@@ -330,6 +363,17 @@ export function createTask(payload: { name: string; durationDays: number }): { o
 }
 
 export function getTask(taskId: string): Task | null { initSmLocal(); const t: Task = get(`sm:task:${taskId}`); return t || null }
+
+export function markSearchResultCopied(taskId: string, key: string) {
+  initSmLocal();
+  const t = getTask(taskId);
+  if (!t || !key) return;
+  const copiedKeys = Array.isArray(t.copiedSearchKeys) ? t.copiedSearchKeys : [];
+  if (!copiedKeys.includes(key)) copiedKeys.push(key);
+  t.copiedSearchKeys = copiedKeys;
+  t.lastActionAt = Date.now();
+  set(`sm:task:${taskId}`, t);
+}
 
 function pickChain(group: Record<string, Chain[]>, libId: string): Chain | null { const arr = group[libId]; if (!arr || arr.length === 0) return null; return arr[0] }
 function setCurrentChain(t: Task, type: CurrentLibChain['type'], libId: string, chain: Chain) { t.currentLibChain = { type, libId, nodeIndex: 0, segmentsCopied: 0 }; markChainUsedInternal(t, libId, type) }
@@ -346,8 +390,56 @@ export function finishCurrentLibNode(taskId: string) { initSmLocal(); const t = 
 
 export function onZEnter(taskId: string) { initSmLocal(); const t = getTask(taskId); if (!t) return; const settings: Settings = get('sm:settings'); const range = settings.cd.zDurationByStage[t.stageIndex] || { minMs: 10000, maxMs: 20000 }; const dur = randInt(range.minMs, range.maxMs); t.zUnlockAt = Date.now() + dur; t.listBadge = 'Z倒计时'; t.listCountdownEndAt = t.zUnlockAt; set(`sm:task:${taskId}`, t) }
 export function onDEnter(taskId: string) { initSmLocal(); const t = getTask(taskId); if (!t) return; t.dMode = true; t.listBadge = 'D'; t.listCountdownEndAt = null; set(`sm:task:${taskId}`, t) }
+export function onDClick(taskId: string) { initSmLocal(); const t = getTask(taskId); if (!t) return; t.dMode = false; set(`sm:task:${taskId}`, t); advancePastCurrentNode(taskId) }
 
 export function onOpponentFindClick(taskId: string, libId = 'M20') { initSmLocal(); const t = getTask(taskId); if (!t) return; const libs: Libs = get('sm:libs'); const op = pickChain(libs.opponent, libId); if (op) setCurrentChain(t, 'opponent', libId, op); const settings: Settings = get('sm:settings'); t.opponentFindUsedInRound = true; t.opponentFindUnlockAt = Date.now(); t.opponentFindCopyUnlockAt = Date.now() + settings.cd.opponentFindCopyEnableMs; t.listBadge = '聊天任务进行中'; t.listCountdownEndAt = null; set(`sm:task:${taskId}`, t) }
+
+/**
+ * 执行搜索问答并更新费用
+ * @param taskId 任务ID
+ * @returns 搜索结果和新费用
+ */
+export function performSearchQa(taskId: string): { ok: boolean; cost: number; nextCost: number; reason?: string } {
+  initSmLocal();
+  const t = getTask(taskId);
+  if (!t) return { ok: false, cost: 0, nextCost: 0, reason: '任务不存在' };
+
+  const currentCost = t.searchQaCost || 100;
+
+  // 执行搜索（这里只更新费用，实际搜索逻辑在UI层处理）
+  t.searchQaCount = (t.searchQaCount || 0) + 1;
+
+  // 计算下次费用：当前费用 * 1.6
+  const nextCost = Math.round(currentCost * 1.6);
+  t.searchQaCost = nextCost;
+
+  set(`sm:task:${taskId}`, t);
+
+  console.log('[sm.performSearchQa] 搜索问答执行:', {
+    count: t.searchQaCount,
+    currentCost,
+    nextCost
+  });
+
+  return { ok: true, cost: currentCost, nextCost };
+}
+
+/**
+ * 重置搜索问答费用（任务续费时调用）
+ * @param taskId 任务ID
+ */
+export function resetSearchQaCost(taskId: string) {
+  initSmLocal();
+  const t = getTask(taskId);
+  if (!t) return;
+
+  t.searchQaCost = 100;
+  t.searchQaCount = 0;
+
+  set(`sm:task:${taskId}`, t);
+
+  console.log('[sm.resetSearchQaCost] 搜索问答费用已重置');
+}
 
 export function enterRoundBigCd(taskId: string, multiplier = 1) {
   initSmLocal();
@@ -484,6 +576,21 @@ export async function getCurrentChainContent(taskId: string): Promise<{ contentL
           else if (round === 3) nextLeavingId = 'M3';
           else if (round === 4) nextLeavingId = 'M2';
         } else if (stage === 2) {
+          // 第二阶段特殊库 M2.5 完成后直接进入下一阶段CD
+          if (t.currentLibChain!.libId === 'M2.5') {
+            const nextStage = (t as any).afterSpecialLibNextStage;
+            if (nextStage) {
+              delete (t as any).afterSpecialLibNextStage;
+              set(`sm:task:${taskId}`, t);
+              enterStageBigCd(taskId, nextStage);
+              const t2 = getTask(taskId);
+              if (t2) {
+                (t as any).currentLibChain = t2.currentLibChain;
+                (t as any).stageCdUnlockAt = t2.stageCdUnlockAt;
+              }
+              return true;
+            }
+          }
           // 第二阶段离库固定 M3
           nextLeavingId = 'M3';
         } else if (stage === 3) {
@@ -913,10 +1020,22 @@ function handleStage2Completion(taskId: string) {
   console.log('[handleStage2Completion] 第二阶段完成，分数:', t.stageScore, '阈值X:', X);
 
   if (t.stageScore > X) {
-    // 分数 > X：回复特殊库M2.5，所有消息回复给客户之后，则进入阶段间CD，CD时间结束，进入第三阶段
-    console.log('[handleStage2Completion] 分数 > X，回复特殊库M2.5，进入阶段间CD');
-    // TODO: 实现特殊库M2.5的逻辑
-    enterStageBigCd(taskId, 3);
+    // 分数 > X：回复特殊库M2.5，所有消息回复给客户之后，再进入阶段间CD并进入第三阶段
+    console.log('[handleStage2Completion] 分数 > X，进入特殊库M2.5');
+    const libs: Libs = get('sm:libs');
+    const chain = pickChain(libs.content, 'M2.5');
+    if (chain) {
+      setCurrentChain(t, 'content', 'M2.5', chain);
+      t.waitingForPrompt = false;
+      t.promptType = null;
+      (t as any).afterSpecialLibNextStage = 3;
+      t.listBadge = '聊天任务进行中';
+      t.listCountdownEndAt = null;
+      t.lastActionAt = Date.now();
+      set(`sm:task:${taskId}`, t);
+    } else {
+      enterStageBigCd(taskId, 3);
+    }
   } else {
     // 分数 ≤ X：弹出提示板M5询问用户是否坚持
     console.log('[handleStage2Completion] 分数 ≤ X，弹出提示板M5');
@@ -1123,6 +1242,34 @@ function enterStage4FailCountdown(taskId: string, failCount: number) {
 }
 
 // 处理提示板点击（陌生模块）
+// 真正执行半价重启：创建一个新任务并结束旧任务
+function halfRestartTask(taskId: string): { ok: boolean; reason?: string; newTaskId?: string } {
+  initSmLocal();
+  const t = getTask(taskId);
+  if (!t) return { ok: false, reason: '任务不存在' };
+
+  const res = createTask({
+    name: t.name,
+    durationDays: t.durationDays,
+  });
+
+  if (!res.ok || !res.task) {
+    return { ok: false, reason: res.reason || '创建新任务失败' };
+  }
+
+  t.status = 'deleted';
+  t.listBadge = '任务已结束';
+  t.listCountdownEndAt = null;
+  t.lastActionAt = Date.now();
+  set(`sm:task:${taskId}`, t);
+
+  const ids: string[] = get('sm:tasks') || [];
+  set('sm:tasks', ids.filter((i) => i !== taskId));
+
+  console.log('[sm.halfRestartTask] 半价重启成功:', { oldTaskId: taskId, newTaskId: res.task.id });
+  return { ok: true, newTaskId: res.task.id };
+}
+
 export function handlePromptAction(taskId: string, promptType: string, action: string) {
   initSmLocal();
   const t = getTask(taskId);
@@ -1300,12 +1447,12 @@ export function handlePromptAction(taskId: string, promptType: string, action: s
       break;
     }
     case 'stage4_halfprice_m13': {
-      // 暂未实现半价重开，先提供结束/返回选项
       if (action === 'half_restart') {
         clearPrompt();
-        t.status = 'deleted';
-        t.listBadge = '任务已结束';
-        t.listCountdownEndAt = null;
+        const restartResult = halfRestartTask(taskId);
+        if (!restartResult.ok) {
+          return { ok: false, reason: restartResult.reason || '半价重启失败' };
+        }
       } else if (action === 'close_task') {
         clearPrompt();
         t.status = 'deleted';

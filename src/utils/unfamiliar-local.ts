@@ -120,6 +120,9 @@ export function initUmLocal() {
     set('um:settings', settings);
     console.log('[initUmLocal] 配置已更新到版本', SETTINGS_VERSION);
   }
+
+  // 确保本地库已初始化，避免 friend_added 等链路读取 libs 时报空
+  _initUmLibs();
 }
 
 // 从后台更新大CD时间
@@ -540,6 +543,13 @@ export function onDEnter(taskId: string) {
   t.dMode = true; t.listBadge = 'D'; t.listCountdownEndAt = null;
   set(`um:task:${taskId}`, t);
 }
+export function onDClick(taskId: string) {
+  initUmLocal();
+  const t = getTask(taskId); if (!t) return;
+  t.dMode = false;
+  set(`um:task:${taskId}`, t);
+  advancePastCurrentNode(taskId);
+}
 
 // Opponent find
 export function onOpponentFindClick(taskId: string, libId = 'B20') {
@@ -707,6 +717,21 @@ export async function getCurrentChainContent(taskId: string): Promise<{ contentL
           else if (round === 3) nextLeavingId = 'B3';
           else if (round === 4) nextLeavingId = 'B2';
         } else if (stage === 2) {
+          // 第二阶段特殊库 B2.5 完成后直接进入下一阶段CD
+          if (t.currentLibChain!.libId === 'B2.5') {
+            const nextStage = (t as any).afterSpecialLibNextStage;
+            if (nextStage) {
+              delete (t as any).afterSpecialLibNextStage;
+              set(`um:task:${taskId}`, t);
+              enterStageCdToNextStage(taskId, nextStage);
+              const t2 = getTask(taskId);
+              if (t2) {
+                (t as any).currentLibChain = t2.currentLibChain;
+                (t as any).stageCdUnlockAt = t2.stageCdUnlockAt;
+              }
+              return true;
+            }
+          }
           // 第二阶段离库固定 B3
           nextLeavingId = 'B3';
         } else if (stage === 3) {
@@ -1141,10 +1166,22 @@ function handleStage2Completion(taskId: string) {
   console.log('[handleStage2Completion] 第二阶段完成，分数:', t.stageScore, '阈值X:', X);
 
   if (t.stageScore > X) {
-    // 分数 > X：回复特殊库B2.5，所有消息回复给客户之后，则进入阶段间CD，CD时间结束，进入第三阶段
-    console.log('[handleStage2Completion] 分数 > X，回复特殊库B2.5，进入阶段间CD');
-    // TODO: 实现特殊库B2.5的逻辑
-    enterStageCdToNextStage(taskId, 3);
+    // 分数 > X：回复特殊库B2.5，所有消息回复给客户之后，再进入阶段间CD并进入第三阶段
+    console.log('[handleStage2Completion] 分数 > X，进入特殊库B2.5');
+    const libs: Libs = get('um:libs');
+    const chain = pickChain(libs.content, 'B2.5');
+    if (chain) {
+      setCurrentChain(t, 'content', 'B2.5', chain);
+      t.waitingForPrompt = false;
+      t.promptType = null;
+      (t as any).afterSpecialLibNextStage = 3;
+      t.listBadge = '聊天任务进行中';
+      t.listCountdownEndAt = null;
+      t.lastActionAt = Date.now();
+      set(`um:task:${taskId}`, t);
+    } else {
+      enterStageCdToNextStage(taskId, 3);
+    }
   } else {
     // 分数 ≤ X：弹出提示板B9询问用户是否坚持
     console.log('[handleStage2Completion] 分数 ≤ X，弹出提示板B9');
@@ -1342,13 +1379,12 @@ export function handlePromptAction(taskId: string, promptType: string, action: s
     }
     case 'halfprice_restart': {
       if (action === 'half_restart') {
-        // 半价重启：结束当前任务（后续可接入支付逻辑创建新任务）
         clearPrompt();
-        t.status = 'deleted';
-        t.listBadge = '任务已结束';
-        t.listCountdownEndAt = null;
+        const restartResult = halfRestartTask(taskId);
+        if (!restartResult.ok) {
+          return { ok: false, reason: restartResult.reason || '半价重启失败' };
+        }
       } else if (action === 'close_task') {
-        // 直接结束任务
         clearPrompt();
         t.status = 'deleted';
         t.listBadge = '任务已结束';
@@ -1362,9 +1398,10 @@ export function handlePromptAction(taskId: string, promptType: string, action: s
       // 第三阶段B11引导后：半价重启 或 结束任务
       if (action === 'half_restart') {
         clearPrompt();
-        t.status = 'deleted';
-        t.listBadge = '任务已结束';
-        t.listCountdownEndAt = null;
+        const restartResult = halfRestartTask(taskId);
+        if (!restartResult.ok) {
+          return { ok: false, reason: restartResult.reason || '半价重启失败' };
+        }
       } else if (action === 'close_task') {
         clearPrompt();
         t.status = 'deleted';
@@ -1382,6 +1419,33 @@ export function handlePromptAction(taskId: string, promptType: string, action: s
   }
 
   return { ok: true };
+}
+// 真正执行半价重启：创建一个新任务并结束旧任务
+function halfRestartTask(taskId: string): { ok: boolean; reason?: string; newTaskId?: string } {
+  initUmLocal();
+  const t = getTask(taskId);
+  if (!t) return { ok: false, reason: '任务不存在' };
+
+  const res = createTask({
+    name: t.name,
+    durationDays: t.durationDays,
+  });
+
+  if (!res.ok || !res.task) {
+    return { ok: false, reason: res.reason || '创建新任务失败' };
+  }
+
+  t.status = 'deleted';
+  t.listBadge = '任务已结束';
+  t.listCountdownEndAt = null;
+  t.lastActionAt = Date.now();
+  set(`um:task:${taskId}`, t);
+
+  const ids: string[] = get('um:tasks') || [];
+  set('um:tasks', ids.filter((i) => i !== taskId));
+
+  console.log('[um.halfRestartTask] 半价重启成功:', { oldTaskId: taskId, newTaskId: res.task.id });
+  return { ok: true, newTaskId: res.task.id };
 }
 
 
@@ -1423,6 +1487,10 @@ export function confirmFriendAdded(taskId: string, added: boolean) {
   if (!t) return { ok: false, reason: '任务不存在' };
 
   const libs: Libs = get('um:libs');
+  if (!libs?.opening) {
+    console.error('[um.confirmFriendAdded] 本地库未初始化');
+    return { ok: false, reason: '本地内容库未初始化' };
+  }
 
   if (added) {
     // 用户选择"是"：回合数+1，进入第一回合，加载开库B1

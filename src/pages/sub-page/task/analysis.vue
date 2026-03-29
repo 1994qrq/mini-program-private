@@ -19,9 +19,7 @@
 					<view>分析中...</view>
 				</view>
 			</view>
-			<view class="bottom-btn">
-				<view class="btn">返回</view>
-			</view>
+			<bc-bottom-bar rightBtn :showOk="false" />
 		</view>
 	</md-page>
 </template>
@@ -116,29 +114,6 @@ const data = reactive({});
 			}
 			font-size: 48rpx;
 			font-weight: 600;
-		}
-	}
-	.bottom-btn {
-		width: 100%;
-		padding: 20rpx;
-		box-sizing: border-box;
-		position: fixed;
-		bottom: $safe-bottom;
-		left: 0;
-		background: white;
-		box-shadow: 0 0 20rpx 0 #ebebeb80;
-		z-index: 98;
-		gap: 20rpx;
-		display: flex;
-		justify-content: flex-end;
-		& > .btn {
-			width: 150rpx;
-			height: 72rpx;
-			line-height: 70rpx;
-			text-align: center;
-			border-radius: 16rpx;
-			border: 1rpx solid #222222;
-			font-size: 32rpx;
 		}
 	}
 }
