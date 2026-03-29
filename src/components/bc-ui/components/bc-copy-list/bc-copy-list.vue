@@ -123,10 +123,9 @@ const _setContent = (content: string) => {
 };
 
 const handleCopy = (item: any) => {
-  // 如果是模糊的内容，提示升级VIP
+  // 如果是模糊的内容，跳转到充值页面
   if (item.isBlurred) {
-    const requiredLevel = item.requiredVipLevel || 5;
-    Toast(`升级至VIP${requiredLevel}解锁更多内容`);
+    uni.navigateTo({ url: '/pages/recharge/index' });
     return;
   }
 

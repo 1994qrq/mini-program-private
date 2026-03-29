@@ -258,15 +258,38 @@ const runAskFlow = async (taskId: string): Promise<void> => {
 
   if (ask2Result.action === 'showPromptS2AndStartCountdown') {
     await showTipsBoard('S2', taskId);
-    uni.showToast({
-      title: '已设置倒计时，请等待倒计时结束后继续',
-      icon: 'none',
-      duration: 3000
-    });
 
-    setTimeout(() => {
-      goCurrentModuleList();
-    }, 3000);
+    // 超熟模块：直接进入第一阶段和对话页
+    if (currentModule.value === '超熟模块') {
+      console.log('[Questionnaire] 超熟模块，直接进入第一阶段');
+      const enterResult = enterStage1(taskId);
+      if (enterResult.ok) {
+        uni.showToast({
+          title: '欢迎进入第一阶段！',
+          icon: 'success',
+          duration: 2000
+        });
+        setTimeout(() => {
+          uni.redirectTo({ url: `/pages/sub-page/stepTask/round?module=超熟模块&taskId=${taskId}` });
+        }, 2000);
+      } else {
+        uni.showToast({ title: '进入第一阶段失败', icon: 'error', duration: 2000 });
+        setTimeout(() => {
+          goCurrentModuleList();
+        }, 2000);
+      }
+    } else {
+      // 熟悉模块：设置倒计时后返回列表页
+      uni.showToast({
+        title: '已设置倒计时，请等待倒计时结束后继续',
+        icon: 'none',
+        duration: 3000
+      });
+
+      setTimeout(() => {
+        goCurrentModuleList();
+      }, 3000);
+    }
   }
 };
 

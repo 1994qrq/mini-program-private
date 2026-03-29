@@ -415,10 +415,11 @@ onShow(() => {
     position: fixed;
     bottom: 0;
     left: 0;
-    padding: 40rpx 40rpx calc($safe-bottom + 40rpx);
+    padding: 20rpx 20rpx $safe-bottom;
     box-sizing: border-box;
     background: white;
-    box-shadow: 0 -4rpx 20rpx 0 rgba(0, 0, 0, 0.1);
+    box-shadow: 0 0 20rpx 0 #ebebeb80;
+    z-index: 98;
   }
 }
 

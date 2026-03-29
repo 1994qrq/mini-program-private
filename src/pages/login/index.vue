@@ -49,6 +49,7 @@ import DisclaimerModal from '@/components/DisclaimerModal.vue';
 import { hasUserAgreedDisclaimer, setUserAgreedDisclaimer } from '@/utils/disclaimer';
 // 内容库数据同步工具
 import { syncContentLibrary } from '@/utils/content-library-sync';
+import { clearSyncCache } from '@/utils/data-sync';
 
 const data = reactive<any>({
   userId: null,
@@ -61,6 +62,16 @@ const data = reactive<any>({
 
 const showDisclaimer = ref(false); // 是否显示免责声明弹窗
 const nicknameDialog = ref(null); // 用户名设置弹窗
+
+const clearLoginState = () => {
+  uni.removeStorageSync('token');
+  uni.removeStorageSync('userNickname');
+  uni.removeStorageSync('isRefresh');
+  clearSyncCache();
+  data.phoneCode = '';
+  data.nickname = '';
+  data.wxUserInfo = null;
+};
 
 // 等待 userId 获取完成（最多等待10秒）
 const waitForUserId = async (): Promise<boolean> => {
@@ -100,6 +111,7 @@ async function decryptPhoneNumber(e: any) {
   if (!hasUserAgreedDisclaimer()) {
     console.log('[decryptPhoneNumber] 用户尚未同意免责声明，显示弹窗');
     showDisclaimer.value = true;
+    clearLoginState();
     return;
   }
 
@@ -360,17 +372,16 @@ const handleDisclaimerAgree = () => {
 const handleDisclaimerDisagree = () => {
   console.log('[handleDisclaimerDisagree] 用户不同意免责声明');
   setUserAgreedDisclaimer(false);
+  clearLoginState();
   showDisclaimer.value = false;
 
-  // 显示不同意后的提示，并阻止继续登录
   uni.showModal({
-    title: '提示',
-    content: '很抱歉，您需要同意用户协议才能继续使用我们的服务。感谢您的理解。',
+    title: '登录失败',
+    content: '您需要同意免责声明后才能继续登录。',
     showCancel: false,
     confirmText: '知道了',
     success: () => {
-      // 用户点击确定后，可以选择退出小程序或停留在当前页面
-      console.log('[handleDisclaimerDisagree] 用户确认不同意，阻止登录流程');
+      console.log('[handleDisclaimerDisagree] 用户未同意免责声明，本次登录失败');
     }
   });
 };

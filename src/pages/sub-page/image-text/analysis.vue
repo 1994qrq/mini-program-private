@@ -1,5 +1,5 @@
 <template>
-  <md-page :title="data.prevPageQuery?.taskName">
+  <md-page :title="data.moduleTitle || data.prevPageQuery?.taskName">
     <view class="container">
       <bc-countdown desc="倒计时结束后，将刷新页面上的内容；" :time="data.time" />
       <block v-for="item in data.list" :key="item">
@@ -10,7 +10,10 @@
         showCountdown
         :countdownTime="data.bottomTime"
         okText="续时"
+        showBack
+        backText="返回"
         @ok="handleOk"
+        @back="handleBack"
         @timeup="countDownTimeup" />
     </view>
     <!-- 续时弹窗 -->
@@ -32,6 +35,7 @@ import api from '@/api';
 
 const data = reactive<any>({
   prevPageQuery: {}, // 上一个页面携带过来的参数
+  moduleTitle: '', // 模块标题
   list: [],
   time: '',
   bottomTime: '',
@@ -127,6 +131,14 @@ const handleCancel = () => {
   console.log('[图文分析] 取消续时');
   data.continuedTimeValue = '';
   popup.value!.close();
+};
+
+// 返回按钮处理
+const handleBack = () => {
+  console.log('[图文分析] 点击返回按钮');
+  uni.navigateBack({
+    delta: 1
+  });
 };
 
 // 获取问题答案列表
@@ -244,6 +256,13 @@ const fetchDropList = async () => {
 
 onLoad(option => {
   data.prevPageQuery = option as Record<string, any>;
+
+  // 从路由参数中获取模块标题
+  if (option?.moduleName) {
+    data.moduleTitle = decodeURIComponent(option.moduleName as string);
+    console.log('[图文分析] 从路由参数获取模块标题:', data.moduleTitle);
+  }
+
   getQuestionAnswerList(option?.taskId);
   fetchDropList();
 });

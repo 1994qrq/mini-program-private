@@ -175,8 +175,6 @@ const isLoggedIn = () => !!uni.getStorageSync('token');
 
 const getUserLevel = () => data.info?.userLevel || 0;
 
-const isGuestUser = () => isLoggedIn() && getUserLevel() < 1;
-
 const getRequiredLevel = (module: string) => MODULE_PERMISSIONS[module] ?? 0;
 
 const isFreeModule = (module: string) => module === '免费模块';
@@ -222,11 +220,19 @@ const showModuleTip = (module?: string) => {
     return;
   }
 
-  if (getUserLevel() < 1) {
-    uni.showToast({
-      title: isFreeModule(module) ? '登录可操作' : '会员开启',
-      icon: 'none',
-      duration: 2000,
+  if (!isFreeModule(module) && getUserLevel() < 1) {
+    uni.showModal({
+      title: '提示',
+      content: '开启会员权限可以使用',
+      confirmText: '去充值',
+      cancelText: '取消',
+      success: (res) => {
+        if (res.confirm) {
+          uni.navigateTo({
+            url: '/pages/recharge/index',
+          });
+        }
+      }
     });
     return;
   }
@@ -248,8 +254,8 @@ const navigateByType = (type: string, module?: string) => {
       url: '/pages/sub-page/offline/list',
     });
   } else if (type === 'imageText') {
-    uni.navigateTo({
-      url: '/pages/sub-page/image-text/index',
+    uni.switchTab({
+      url: '/pages/image-text/index',
     });
   } else if (type === 'wenzhen') {
     uni.navigateTo({
@@ -277,16 +283,6 @@ const handleJump = (type: string, module?: string) => {
   }
 
   navigateByType(type, module);
-};
-
-// 显示来宾提示
-const showGuestTip = () => {
-  uni.showToast({
-    title: '请先成为会员',
-    icon: 'none',
-    duration: 3000,
-    mask: true, // 显示半透明遮罩
-  });
 };
 
 // 免责声明处理函数

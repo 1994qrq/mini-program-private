@@ -63,7 +63,13 @@ const data = reactive<any>({
 });
 const popup = ref<any>(null);
 
-const onSwipeClick = () => {
+const onSwipeClick = (taskId?: string) => {
+  // 立即从列表中移除该任务
+  if (taskId) {
+    data.list = data.list.filter((item: any) => String(item.taskId) !== String(taskId));
+  }
+
+  // 异步刷新列表
   getTaskList();
 };
 

@@ -246,7 +246,7 @@ const handleJump = async (item: Task.List.Data) => {
   if (t && t.stageIndex === 0 && t.stageCdUnlockAt) {
     const now = Date.now();
     if (now < t.stageCdUnlockAt) {
-      uni.showToast({ title: '倒计时未结束，请耐心等待', icon: 'none', duration: 2000 });
+      uni.navigateTo({ url: `/pages/sub-page/stepTask/round?module=${currentModule}&taskId=${item.taskId}` });
       return;
     }
 
@@ -275,7 +275,8 @@ const handleJump = async (item: Task.List.Data) => {
   if (item.stepType === 'familiar_s2') {
     const _hasItTimeOut = hasItTimeOut(item?.endTime);
     if (!_hasItTimeOut) {
-      uni.showToast({ title: '倒计时未结束，请耐心等待', icon: 'none', duration: 2000 });
+      // 倒计时未结束也允许进入，用户可以在详情页使用"对方找"和"搜索"功能
+      uni.navigateTo({ url: `/pages/sub-page/stepTask/round?module=${currentModule}&taskId=${item.taskId}` });
       return;
     }
     await handleQuestion3(String(item.taskId));
@@ -492,6 +493,11 @@ const fetchCreateTask = async (params: { taskName: string; durationDays: number;
     const name = (params.taskName || '').slice(0, 6);
     const title = data.title || '';
 
+    console.log('[创建任务] 开始创建任务');
+    console.log('[创建任务] data.title:', data.title);
+    console.log('[创建任务] title:', title);
+    console.log('[创建任务] params:', params);
+
     if (title.includes('不熟')) {
       um.initUmLocal();
       const res = um.createTask({ name, durationDays: params.durationDays });
@@ -610,8 +616,12 @@ const handleDataSyncCompleted = (event: { action: string }) => {
 onLoad(async (options: any) => {
   uni.$on('dataSyncCompleted', handleDataSyncCompleted);
   const module = options?.module as taskModuleKey;
+  console.log('[StepTaskList] onLoad options:', options);
+  console.log('[StepTaskList] module 参数:', module);
+  console.log('[StepTaskList] taskModule[module]:', taskModule[module]);
   data.module = taskModule[module];
   data.title = module;
+  console.log('[StepTaskList] data.title 设置为:', data.title);
   data.isFirstLoad = true;
   await getTaskList(taskModule[module]);
   data.bottom_bg = await convertToBase64('/static/images/page_bottom_bg.png');

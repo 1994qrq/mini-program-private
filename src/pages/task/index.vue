@@ -255,6 +255,7 @@ const handleJump = async (item: TaskData) => {
 
 // 查询所有模块的任务列表
 const fetchTaskList = async () => {
+	console.log('[TaskList] 开始查询所有模块任务列表');
 	try {
 		const allTasks: TaskData[] = [];
 
@@ -325,8 +326,12 @@ const fetchTaskList = async () => {
 		);
 
 		backendResults.forEach((result, index) => {
-			if (result.status !== 'fulfilled') return;
 			const config = backendModuleConfigs[index];
+			if (result.status === 'rejected') {
+				console.error(`[TaskList] ${config.moduleType} 请求失败:`, result.reason);
+				return;
+			}
+			console.log(`[TaskList] ${config.moduleType} 模块返回数据:`, result.value.data?.length, '条', result.value.data);
 			(result.value.data || []).forEach((task: Task.List.Data) => {
 				allTasks.push({
 					taskId: task.taskId,
@@ -339,6 +344,7 @@ const fetchTaskList = async () => {
 		});
 
 		data.list = allTasks;
+		console.log('[TaskList] 汇总后的任务列表:', allTasks.length, allTasks);
 	} catch (e) {
 		console.error('获取任务列表失败:', e);
 	}
@@ -354,24 +360,30 @@ const handleDelete = (taskId: string, moduleType: TaskData['moduleType']) => {
 			if (res.confirm) {
 				let deleted = false;
 
-				if (moduleType === '熟悉') {
-					fm.initFamiliarLocal('familiar');
-					deleted = !!fm.deleteTask(taskId);
-				} else if (moduleType === '超熟') {
-					fm.initFamiliarLocal('super');
-					deleted = !!fm.deleteTask(taskId);
-				} else if (moduleType === '免费') {
-					fm.initFamiliarLocal('free');
-					deleted = !!fm.deleteTask(taskId);
-				} else if (moduleType === '不熟') {
-					um.initUmLocal();
-					deleted = !!um.deleteTask(taskId);
-				} else if (moduleType === '陌生') {
-					sm.initSmLocal();
-					deleted = !!sm.deleteTask(taskId);
-				} else {
+				try {
 					await api.task.delTask({ taskId });
-					deleted = true;
+
+					if (moduleType === '熟悉') {
+						fm.initFamiliarLocal('familiar');
+						deleted = !!fm.deleteTask(taskId);
+					} else if (moduleType === '超熟') {
+						fm.initFamiliarLocal('super');
+						deleted = !!fm.deleteTask(taskId);
+					} else if (moduleType === '免费') {
+						fm.initFamiliarLocal('free');
+						deleted = !!fm.deleteTask(taskId);
+					} else if (moduleType === '不熟') {
+						um.initUmLocal();
+						deleted = !!um.deleteTask(taskId);
+					} else if (moduleType === '陌生') {
+						sm.initSmLocal();
+						deleted = !!sm.deleteTask(taskId);
+					} else {
+						deleted = true;
+					}
+				} catch (error) {
+					console.error('[TaskList] 删除任务失败:', error);
+					deleted = false;
 				}
 
 				if (deleted) {

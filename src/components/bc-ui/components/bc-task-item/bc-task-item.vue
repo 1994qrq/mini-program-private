@@ -337,52 +337,58 @@ const fetchRenewTime = async () => {
 const fetchDelTask = async () => {
   try {
     const taskType = props.taskType;
+    const taskId = props.item.id || props.item.taskId;
+
+    await api.task.delTask({ taskId });
 
     if (taskType === '熟悉') {
       fm.initFamiliarLocal('familiar');
-      const deleted = fm.deleteTask(props.item.id || props.item.taskId);
+      const deleted = fm.deleteTask(taskId);
       if (deleted) {
         uni.showToast({ title: '已删除', icon: 'none' });
-        emit('swipeClick');
+        emit('swipeClick', taskId);
       } else {
         uni.showToast({ title: '删除失败', icon: 'none' });
       }
     } else if (taskType === '超熟') {
       fm.initFamiliarLocal('super');
-      const deleted = fm.deleteTask(props.item.id || props.item.taskId);
+      const deleted = fm.deleteTask(taskId);
       if (deleted) {
         uni.showToast({ title: '已删除', icon: 'none' });
-        emit('swipeClick');
+        emit('swipeClick', taskId);
       } else {
         uni.showToast({ title: '删除失败', icon: 'none' });
       }
     } else if (taskType === '不熟') {
       um.initUmLocal();
-      const deleted = um.deleteTask(props.item.id || props.item.taskId);
+      const deleted = um.deleteTask(taskId);
       if (deleted) {
         uni.showToast({ title: '已删除', icon: 'none' });
-        emit('swipeClick');
+        emit('swipeClick', taskId);
       } else {
         uni.showToast({ title: '删除失败', icon: 'none' });
       }
     } else if (taskType === '陌生') {
       sm.initSmLocal();
-      const deleted = sm.deleteTask(props.item.id || props.item.taskId);
+      const deleted = sm.deleteTask(taskId);
       if (deleted) {
         uni.showToast({ title: '已删除', icon: 'none' });
-        emit('swipeClick');
+        emit('swipeClick', taskId);
       } else {
         uni.showToast({ title: '删除失败', icon: 'none' });
       }
     } else if (taskType === '免费') {
       fm.initFamiliarLocal('free');
-      fm.deleteTask(props.item.id || props.item.taskId);
-      uni.showToast({ title: '已删除', icon: 'none' });
-      emit('swipeClick');
+      const deleted = fm.deleteTask(taskId);
+      if (deleted) {
+        uni.showToast({ title: '已删除', icon: 'none' });
+        emit('swipeClick', taskId);
+      } else {
+        uni.showToast({ title: '删除失败', icon: 'none' });
+      }
     } else {
-      await api.task.delTask({ taskId: props.item.taskId });
       uni.showToast({ title: '已删除', icon: 'none' });
-      emit('swipeClick');
+      emit('swipeClick', taskId);
     }
   } catch (error) {
     console.error('删除任务失败:', error);
